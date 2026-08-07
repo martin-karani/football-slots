@@ -1,0 +1,39 @@
+# Rust
+target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+project_context.py
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+football-slots-mobile/node_modules/
+football-slots-mobile/.expo/
+football-slots-mobile/.expo-shared/
+football-slots-mobile/dist/
+football-slots-mobile/*.jks
+football-slots-mobile/*.p8
+football-slots-mobile/*.p12
+football-slots-mobile/*.mobileprovision
+football-slots-mobile/*.orig.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# SQLx data
+.sqlx/

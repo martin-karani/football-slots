@@ -1,0 +1,104 @@
+use axum::{
+    middleware as axum_mw,
+    routing::{get, post},
+    Router,
+};
+use std::sync::Arc;
+
+use crate::adapters::web::handlers::{auth, game, health, mpesa, not_found, wallet};
+use crate::adapters::web::middleware::auth_middleware;
+use crate::config::Config;
+use crate::domain::services::{
+    game_engine::GameEngineImpl, mpesa_service::MpesaServiceImpl, rng::ProvablyFairRng,
+    wallet_service::WalletServiceImpl,
+};
+use crate::ports::repositories::{
+    GameRepository, MpesaRepository, UserRepository, WalletRepository,
+};
+
+/// Application state shared across all handlers.
+pub struct AppState {
+    pub user_repo: Arc<dyn UserRepository>,
+    pub wallet_repo: Arc<dyn WalletRepository>,
+    pub game_repo: Arc<dyn GameRepository>,
+    pub mpesa_repo: Arc<dyn MpesaRepository>,
+    pub game_engine: Arc<GameEngineImpl>,
+    pub wallet_service: Arc<WalletServiceImpl>,
+    pub mpesa_service: Arc<MpesaServiceImpl>,
+    pub rng: Arc<ProvablyFairRng>,
+    pub config: Config,
+}
+
+pub fn create_router(
+    user_repo: Arc<dyn UserRepository>,
+    wallet_repo: Arc<dyn WalletRepository>,
+    game_repo: Arc<dyn GameRepository>,
+    mpesa_repo: Arc<dyn MpesaRepository>,
+    game_engine: Arc<GameEngineImpl>,
+    wallet_service: Arc<WalletServiceImpl>,
+    mpesa_service: Arc<MpesaServiceImpl>,
+    rng: Arc<ProvablyFairRng>,
+    config: &Config,
+) -> Router {
+    let state = Arc::new(AppState {
+        user_repo,
+        wallet_repo,
+        game_repo,
+        mpesa_repo,
+        game_engine,
+        wallet_service,
+        mpesa_service,
+        rng,
+        config: config.clone(),
+    });
+
+    // Auth routes (public)
+    let auth_routes = Router::new()
+        .route("/send-otp", post(auth::send_otp))
+        .route("/verify-otp", post(auth::verify_otp))
+        .with_state(state.clone());
+
+    // Auth routes (authenticated) – e.g. /auth/me
+    let auth_protected_routes = Router::new()
+        .route("/me", get(auth::me))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state.clone());
+
+    // Game routes (authenticated)
+    let game_routes = Router::new()
+        .route("/spin", post(game::spin))
+        .route("/gamble", post(game::gamble))
+        .route("/history", get(game::history))
+        .route("/verify", post(game::verify))
+        .route("/reveal-seed", get(game::reveal_seed))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state.clone());
+
+    // Wallet routes (authenticated)
+    let wallet_routes = Router::new()
+        .route("/balance", get(wallet::balance))
+        .route("/ledger", get(wallet::ledger))
+        .route("/topup-virtual", post(wallet::topup_virtual))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state.clone());
+
+    // M-Pesa routes (deposit is authenticated, callback is public webhook)
+    let mpesa_routes = Router::new()
+        .route("/deposit", post(mpesa::initiate_deposit))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .route("/callback", post(mpesa::handle_callback)) // public webhook – no auth
+        .with_state(state.clone());
+
+    // Health checks
+    let health_routes = Router::new()
+        .route("/ready", get(health::ready))
+        .route("/alive", get(health::alive));
+
+    Router::new()
+        .merge(health_routes)
+        .nest("/api/v1/auth", auth_routes.merge(auth_protected_routes))
+        .nest("/api/v1/game", game_routes)
+        .nest("/api/v1/wallet", wallet_routes)
+        .nest("/api/v1/mpesa", mpesa_routes)
+        .fallback(not_found)
+}

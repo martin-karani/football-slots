@@ -1,0 +1,44 @@
+{
+  "name": "football-slots-mobile",
+  "version": "1.0.0",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "private": true,
+  "dependencies": {
+    "@react-navigation/bottom-tabs": "^7.18.15",
+    "@react-navigation/native": "^7.3.15",
+    "@react-navigation/stack": "^7.10.20",
+    "axios": "^1.19.0",
+    "expo": "^57.0.11",
+    "expo-font": "^57.0.1",
+    "expo-secure-store": "^57.0.1",
+    "expo-status-bar": "^57.0.1",
+    "react": "19.2.3",
+    "react-native": "^0.86.2",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-linear-gradient": "^2.8.3",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "^4.26.2",
+    "react-native-svg": "15.15.4",
+    "react-native-web": "^0.21.2",
+    "react-native-worklets": "^0.10.3",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@types/react": "^19.2.18",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.1",
+    "react-native-svg-transformer": "^1.5.3",
+    "typescript": "^5.9.3"
+  }
+}
