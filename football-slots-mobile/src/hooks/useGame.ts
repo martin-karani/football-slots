@@ -3,6 +3,7 @@ import { Alert } from "react-native";
 import { gameApi, walletApi } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
 import { useWheelAnimator } from "./useWheelAnimator";
+import { useToast } from "../components/Toast";
 
 export function useGame() {
   const currency = useGameStore((state) => state.currency);
@@ -22,6 +23,7 @@ export function useGame() {
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
 
   const { step, startSpin, stopOnIndex, stopAnimation } = useWheelAnimator();
+  const { showSuccess, showError, showWarning, showInfo } = useToast();
 
   const generateClientSeed = useCallback(() => {
     return Array.from({ length: 32 }, () =>
@@ -35,7 +37,7 @@ export function useGame() {
     }
     const totalStake = getTotalStake();
     if (totalStake === 0) {
-      Alert.alert("Place Bet", "Place at least one bet");
+      showWarning("Place at least one bet", "Place Bet");
       return;
     }
 
@@ -52,19 +54,16 @@ export function useGame() {
                 try {
                   const res = await walletApi.topupVirtual();
                   setBalance("virtual", res.data.balance_minor);
-                  Alert.alert(
-                    "🎉 Refilled!",
-                    "1,000 FUN credits added! You can spin now.",
-                  );
+                  showSuccess("1,000 FUN credits added! You can spin now.", "🎉 Refilled!");
                 } catch {
-                  Alert.alert("Error", "Failed to refill credits. Try again.");
+                  showError("Failed to refill credits. Try again.");
                 }
               },
             },
           ],
         );
       } else {
-        Alert.alert("Balance", "Insufficient balance");
+        showWarning("Insufficient balance", "Balance");
       }
       return;
     }
@@ -91,7 +90,7 @@ export function useGame() {
       stopAnimation();
       const message =
         error.response?.data?.message || "Spin failed. Try again.";
-      Alert.alert("Error", message);
+      showError(message);
     } finally {
       setSpinning(false);
     }
@@ -110,6 +109,9 @@ export function useGame() {
     startSpin,
     stopOnIndex,
     stopAnimation,
+    showSuccess,
+    showError,
+    showWarning,
   ]);
 
   const toggleAutoSpin = useCallback(() => {
@@ -146,16 +148,16 @@ export function useGame() {
         updateBalance(currency, result.net_result_minor);
 
         if (result.won) {
-          Alert.alert(
-            "Gamble",
-            `🎉 You won the gamble! +${result.payout_minor}`,
+          showSuccess(
+            `+${result.payout_minor}`,
+            "🎉 Gamble Won!",
           );
         } else {
-          Alert.alert("Gamble", "😔 Gamble lost. Better luck next time!");
+          showInfo("Better luck next time!", "Gamble Lost");
         }
       } catch (error: any) {
         console.error("Gamble failed:", error);
-        Alert.alert("Error", "Gamble failed. Try again.");
+        showError("Gamble failed. Try again.");
       }
     },
     [
@@ -165,6 +167,9 @@ export function useGame() {
       setLastGamble,
       updateBalance,
       currency,
+      showSuccess,
+      showInfo,
+      showError,
     ],
   );
 

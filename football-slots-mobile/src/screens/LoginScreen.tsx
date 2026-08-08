@@ -8,10 +8,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { authApi, authStorage } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
+import { useToast } from "../components/Toast";
 
 export function LoginScreen() {
   const [phone, setPhone] = useState("");
@@ -19,10 +19,11 @@ export function LoginScreen() {
   const [step, setStep] = useState<"phone" | "code">("phone");
   const [loading, setLoading] = useState(false);
   const setAuth = useGameStore((state) => state.setAuth);
+  const { showError } = useToast();
 
   const sendOtp = async () => {
     if (phone.length < 10) {
-      Alert.alert("Error", "Enter a valid phone number");
+      showError("Enter a valid phone number");
       return;
     }
 
@@ -31,10 +32,7 @@ export function LoginScreen() {
       await authApi.sendOtp(phone);
       setStep("code");
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Failed to send OTP",
-      );
+      showError(error.response?.data?.message || "Failed to send OTP");
     } finally {
       setLoading(false);
     }
@@ -42,7 +40,7 @@ export function LoginScreen() {
 
   const verify = async () => {
     if (code.length !== 6) {
-      Alert.alert("Error", "Enter the 6-digit OTP code");
+      showError("Enter the 6-digit OTP code");
       return;
     }
 
@@ -54,10 +52,7 @@ export function LoginScreen() {
       await authStorage.setToken(token);
       setAuth(phone_number, kyc_status);
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Verification failed",
-      );
+      showError(error.response?.data?.message || "Verification failed");
     } finally {
       setLoading(false);
     }

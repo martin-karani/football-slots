@@ -81,6 +81,6 @@ pub struct GambleRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum GambleChoice {
-    Home,  // 1-7
-    Away,  // 8-14
+    Home,  // 1-12
+    Away,  // 13-24
 }

@@ -38,9 +38,10 @@ pub struct GambleRound {
 }
 
 /// Determine if a gamble choice wins based on the result number.
+/// The RNG produces 1-24; Home wins on 1-12, Away wins on 13-24 (50/50).
 pub fn evaluate_gamble(choice: GambleChoice, result_number: u8) -> bool {
     match choice {
-        GambleChoice::Home => result_number >= 1 && result_number <= 7,
-        GambleChoice::Away => result_number >= 8 && result_number <= 14,
+        GambleChoice::Home => result_number >= 1 && result_number <= 12,
+        GambleChoice::Away => result_number >= 13 && result_number <= 24,
     }
 }

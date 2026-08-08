@@ -1,14 +1,15 @@
 import { useEffect, useCallback } from "react";
-import { Alert } from "react-native";
 import { walletApi, mpesaApi } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
 import { CurrencyType } from "../types";
+import { useToast } from "../components/Toast";
 
 export function useWallet(currency?: CurrencyType) {
   const activeCurrency = useGameStore((state) => state.currency);
   const setBalance = useGameStore((state) => state.setBalance);
   const isAuthenticated = useGameStore((state) => state.isAuthenticated);
   const targetCurrency = currency || activeCurrency;
+  const { showSuccess, showError, showInfo } = useToast();
 
   const fetchBalance = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -27,31 +28,25 @@ export function useWallet(currency?: CurrencyType) {
       try {
         const amountMinor = amountKES * 100;
         await mpesaApi.deposit(phoneNumber, amountMinor);
-        Alert.alert(
-          "Deposit",
-          "STK Push sent to your phone. Complete the payment.",
-        );
+        showInfo("STK Push sent to your phone. Complete the payment.", "Deposit");
       } catch (error: any) {
         console.error("Deposit failed:", error);
-        Alert.alert(
-          "Error",
-          error.response?.data?.message || "Deposit failed. Try again.",
-        );
+        showError(error.response?.data?.message || "Deposit failed. Try again.");
       }
     },
-    [],
+    [showInfo, showError],
   );
 
   const topupVirtual = useCallback(async () => {
     try {
       const res = await walletApi.topupVirtual();
       setBalance('virtual', res.data.balance_minor);
-      Alert.alert('🎉 Refilled!', 'Your FUN wallet has been credited with 1,000 FUN credits.');
+      showSuccess('Your FUN wallet has been credited with 1,000 FUN credits.', '🎉 Refilled!');
     } catch (error) {
       console.error('Failed to refill FUN wallet:', error);
-      Alert.alert('Error', 'Failed to refill FUN credits. Try again.');
+      showError('Failed to refill FUN credits. Try again.');
     }
-  }, [setBalance]);
+  }, [setBalance, showSuccess, showError]);
 
   useEffect(() => {
     if (!isAuthenticated) return;

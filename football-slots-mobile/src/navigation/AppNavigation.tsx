@@ -8,6 +8,7 @@ import { HistoryScreen } from '../screens/HistoryScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { useGameStore } from '../store/GameProvider';
 import { authApi, authStorage } from '../api/client';
+import { ToastProvider } from '../components/Toast';
 
 const Stack = createStackNavigator();
 
@@ -47,44 +48,46 @@ export function AppNavigation() {
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <>
-          {/* Full-screen Game — no tab bar */}
-          <Stack.Screen name="Game" component={GameScreen} />
-          {/* Settings hub */}
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{ presentation: 'modal' }}
-          />
-          {/* Wallet pushed from Settings */}
-          <Stack.Screen
-            name="Wallet"
-            component={WalletScreen}
-            options={{
-              headerShown: true,
-              headerStyle: { backgroundColor: '#1a0d3d' },
-              headerTintColor: '#FFD700',
-              headerTitle: '💰 Wallet',
-            }}
-          />
-          {/* History pushed from Settings */}
-          <Stack.Screen
-            name="History"
-            component={HistoryScreen}
-            options={{
-              headerShown: true,
-              headerStyle: { backgroundColor: '#1a0d3d' },
-              headerTintColor: '#FFD700',
-              headerTitle: '📜 Bet History',
-            }}
-          />
-        </>
-      ) : (
-        <Stack.Screen name="Login" component={LoginScreen} />
-      )}
-    </Stack.Navigator>
+    <ToastProvider>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {isAuthenticated ? (
+          <>
+            {/* Full-screen Game — no tab bar */}
+            <Stack.Screen name="Game" component={GameScreen} />
+            {/* Settings hub */}
+            <Stack.Screen
+              name="Settings"
+              component={SettingsScreen}
+              options={{ presentation: 'modal' }}
+            />
+            {/* Wallet pushed from Settings */}
+            <Stack.Screen
+              name="Wallet"
+              component={WalletScreen}
+              options={{
+                headerShown: true,
+                headerStyle: { backgroundColor: '#1a0d3d' },
+                headerTintColor: '#FFD700',
+                headerTitle: '💰 Wallet',
+              }}
+            />
+            {/* History pushed from Settings */}
+            <Stack.Screen
+              name="History"
+              component={HistoryScreen}
+              options={{
+                headerShown: true,
+                headerStyle: { backgroundColor: '#1a0d3d' },
+                headerTintColor: '#FFD700',
+                headerTitle: '📜 Bet History',
+              }}
+            />
+          </>
+        ) : (
+          <Stack.Screen name="Login" component={LoginScreen} />
+        )}
+      </Stack.Navigator>
+    </ToastProvider>
   );
 }
 

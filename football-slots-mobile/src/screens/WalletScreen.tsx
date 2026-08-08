@@ -6,11 +6,11 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
 } from "react-native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { CurrencyType } from "../types";
+import { useToast } from "../components/Toast";
 
 import { authStorage } from "../api/client";
 
@@ -20,6 +20,7 @@ export function WalletScreen() {
   const _setCurrency = useGameStore((state) => state.setCurrency);
   const clearAuth = useGameStore((state) => state.clearAuth);
   const { deposit, fetchBalance, topupVirtual } = useWallet();
+  const { showError } = useToast();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
@@ -38,11 +39,11 @@ export function WalletScreen() {
   const handleDeposit = async () => {
     const amount = parseInt(depositAmount);
     if (!amount || amount < 10) {
-      Alert.alert("Minimum deposit is KES 10");
+      showError("Minimum deposit is KES 10");
       return;
     }
     if (!depositPhone || depositPhone.length < 10) {
-      Alert.alert("Enter a valid M-Pesa phone number");
+      showError("Enter a valid M-Pesa phone number");
       return;
     }
 
