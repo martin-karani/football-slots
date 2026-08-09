@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { AuthResponse, SpinResult, GambleResult, WalletBalance, LedgerEntry, GameRound } from '../types';
+import { AuthResponse, SpinResult, PaytableResponse, WalletBalance, LedgerEntry, GameRound } from '../types';
 
 // Android Emulator uses 10.0.2.2 to reach the host machine's localhost
 const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
@@ -61,14 +61,20 @@ export const gameApi = {
   spin: (currency: string, bets: Record<string, number>, clientSeed: string) =>
     client.post('/game/spin', { currency, bets, client_seed: clientSeed }) as Promise<{ data: SpinResult }>,
 
-  gamble: (gameRoundId: string, choice: 'home' | 'away', clientSeed?: string) =>
-    client.post('/game/gamble', { game_round_id: gameRoundId, choice, client_seed: clientSeed }) as Promise<{ data: GambleResult }>,
-
   history: (limit = 50, offset = 0) =>
     client.get('/game/history', { params: { limit, offset } }) as Promise<{ data: { rounds: GameRound[]; total: number } }>,
 
-  verify: (serverSeed: string, clientSeed: string, nonce: number, expectedPosition: number) =>
-    client.post('/game/verify', { server_seed: serverSeed, client_seed: clientSeed, nonce, expected_position: expectedPosition }),
+  verify: (serverSeed: string, clientSeed: string, nonce: number, expectedSymbol: string, paytableVersion: number) =>
+    client.post('/game/verify', {
+      server_seed: serverSeed,
+      client_seed: clientSeed,
+      nonce,
+      expected_symbol: expectedSymbol,
+      paytable_version: paytableVersion,
+    }),
+
+  paytable: () =>
+    client.get('/game/paytable') as Promise<{ data: PaytableResponse }>,
 };
 
 // ============================================================

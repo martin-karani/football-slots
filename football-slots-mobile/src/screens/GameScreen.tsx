@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -13,8 +13,18 @@ import { useGameStore } from "../store/GameProvider";
 import { useGame } from "../hooks/useGame";
 import { useWallet } from "../hooks/useWallet";
 import { WheelDisplay } from "../components/WheelDisplay";
-import { GambleModal } from "../components/GambleModal";
-import { SYMBOLS, CHIP_VALUES, CurrencyType } from "../types";
+import { PaytableModal } from "../components/PaytableModal";
+import { WinCelebration } from "../components/WinCelebration";
+import {
+  SYMBOLS,
+  CHIP_VALUES,
+  CurrencyType,
+  toMinor,
+  fromMinor,
+  formatMinor,
+  currencyLabel,
+} from "../types";
+import { useSound } from "../hooks/useSound";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  "ARCADE MACHINE" THEME
@@ -24,33 +34,42 @@ import { SYMBOLS, CHIP_VALUES, CurrencyType } from "../types";
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function GameScreen() {
-  const isSpinning     = useGameStore((s) => s.isSpinning);
-  const lastSpin       = useGameStore((s) => s.lastSpin);
-  const currency       = useGameStore((s) => s.currency);
-  const setCurrency    = useGameStore((s) => s.setCurrency);
-  const showGamble     = useGameStore((s) => s.showGambleModal);
-  const setShowGamble  = useGameStore((s) => s.setShowGambleModal);
-  const clearBets      = useGameStore((s) => s.clearBets);
-  const totalStake     = useGameStore((s) => s.getTotalStake());
-  const balances       = useGameStore((s) => s.balances);
-  const currentBets    = useGameStore((s) => s.currentBets);
-  const selectedChip   = useGameStore((s) => s.selectedChip);
-  const setSelected    = useGameStore((s) => s.setSelectedChip);
-  const placeBet       = useGameStore((s) => s.placeBet);
-  const removeBet      = useGameStore((s) => s.removeBet);
+  const isSpinning = useGameStore((s) => s.isSpinning);
+  const lastSpin = useGameStore((s) => s.lastSpin);
+  const currency = useGameStore((s) => s.currency);
+  const setCurrency = useGameStore((s) => s.setCurrency);
+  const clearBets = useGameStore((s) => s.clearBets);
+  const totalStake = useGameStore((s) => s.getTotalStake());
+  const balances = useGameStore((s) => s.balances);
+  const currentBets = useGameStore((s) => s.currentBets);
+  const selectedChip = useGameStore((s) => s.selectedChip);
+  const setSelected = useGameStore((s) => s.setSelectedChip);
+  const placeBet = useGameStore((s) => s.placeBet);
+  const removeBet = useGameStore((s) => s.removeBet);
+  const [showPaytable, setShowPaytable] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
 
-  const { spin, gamble, step } = useGame();
+  const { spin, step } = useGame();
   const { fetchBalance } = useWallet();
+  const { play: playSound } = useSound();
   const navigation = useNavigation<any>();
 
-  useEffect(() => { fetchBalance(); }, [currency]);
+  useEffect(() => {
+    fetchBalance();
+  }, [currency]);
 
-  const winAmount      = lastSpin?.is_win ? lastSpin.gross_payout : 0;
-  const balance        = balances[currency];
-  const chipMultiplier = currency === "real" ? 100 : 1;
-  const fmtBal         = (n: number) => (n / 100).toFixed(2);
-  const currLabel      = currency === "real" ? "KES" : currency === "bonus" ? "BONUS" : "FUN";
-  const isReal         = currency === "real";
+  const winAmount = lastSpin?.is_win ? lastSpin.gross_payout : 0;
+
+  // Trigger celebration on new win
+  useEffect(() => {
+    if (lastSpin?.is_win && lastSpin.gross_payout > 0) {
+      setShowCelebration(true);
+    }
+  }, [lastSpin?.round_id]);
+  const balanceMinor = balances[currency];
+  const isReal = currency === "real";
+  const totalStakeDisplay = fromMinor(totalStake, currency);
+  const winAmountDisplay = fromMinor(winAmount, currency);
 
   return (
     <SafeAreaView style={st.root}>
@@ -60,26 +79,37 @@ export function GameScreen() {
           OUTER MACHINE BODY — cherry-red with thick brass gold border
        ══════════════════════════════════════════════════════════════════ */}
       <View style={st.machine}>
-
         {/* Side brass light-rail pillars */}
         <View style={st.railL} pointerEvents="none">
-          {[...Array(14)].map((_, i) => <View key={i} style={st.railDot} />)}
+          {[...Array(14)].map((_, i) => (
+            <View key={i} style={st.railDot} />
+          ))}
         </View>
         <View style={st.railR} pointerEvents="none">
-          {[...Array(14)].map((_, i) => <View key={i} style={st.railDot} />)}
+          {[...Array(14)].map((_, i) => (
+            <View key={i} style={st.railDot} />
+          ))}
         </View>
 
         {/* ═══════════════════════════════════════════════════════════
             HEADER — rich purple marquee bar
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.header}>
-          <Text style={st.headerTxt}>⚽  FOOTBALL SLOTS  ⚽</Text>
-          <TouchableOpacity
-            style={st.menuBtn}
-            onPress={() => navigation.navigate("Settings")}
-          >
-            <Text style={st.menuBtnTxt}>≡</Text>
-          </TouchableOpacity>
+          <Text style={st.headerTxt}>⚽ FOOTBALL SLOTS ⚽</Text>
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <TouchableOpacity
+              style={st.menuBtn}
+              onPress={() => setShowPaytable(true)}
+            >
+              <Text style={st.menuBtnTxt}>?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={st.menuBtn}
+              onPress={() => navigation.navigate("Settings")}
+            >
+              <Text style={st.menuBtnTxt}>≡</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* ═══════════════════════════════════════════════════════════
@@ -88,23 +118,65 @@ export function GameScreen() {
         <View style={[st.balBar, isReal ? st.balBarReal : st.balBarFun]}>
           <View style={st.balLeft}>
             <Text style={st.balCoin}>{isReal ? "💰" : "🎮"}</Text>
-            <Text style={[st.balNum, isReal ? st.balNumReal : st.balNumFun]}>{fmtBal(balance)}</Text>
-            <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrFun]}>{currLabel}</Text>
+            <Text style={[st.balNum, isReal ? st.balNumReal : st.balNumFun]}>
+              {formatMinor(balanceMinor, currency)}
+            </Text>
+            <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrFun]}>
+              {currencyLabel(currency)}
+            </Text>
           </View>
           <View style={st.modePill}>
             {(["virtual", "real"] as CurrencyType[]).map((k) => (
               <TouchableOpacity
                 key={k}
-                style={[st.modeBtn, currency === k && (k === "real" ? st.modeBtnOnReal : st.modeBtnOnFun)]}
+                style={[
+                  st.modeBtn,
+                  currency === k &&
+                    (k === "real" ? st.modeBtnOnReal : st.modeBtnOnFun),
+                ]}
                 onPress={() => setCurrency(k)}
               >
-                <Text style={[st.modeTxt, currency === k && (k === "real" ? st.modeTxtOnReal : st.modeTxtOnFun)]}>
+                <Text
+                  style={[
+                    st.modeTxt,
+                    currency === k &&
+                      (k === "real" ? st.modeTxtOnReal : st.modeTxtOnFun),
+                  ]}
+                >
                   {k === "virtual" ? "🎮 FUN" : "💰 KES"}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
+
+        {/* ═══════════════════════════════════════════════════════════
+            BONUS METER BAR
+         ═══════════════════════════════════════════════════════════ */}
+        {lastSpin && (
+          <View style={st.bonusMeterBar}>
+            <Text style={st.bonusMeterLabel}>🎯 GOAL BONUS</Text>
+            <View style={st.bonusMeterTrack}>
+              <View
+                style={[
+                  st.bonusMeterFill,
+                  {
+                    width: `${Math.min(
+                      ((lastSpin.bonus_progress_current ?? 0) /
+                        Math.max(lastSpin.bonus_progress_target ?? 1, 1)) *
+                        100,
+                      100,
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={st.bonusMeterText}>
+              {lastSpin.bonus_progress_current ?? 0} /{" "}
+              {lastSpin.bonus_progress_target ?? 300}
+            </Text>
+          </View>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════
             SLOT WHEEL BOARD
@@ -115,19 +187,18 @@ export function GameScreen() {
             CONTROL DECK — darker red machine bottom
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.deck}>
-
           {/* ── ROW 1: INFO BAR (WIN / STAKE / GIFT) ───────────────── */}
           <View style={st.infoBar}>
             <View style={st.infoPiece}>
               <View style={st.winBadge}>
                 <Text style={st.winBadgeTxt}>WIN</Text>
               </View>
-              <Text style={st.infoVal}>{winAmount || 0}</Text>
+              <Text style={st.infoVal}>{winAmountDisplay}</Text>
             </View>
 
             <View style={st.infoPiece}>
               <Text style={st.infoLabel}>Stake</Text>
-              <Text style={st.infoVal}>{totalStake}</Text>
+              <Text style={st.infoVal}>{totalStakeDisplay}</Text>
             </View>
 
             <View style={{ flex: 1 }} />
@@ -151,13 +222,17 @@ export function GameScreen() {
             {/* GO button in metallic 3D platform socket */}
             <View style={st.goPlatformSocket}>
               <TouchableOpacity
-                style={[st.goBtnBase, isReal ? st.goBtnReal : st.goBtnFun, (isSpinning || totalStake === 0) && st.goBtnOff]}
+                style={[
+                  st.goBtnBase,
+                  isReal ? st.goBtnReal : st.goBtnFun,
+                  (isSpinning || totalStake === 0) && st.goBtnOff,
+                ]}
                 onPress={spin}
                 disabled={isSpinning || totalStake === 0}
                 activeOpacity={0.8}
               >
                 <Text style={st.goLabel}>{isSpinning ? "⏳" : "GO"}</Text>
-                <Text style={st.goSub}>About to Pay {totalStake}</Text>
+                <Text style={st.goSub}>About to Pay {totalStakeDisplay}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -170,43 +245,53 @@ export function GameScreen() {
 
           {/* ── ROW 3: CHIP SELECTORS SHELF ────────────────────────── */}
           <View style={st.chipShelf}>
-
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={st.chipRow}
               bounces={false}
             >
-              {CHIP_VALUES.slice().reverse().map((v) => (
-                <TouchableOpacity
-                  key={v}
-                  style={[st.chip, selectedChip === v && st.chipOn]}
-                  onPress={() => setSelected(v)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[st.chipTxt, selectedChip === v && st.chipTxtOn]}>
-                    {v}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {CHIP_VALUES.slice()
+                .reverse()
+                .map((v) => (
+                  <TouchableOpacity
+                    key={v}
+                    style={[st.chip, selectedChip === v && st.chipOn]}
+                    onPress={() => setSelected(v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[st.chipTxt, selectedChip === v && st.chipTxtOn]}
+                    >
+                      {v}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
             </ScrollView>
           </View>
 
           {/* ── SHELF: CLUB LOGOS (deepest/darkest shelf) ──────────── */}
           <View style={st.clubShelf}>
             {SYMBOLS.map((sym) => {
-              const bet = currentBets[sym.key] || 0;
+              const betMinor = currentBets[sym.key] || 0;
+              const betDisplay = fromMinor(betMinor, currency);
               return (
                 <TouchableOpacity
                   key={sym.key}
-                  style={[st.clubCard, bet > 0 && st.clubCardOn]}
-                  onPress={() => placeBet(sym.key, selectedChip * chipMultiplier)}
-                  onLongPress={() => removeBet(sym.key, selectedChip * chipMultiplier)}
+                  style={[st.clubCard, betMinor > 0 && st.clubCardOn]}
+                  onPress={() => {
+                    placeBet(sym.key, toMinor(selectedChip, currency));
+                    playSound("bet_place");
+                  }}
+                  onLongPress={() => {
+                    removeBet(sym.key, toMinor(selectedChip, currency));
+                    playSound("bet_remove");
+                  }}
                   activeOpacity={0.7}
                 >
                   {sym.icon && <sym.icon width={28} height={28} />}
-                  <Text style={[st.clubBet, bet > 0 && st.clubBetOn]}>
-                    {bet > 0 ? bet : "00"}
+                  <Text style={[st.clubBet, betMinor > 0 && st.clubBetOn]}>
+                    {betMinor > 0 ? betDisplay : "00"}
                   </Text>
                 </TouchableOpacity>
               );
@@ -215,11 +300,18 @@ export function GameScreen() {
         </View>
       </View>
 
-      <GambleModal
-        visible={showGamble}
-        onClose={() => setShowGamble(false)}
-        onChoice={(c) => gamble(c)}
-        winAmount={lastSpin?.gross_payout || 0}
+      <PaytableModal
+        visible={showPaytable}
+        onClose={() => setShowPaytable(false)}
+      />
+      <WinCelebration
+        visible={showCelebration}
+        winAmountMinor={lastSpin?.gross_payout || 0}
+        stakeMinor={lastSpin?.total_stake || 0}
+        symbol={lastSpin?.symbol_display || ""}
+        multiplier={lastSpin?.multiplier || 0}
+        currency={currency}
+        onDone={() => setShowCelebration(false)}
       />
     </SafeAreaView>
   );
@@ -229,7 +321,6 @@ export function GameScreen() {
 //  STYLES
 // ─────────────────────────────────────────────────────────────────────────────
 const st = StyleSheet.create({
-
   // ── Root background (deep purple like Fruit Slots) ────────────────────────
   root: {
     flex: 1,
@@ -260,7 +351,9 @@ const st = StyleSheet.create({
   // ── Side wood light-rails ────────────────────────────────────────────────
   railL: {
     position: "absolute",
-    left: 0, top: 0, bottom: 0,
+    left: 0,
+    top: 0,
+    bottom: 0,
     width: 10,
     backgroundColor: "#8a1020",
     borderRightWidth: 2,
@@ -272,7 +365,9 @@ const st = StyleSheet.create({
   },
   railR: {
     position: "absolute",
-    right: 0, top: 0, bottom: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     width: 10,
     backgroundColor: "#8a1020",
     borderLeftWidth: 2,
@@ -448,10 +543,14 @@ const st = StyleSheet.create({
     shadowRadius: 8,
     elevation: 12,
     position: "relative",
+    paddingBottom: 8,
   },
   watermarkContainer: {
     position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 0,
@@ -574,7 +673,7 @@ const st = StyleSheet.create({
     borderRadius: 10,
     padding: 3,
     borderWidth: 2,
-    borderTopColor: "#d0d0d0",  // Specular silver top highlight
+    borderTopColor: "#d0d0d0", // Specular silver top highlight
     borderLeftColor: "#b0b0b0",
     borderBottomColor: "#404040", // Dark bottom metallic shadow
     borderRightColor: "#404040",
@@ -680,119 +779,164 @@ const st = StyleSheet.create({
     borderBottomColor: "#3a060d", // Flattening 2D transition into lower shelf
   },
 
-
-
-
-  // ── Chip shelf (stake input shelf - 3D top cliff lip, straightening bottom) ─
+  // ── Chip shelf (stake input shelf - physical arcade coin-slot tray) ────────
   chipShelf: {
-    backgroundColor: "#600814",
-    borderTopWidth: 3,
-    borderTopColor: "#a06030", // 3D wood cliff lip catching top light
+    backgroundColor: "#400610",
+    borderTopWidth: 4,
+    borderTopColor: "#8b5a2b",
     borderBottomWidth: 3,
-    borderBottomColor: "#2a040a", // Straightening 2D bevel edge into club shelf
+    borderBottomColor: "#2a040a",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+    elevation: 3,
   },
   chipRow: {
     flexDirection: "row",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    gap: 7,
     alignItems: "center",
   },
   chip: {
-    minWidth: 40,
-    height: 34,
-    borderRadius: 6,
-    backgroundColor: "#3a2200",      // dark brown/gold inactive
+    minWidth: 42,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: "#2a1604",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     borderWidth: 2,
-    borderTopColor: "#6a4400",
-    borderLeftColor: "#6a4400",
-    borderBottomColor: "#1a0e00",
-    borderRightColor: "#1a0e00",
+    borderTopColor: "#4a2f0a",
+    borderLeftColor: "#4a2f0a",
+    borderBottomColor: "#140802",
+    borderRightColor: "#140802",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.55,
     shadowRadius: 2,
     elevation: 3,
   },
   chipOn: {
-    backgroundColor: "#ffd700",       // bright gold active
-    borderTopColor: "#fff8cc",
-    borderLeftColor: "#fff8cc",
-    borderBottomColor: "#aa8800",
-    borderRightColor: "#aa8800",
+    backgroundColor: "#2a1604",
+    borderWidth: 3,
+    borderTopColor: "#fff4a0",
+    borderLeftColor: "#ffe066",
+    borderBottomColor: "#ffb020",
+    borderRightColor: "#ffc040",
     shadowColor: "#ffd700",
     shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 10,
+    elevation: 10,
   },
   chipTxt: {
-    color: "#c8a030",
+    color: "#8a6820",
     fontWeight: "900",
     fontSize: 13,
+    letterSpacing: 0.3,
   },
   chipTxtOn: {
-    color: "#3a1800",
+    color: "#ffe080",
     fontWeight: "900",
+    fontSize: 14,
+    letterSpacing: 0.3,
+    textShadowColor: "#ff9900",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
   },
 
-  // ── Club logos shelf (flat base plane with slanted 3D keypads) ───────────────
+  // ── Club logos shelf (deepest recessed tray with arcade keypad tiles) ───────
   clubShelf: {
     flexDirection: "row",
-    backgroundColor: "#380610",
-    paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 14,
-    marginBottom: 6,
-    borderTopWidth: 2,
-    borderTopColor: "#500a16", // Smooth flattening transition top edge
+    backgroundColor: "#200308",
+    paddingHorizontal: 5,
+    paddingTop: 14,
+    paddingBottom: 18,
+    marginBottom: 4,
+    borderTopWidth: 4,
+    borderTopColor: "#6a4218",
+    borderBottomWidth: 2,
+    borderBottomColor: "#0a0103",
   },
   clubCard: {
     flex: 1,
-    height: 54,
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#24050a", // Dark angled 3D button tile
+    backgroundColor: "#180207",
     marginHorizontal: 2,
-    borderRadius: 6,
+    borderRadius: 7,
     borderWidth: 2,
-    borderTopColor: "#5c121e", // Slanted top highlight
-    borderLeftColor: "#480e18",
-    borderBottomColor: "#100204", // Dark bottom base shadow
-    borderRightColor: "#100204",
-    transform: [{ perspective: 400 }, { rotateX: "10deg" }], // 3D forward-slanted perspective
+    borderTopColor: "#3a0a14",
+    borderLeftColor: "#2e0810",
+    borderBottomWidth: 3,
+    borderBottomColor: "#060001",
+    borderRightWidth: 3,
+    borderRightColor: "#060001",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.6,
-    shadowRadius: 3,
-    elevation: 4,
+    shadowRadius: 2,
+    elevation: 3,
   },
   clubCardOn: {
-    backgroundColor: "#2e7d32", // Bright green active keypad matching reference image
-    borderTopColor: "#81c784",
-    borderLeftColor: "#66bb6a",
-    borderBottomColor: "#1b5e20",
-    borderRightColor: "#1b5e20",
-    shadowColor: "#4caf50",
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 6,
+    backgroundColor: "#180207",
+    borderWidth: 3,
+    borderTopColor: "#80ffff",
+    borderLeftColor: "#40e0ff",
+    borderBottomColor: "#0099cc",
+    borderRightColor: "#00aadd",
+    shadowColor: "#00ddff",
+    shadowOpacity: 1,
+    shadowRadius: 9,
+    elevation: 9,
   },
   clubBet: {
-    color: "#553030",
+    color: "#4a2020",
     fontSize: 9,
     fontWeight: "900",
     marginTop: 2,
     fontVariant: ["tabular-nums"],
   },
   clubBetOn: {
-    color: "#ffd700",
+    color: "#80ffff",
+    textShadowColor: "#00aaff",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 5,
+  },
+
+  // ── Bonus Meter ────────────────────────────────────────────────────────────
+  bonusMeterBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    gap: 8,
+  },
+  bonusMeterLabel: {
+    color: "#FFD700",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  bonusMeterTrack: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  bonusMeterFill: {
+    height: "100%",
+    backgroundColor: "#FFD700",
+    borderRadius: 4,
+  },
+  bonusMeterText: {
+    color: "#ccc",
+    fontSize: 10,
+    fontWeight: "600",
+    minWidth: 50,
+    textAlign: "right",
   },
 });

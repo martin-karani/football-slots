@@ -17,21 +17,24 @@ export interface SpinResult {
   server_seed_hash: string;
   client_seed: string;
   nonce: number;
+  paytable_version?: number;
   bonus_claimed?: boolean;
   bonus_progress_current?: number;
   bonus_progress_target?: number;
 }
 
-export interface GambleResult {
-  game_round_id: string;
-  stake_minor: number;
-  choice: "home" | "away";
-  result_number: number;
-  won: boolean;
-  payout_minor: number;
-  net_result_minor: number;
-  server_seed_hash: string;
-  nonce: number;
+export interface PaytableRow {
+  symbol: string;
+  display_name: string;
+  tier: string;
+  multiplier: number;
+  probability: number; // 0.19048 = 19.048%
+}
+
+export interface PaytableResponse {
+  paytable_version: number;
+  rtp: number;
+  symbols: PaytableRow[];
 }
 
 export interface WalletBalance {
@@ -74,9 +77,9 @@ export interface GameRound {
 import ArsenalIcon from "../../assets/clubs-icons/arsenal.svg";
 import BarcelonaIcon from "../../assets/clubs-icons/barcelona.svg";
 import BayernIcon from "../../assets/clubs-icons/bayern.svg";
-import ChelseaIcon from "../../assets/clubs-icons/chelsea.svg";
 import LiverpoolIcon from "../../assets/clubs-icons/liverpool.svg";
 import ManCityIcon from "../../assets/clubs-icons/man_city.svg";
+import ParisIcon from "../../assets/clubs-icons/paris.svg";
 import RealMadridIcon from "../../assets/clubs-icons/real_madrid.svg";
 import UclTrophyIcon from "../../assets/clubs-icons/ucl_trophy.svg";
 
@@ -87,6 +90,7 @@ export const SYMBOLS = [
     icon: BarcelonaIcon,
     color: "#003DA5",
     tier: "common",
+    multiplier: 5,
   },
   {
     key: "real_madrid",
@@ -94,6 +98,7 @@ export const SYMBOLS = [
     icon: RealMadridIcon,
     color: "#7c6c3e",
     tier: "common",
+    multiplier: 5,
   },
   {
     key: "man_city",
@@ -101,6 +106,7 @@ export const SYMBOLS = [
     icon: ManCityIcon,
     color: "#6CABDD",
     tier: "common",
+    multiplier: 5,
   },
   {
     key: "liverpool",
@@ -108,13 +114,15 @@ export const SYMBOLS = [
     icon: LiverpoolIcon,
     color: "#C8102E",
     tier: "common",
+    multiplier: 5,
   },
   {
-    key: "chelsea",
-    name: "Chelsea",
-    icon: ChelseaIcon,
-    color: "#034694",
+    key: "paris",
+    name: "Paris SG",
+    icon: ParisIcon,
+    color: "#004170",
     tier: "mid",
+    multiplier: 10,
   },
   {
     key: "arsenal",
@@ -122,6 +130,7 @@ export const SYMBOLS = [
     icon: ArsenalIcon,
     color: "#EF0107",
     tier: "mid",
+    multiplier: 10,
   },
   {
     key: "bayern",
@@ -129,6 +138,7 @@ export const SYMBOLS = [
     icon: BayernIcon,
     color: "#DC052D",
     tier: "rare",
+    multiplier: 25,
   },
   {
     key: "ucl_trophy",
@@ -136,6 +146,7 @@ export const SYMBOLS = [
     icon: UclTrophyIcon,
     color: "#1B3A6E",
     tier: "jackpot",
+    multiplier: 100,
   },
 ] as const;
 
@@ -161,33 +172,33 @@ export interface WheelPosition {
 
 export const WHEEL_POSITIONS: WheelPosition[] = [
   // Top row (1-7)
-  { pos: 1, symbol: "barcelona", multiplier: 3 },
-  { pos: 2, symbol: "real_madrid", multiplier: 3 },
-  { pos: 3, symbol: "man_city", multiplier: 3 },
-  { pos: 4, symbol: "ucl_trophy", multiplier: 50 },
-  { pos: 5, symbol: "liverpool", multiplier: 3 },
-  { pos: 6, symbol: "chelsea", multiplier: 5 },
-  { pos: 7, symbol: "arsenal", multiplier: 5 },
+  { pos: 1, symbol: "barcelona", multiplier: 5 },
+  { pos: 2, symbol: "real_madrid", multiplier: 5 },
+  { pos: 3, symbol: "man_city", multiplier: 5 },
+  { pos: 4, symbol: "ucl_trophy", multiplier: 100 },
+  { pos: 5, symbol: "liverpool", multiplier: 5 },
+  { pos: 6, symbol: "paris", multiplier: 10 },
+  { pos: 7, symbol: "arsenal", multiplier: 10 },
   // Right column (8-12)
-  { pos: 8, symbol: "bayern", multiplier: 8 },
-  { pos: 9, symbol: "barcelona", multiplier: 3 },
-  { pos: 10, symbol: "real_madrid", multiplier: 3 },
-  { pos: 11, symbol: "man_city", multiplier: 3 },
-  { pos: 12, symbol: "liverpool", multiplier: 3 },
+  { pos: 8, symbol: "bayern", multiplier: 25 },
+  { pos: 9, symbol: "barcelona", multiplier: 5 },
+  { pos: 10, symbol: "real_madrid", multiplier: 5 },
+  { pos: 11, symbol: "man_city", multiplier: 5 },
+  { pos: 12, symbol: "liverpool", multiplier: 5 },
   // Bottom row (13-19)
-  { pos: 13, symbol: "ucl_trophy", multiplier: 50 },
-  { pos: 14, symbol: "chelsea", multiplier: 5 },
-  { pos: 15, symbol: "arsenal", multiplier: 5 },
-  { pos: 16, symbol: "bayern", multiplier: 8 },
-  { pos: 17, symbol: "barcelona", multiplier: 3 },
-  { pos: 18, symbol: "real_madrid", multiplier: 3 },
-  { pos: 19, symbol: "man_city", multiplier: 3 },
+  { pos: 13, symbol: "ucl_trophy", multiplier: 100 },
+  { pos: 14, symbol: "paris", multiplier: 10 },
+  { pos: 15, symbol: "arsenal", multiplier: 10 },
+  { pos: 16, symbol: "bayern", multiplier: 25 },
+  { pos: 17, symbol: "barcelona", multiplier: 5 },
+  { pos: 18, symbol: "real_madrid", multiplier: 5 },
+  { pos: 19, symbol: "man_city", multiplier: 5 },
   // Left column (20-24)
-  { pos: 20, symbol: "liverpool", multiplier: 3 },
-  { pos: 21, symbol: "chelsea", multiplier: 5 },
-  { pos: 22, symbol: "arsenal", multiplier: 5 },
-  { pos: 23, symbol: "bayern", multiplier: 8 },
-  { pos: 24, symbol: "ucl_trophy", multiplier: 50 },
+  { pos: 20, symbol: "liverpool", multiplier: 5 },
+  { pos: 21, symbol: "paris", multiplier: 10 },
+  { pos: 22, symbol: "arsenal", multiplier: 10 },
+  { pos: 23, symbol: "bayern", multiplier: 25 },
+  { pos: 24, symbol: "ucl_trophy", multiplier: 100 },
 ];
 
 /**
@@ -210,6 +221,78 @@ export interface BetMap {
   [symbol: string]: number;
 }
 
+// ============================================================
+// Currency / Unit helpers
+// ============================================================
+
+/**
+ * All wallet/stake/bet values flowing through the backend are stored in
+ * MINOR units. The ratio between the integer minor unit and what the
+ * user sees on screen (DISPLAY units) is the SAME for every currency —
+ * switching between FUN, KES, and BONUS behaves identically:
+ *
+ *   Virtual / FUN  ->  1 minor  =  0.01 DISPLAY FUN  (1 FUN = 100 minor)
+ *   Real    / KES  ->  1 minor  =  0.01 DISPLAY KES  (1 KES = 100 minor)
+ *   Bonus   / BON  ->  1 minor  =  0.01 DISPLAY BON  (1 BON = 100 minor)
+ *
+ * This matches the backend's own convention (see config.rs comment
+ * "Virtual currency defaults (in minor units = cents)") so the free
+ * refill of 100 000 minor credits the user with 1 000.00 FUN display.
+ *
+ * These helpers are the single place that ratio lives. Never hard-code a
+ * `* 100` or `/ 100` in a component.
+ */
+const MINOR_PER_DISPLAY: Record<CurrencyType, number> = {
+  virtual: 100,
+  real: 100,
+  bonus: 100,
+};
+
+/** Convert a DISPLAY-unit amount (what the user reads on a chip button) to the raw MINOR integer the API/stores work with. */
+export function toMinor(displayAmount: number, currency: CurrencyType): number {
+  return Math.round(displayAmount * MINOR_PER_DISPLAY[currency]);
+}
+
+/** Convert a raw MINOR integer (from the API balance, or stored bet) to its DISPLAY-unit float. */
+export function fromMinor(minorAmount: number, currency: CurrencyType): number {
+  return minorAmount / MINOR_PER_DISPLAY[currency];
+}
+
+/**
+ * Format a raw MINOR-unit balance into the user-facing string.
+ * All three currencies share the same convention: 100 minor = 1.00 display,
+ * so output is always fixed 2 decimals with thousands separators.
+ * Switching currency mode yields identical formatting behaviour.
+ */
+export function formatMinor(
+  minorAmount: number,
+  _currency: CurrencyType,
+): string {
+  const display = fromMinor(minorAmount, _currency);
+  return display.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/** Short currency label shown next to amounts. */
+export function currencyLabel(currency: CurrencyType): string {
+  switch (currency) {
+    case "real":
+      return "KES";
+    case "virtual":
+      return "FUN";
+    case "bonus":
+      return "BONUS";
+  }
+}
+
+/**
+ * Chip values are always in DISPLAY units on the UI — so pressing the
+ * chip labelled "100" in KES mode bets KES 100, and pressing it in FUN
+ * mode bets 100 FUN. Components convert to minor (using `toMinor`)
+ * *before* storing anything in the bet map / sending to the API.
+ */
 export const CHIP_VALUES = [5, 10, 20, 50, 100, 200, 500];
 
 // ============================================================

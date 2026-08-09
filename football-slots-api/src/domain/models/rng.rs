@@ -1,6 +1,6 @@
 /// Trait for provably fair random number generation.
 pub trait ProvablyFair: Send + Sync {
-    /// Generate a position (1-14) from server_seed, client_seed, and nonce.
+    /// Generate a position (1-24) from server_seed, client_seed, and nonce.
     fn generate_position(&self, server_seed: &str, client_seed: &str, nonce: i64) -> u8;
 
     /// Verify a previous spin result (for client-side verification).

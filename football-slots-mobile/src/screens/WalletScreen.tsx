@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
-import { CurrencyType } from "../types";
+import { CurrencyType, formatMinor } from "../types";
 import { useToast } from "../components/Toast";
 
 import { authStorage } from "../api/client";
@@ -52,10 +52,6 @@ export function WalletScreen() {
     setTimeout(fetchBalance, 5000);
   };
 
-  const formatBalance = (minor: number) => {
-    return (minor / 100).toFixed(2);
-  };
-
   return (
     <ScrollView style={styles.container}>
       {/* Currency Toggle */}
@@ -94,7 +90,7 @@ export function WalletScreen() {
         </Text>
         <Text style={styles.balanceAmount}>
           {_currency === "real" ? "KES " : ""}
-          {formatBalance(balances[_currency])}
+          {formatMinor(balances[_currency], _currency)}
         </Text>
       </View>
 
@@ -106,7 +102,7 @@ export function WalletScreen() {
             <Text style={styles.summaryLabel}>{c.label}</Text>
             <Text style={styles.summaryValue}>
               {c.key === "real" ? "KES " : ""}
-              {formatBalance(balances[c.key])}
+              {formatMinor(balances[c.key], c.key)}
             </Text>
           </View>
         ))}

@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Create domain services
     let rng = Arc::new(ProvablyFairRng::new());
-    let game_engine = Arc::new(GameEngineImpl::new(game_repo.clone(), wallet_repo.clone(), rng.clone()));
+    let game_engine = Arc::new(GameEngineImpl::new(game_repo.clone(), wallet_repo.clone()));
     let wallet_service = Arc::new(WalletServiceImpl::new(wallet_repo.clone()));
     let mpesa_service = Arc::new(MpesaServiceImpl::new(
         mpesa_repo.clone(),

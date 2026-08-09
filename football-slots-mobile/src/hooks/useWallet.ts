@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { walletApi, mpesaApi } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
-import { CurrencyType } from "../types";
+import { CurrencyType, toMinor } from "../types";
 import { useToast } from "../components/Toast";
 
 export function useWallet(currency?: CurrencyType) {
@@ -26,12 +26,17 @@ export function useWallet(currency?: CurrencyType) {
   const deposit = useCallback(
     async (phoneNumber: string, amountKES: number) => {
       try {
-        const amountMinor = amountKES * 100;
+        const amountMinor = toMinor(amountKES, "real");
         await mpesaApi.deposit(phoneNumber, amountMinor);
-        showInfo("STK Push sent to your phone. Complete the payment.", "Deposit");
+        showInfo(
+          "STK Push sent to your phone. Complete the payment.",
+          "Deposit",
+        );
       } catch (error: any) {
         console.error("Deposit failed:", error);
-        showError(error.response?.data?.message || "Deposit failed. Try again.");
+        showError(
+          error.response?.data?.message || "Deposit failed. Try again.",
+        );
       }
     },
     [showInfo, showError],
@@ -40,11 +45,14 @@ export function useWallet(currency?: CurrencyType) {
   const topupVirtual = useCallback(async () => {
     try {
       const res = await walletApi.topupVirtual();
-      setBalance('virtual', res.data.balance_minor);
-      showSuccess('Your FUN wallet has been credited with 1,000 FUN credits.', '🎉 Refilled!');
+      setBalance("virtual", res.data.balance_minor);
+      showSuccess(
+        "Your FUN wallet has been credited with 1,000 FUN credits.",
+        "🎉 Refilled!",
+      );
     } catch (error) {
-      console.error('Failed to refill FUN wallet:', error);
-      showError('Failed to refill FUN credits. Try again.');
+      console.error("Failed to refill FUN wallet:", error);
+      showError("Failed to refill FUN credits. Try again.");
     }
   }, [setBalance, showSuccess, showError]);
 

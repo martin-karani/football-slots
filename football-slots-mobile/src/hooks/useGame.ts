@@ -1,9 +1,10 @@
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Alert } from "react-native";
 import { gameApi, walletApi } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
 import { useWheelAnimator } from "./useWheelAnimator";
 import { useToast } from "../components/Toast";
+import { useSound } from "./useSound";
 
 export function useGame() {
   const currency = useGameStore((state) => state.currency);
@@ -12,18 +13,16 @@ export function useGame() {
   const setBalance = useGameStore((state) => state.setBalance);
   const setSpinning = useGameStore((state) => state.setSpinning);
   const setLastSpin = useGameStore((state) => state.setLastSpin);
-  const setLastGamble = useGameStore((state) => state.setLastGamble);
   const updateBalance = useGameStore((state) => state.updateBalance);
   const clearBets = useGameStore((state) => state.clearBets);
-  const setShowGambleModal = useGameStore((state) => state.setShowGambleModal);
-  const lastSpin = useGameStore((state) => state.lastSpin);
   const getTotalStake = useGameStore((state) => state.getTotalStake);
   const isSpinning = useGameStore((state) => state.isSpinning);
 
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
 
   const { step, startSpin, stopOnIndex, stopAnimation } = useWheelAnimator();
-  const { showSuccess, showError, showWarning, showInfo } = useToast();
+  const { showSuccess, showError, showWarning } = useToast();
+  const { play: playSound } = useSound();
 
   const generateClientSeed = useCallback(() => {
     return Array.from({ length: 32 }, () =>
@@ -70,6 +69,7 @@ export function useGame() {
 
     setSpinning(true);
     startSpin();
+    playSound('spin_start');
 
     try {
       const clientSeed = generateClientSeed();
@@ -83,7 +83,17 @@ export function useGame() {
       clearBets();
 
       if (result.is_win) {
-        setTimeout(() => setShowGambleModal(true), 1500);
+        // Determine win tier for sound
+        const winRatio = result.gross_payout / totalStake;
+        if (winRatio >= 25) {
+          playSound('win_jackpot');
+        } else if (winRatio >= 5) {
+          playSound('win_big');
+        } else {
+          playSound('win_small');
+        }
+      } else {
+        playSound('loss');
       }
     } catch (error: any) {
       console.error("Spin failed:", error);
@@ -105,7 +115,6 @@ export function useGame() {
     setLastSpin,
     updateBalance,
     clearBets,
-    setShowGambleModal,
     startSpin,
     stopOnIndex,
     stopAnimation,
@@ -133,47 +142,5 @@ export function useGame() {
     return () => clearInterval(intervalId);
   }, [isAutoSpinning, isSpinning, balances, currency, getTotalStake, spin]);
 
-  const gamble = useCallback(
-    async (choice: "home" | "away") => {
-      if (!lastSpin?.round_id) return;
-
-      setShowGambleModal(false);
-
-      try {
-        const clientSeed = generateClientSeed();
-        const res = await gameApi.gamble(lastSpin.round_id, choice, clientSeed);
-        const result = res.data;
-
-        setLastGamble(result);
-        updateBalance(currency, result.net_result_minor);
-
-        if (result.won) {
-          showSuccess(
-            `+${result.payout_minor}`,
-            "🎉 Gamble Won!",
-          );
-        } else {
-          showInfo("Better luck next time!", "Gamble Lost");
-        }
-      } catch (error: any) {
-        console.error("Gamble failed:", error);
-        showError("Gamble failed. Try again.");
-      }
-    },
-    [
-      lastSpin,
-      setShowGambleModal,
-      generateClientSeed,
-      setLastGamble,
-      updateBalance,
-      currency,
-      showSuccess,
-      showInfo,
-      showError,
-    ],
-  );
-
-
-
-  return { spin, gamble, step, isAutoSpinning, toggleAutoSpin };
+  return { spin, step, isAutoSpinning, toggleAutoSpin };
 }

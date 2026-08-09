@@ -7,10 +7,11 @@ use crate::adapters::web::handlers::auth::extract_claims;
 use crate::adapters::web::router::AppState;
 use crate::domain::models::{
     errors::DomainError,
-    rng::ProvablyFair,
-    wallet::{GambleChoice, PlaceBetRequest},
+    game::{paytable_for_version, CURRENT_PAYTABLE_VERSION, Wheel},
+    wallet::PlaceBetRequest,
 };
 use crate::domain::services::wallet_service::WalletService;
+use crate::domain::services::weighted_rng::WeightedRng;
 
 #[derive(Serialize)]
 pub struct SpinResponse {
@@ -26,6 +27,7 @@ pub struct SpinResponse {
     pub server_seed_hash: String,
     pub client_seed: String,
     pub nonce: i64,
+    pub paytable_version: i16,
     #[serde(default)]
     pub bonus_claimed: bool,
     #[serde(default)]
@@ -71,18 +73,25 @@ pub async fn spin(
         .wallet_service
         .get_wallet(claims.sub, body.currency)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            tracing::error!("Wallet lookup failed: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     // Execute spin
     let result = state
         .game_engine
-        .spin(claims.sub, wallet_id, &body)
+        .spin(claims.sub, wallet_id, &body, &state.config)
         .await
-        .map_err(|e| match e {
-            DomainError::InsufficientBalance => StatusCode::PAYMENT_REQUIRED,
-            DomainError::NoBetsPlaced => StatusCode::BAD_REQUEST,
-            DomainError::InvalidStake(_) => StatusCode::BAD_REQUEST,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        .map_err(|e| {
+            let msg = e.to_string();
+            tracing::error!("Spin failed: {}", msg);
+            match e {
+                DomainError::InsufficientBalance => StatusCode::PAYMENT_REQUIRED,
+                DomainError::NoBetsPlaced => StatusCode::BAD_REQUEST,
+                DomainError::InvalidStake(_) => StatusCode::BAD_REQUEST,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            }
         })?;
 
     Ok(Json(SpinResponse {
@@ -98,88 +107,10 @@ pub async fn spin(
         server_seed_hash: result.server_seed_hash,
         client_seed: result.client_seed,
         nonce: result.nonce,
+        paytable_version: result.paytable_version,
         bonus_claimed: result.bonus_claimed,
         bonus_progress_current: result.bonus_progress_current,
         bonus_progress_target: result.bonus_progress_target,
-    }))
-}
-
-#[derive(Deserialize)]
-pub struct GambleRequest {
-    pub game_round_id: Uuid,
-    pub choice: GambleChoice,
-    pub client_seed: Option<String>,
-}
-
-#[derive(Serialize)]
-pub struct GambleResponse {
-    pub game_round_id: Uuid,
-    pub stake_minor: i64,
-    pub choice: String,
-    pub result_number: u8,
-    pub won: bool,
-    pub payout_minor: i64,
-    pub net_result_minor: i64,
-    pub server_seed_hash: String,
-    pub nonce: i64,
-}
-
-#[axum::debug_handler]
-pub async fn gamble(
-    State(state): State<Arc<AppState>>,
-    req: axum::http::Request<axum::body::Body>,
-) -> Result<Json<GambleResponse>, StatusCode> {
-    let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
-    let body: GambleRequest = axum::body::to_bytes(req.into_body(), 65536)
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)
-        .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_REQUEST))?;
-
-    let client_seed = body
-        .client_seed
-        .unwrap_or_else(|| crate::domain::models::rng::generate_client_seed());
-
-    // Find the round to get its currency
-    let round = state
-        .game_repo
-        .find_round_by_id(body.game_round_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let wallet_id = state
-        .wallet_service
-        .get_wallet(claims.sub, round.currency)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let result = state
-        .game_engine
-        .gamble(
-            claims.sub,
-            wallet_id,
-            body.game_round_id,
-            body.choice,
-            client_seed,
-        )
-        .await
-        .map_err(|e| match e {
-            DomainError::GambleAlreadyUsed => StatusCode::CONFLICT,
-            DomainError::GambleRequiresWin => StatusCode::BAD_REQUEST,
-            DomainError::UserNotFound => StatusCode::NOT_FOUND,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        })?;
-
-    Ok(Json(GambleResponse {
-        game_round_id: result.game_round_id,
-        stake_minor: result.stake_minor,
-        choice: result.choice,
-        result_number: result.result_number,
-        won: result.won,
-        payout_minor: result.payout_minor,
-        net_result_minor: result.net_result_minor,
-        server_seed_hash: result.server_seed_hash,
-        nonce: result.nonce,
     }))
 }
 
@@ -206,31 +137,101 @@ pub async fn history(
     Ok(Json(HistoryResponse { total, rounds }))
 }
 
+/// `expected_symbol` + `paytable_version` should be copied verbatim from the
+/// round being audited (both are returned by `/spin` and stored in
+/// `/history`). Defaulting `paytable_version` to the current one is a
+/// convenience for "verify my last spin right now" UIs, but any historical
+/// round MUST send its own stored version, or you're checking it against
+/// the wrong paytable and a genuinely fair round can come back `valid: false`.
 #[derive(Deserialize)]
 pub struct VerifyRequest {
     pub server_seed: String,
     pub client_seed: String,
     pub nonce: i64,
-    pub expected_position: u8,
+    pub expected_symbol: String,
+    #[serde(default = "default_paytable_version")]
+    pub paytable_version: i16,
+}
+
+fn default_paytable_version() -> i16 {
+    CURRENT_PAYTABLE_VERSION
 }
 
 #[derive(Serialize)]
 pub struct VerifyResponse {
     pub valid: bool,
+    pub derived_symbol: String,
+    pub derived_multiplier: u32,
     pub derived_position: u8,
+    /// Raw HMAC-derived draw value in [0, 1) — publish this alongside the
+    /// weight table so anyone can re-run the cumulative-distribution walk
+    /// themselves and land on the same symbol.
+    pub unit_interval: f64,
 }
 
-pub async fn verify(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<VerifyRequest>,
-) -> Json<VerifyResponse> {
-    let derived = state
-        .rng
-        .generate_position(&req.server_seed, &req.client_seed, req.nonce);
+pub async fn verify(Json(req): Json<VerifyRequest>) -> Json<VerifyResponse> {
+    let draw = WeightedRng::generate_symbol(
+        &req.server_seed,
+        &req.client_seed,
+        req.nonce,
+        req.paytable_version,
+    );
+    let derived_position = Wheel::get_first_position_for_symbol(draw.symbol);
 
     Json(VerifyResponse {
-        valid: derived == req.expected_position,
-        derived_position: derived,
+        valid: draw.symbol.name() == req.expected_symbol,
+        derived_symbol: draw.symbol.name().to_string(),
+        derived_multiplier: draw.multiplier,
+        derived_position,
+        unit_interval: draw.unit_interval,
+    })
+}
+
+#[derive(Serialize)]
+pub struct PaytableRow {
+    pub symbol: String,
+    pub display_name: String,
+    pub tier: String,
+    pub multiplier: u32,
+    /// Win probability for this symbol, e.g. 0.19048 = 19.048%.
+    pub probability: f64,
+}
+
+#[derive(Serialize)]
+pub struct PaytableResponse {
+    pub paytable_version: i16,
+    /// Return-to-player implied by this paytable: 1 / sum(1/multiplier).
+    /// Identical for every symbol's individual contribution by design — see
+    /// docs/rtp-weighting.md.
+    pub rtp: f64,
+    pub symbols: Vec<PaytableRow>,
+}
+
+/// Public, unauthenticated: this is the "document the weighting scheme
+/// publicly" endpoint. The mobile app's paytable screen should fetch real
+/// odds from here instead of inferring them from wheel-cell counts (that
+/// only worked back when every cell was equally likely).
+pub async fn paytable() -> Json<PaytableResponse> {
+    let version = CURRENT_PAYTABLE_VERSION;
+    let table = paytable_for_version(version);
+    let rtp = WeightedRng::implied_rtp(&table);
+    let weighted = WeightedRng::weight_table(&table);
+
+    let symbols = weighted
+        .iter()
+        .map(|e| PaytableRow {
+            symbol: e.symbol.name().to_string(),
+            display_name: e.symbol.display_name().to_string(),
+            tier: e.symbol.tier().to_string(),
+            multiplier: e.multiplier,
+            probability: e.weight,
+        })
+        .collect();
+
+    Json(PaytableResponse {
+        paytable_version: version,
+        rtp,
+        symbols,
     })
 }
 
@@ -254,7 +255,14 @@ pub async fn reveal_seed(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let seed_to_reveal = round.server_seed_hash.clone();
+    // Fetch the actual server seed from the server_seeds table using the hash.
+    // The round only stores the hash; the real seed lives in server_seeds.
+    let seed_to_reveal = state
+        .game_repo
+        .find_seed_by_hash(claims.sub, &round.server_seed_hash)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .ok_or(StatusCode::NOT_FOUND)?;
 
     state
         .game_repo

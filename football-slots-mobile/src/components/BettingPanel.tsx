@@ -1,6 +1,12 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { useGameStore } from '../store/GameProvider';
-import { SYMBOLS, CHIP_VALUES } from '../types';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+} from "react-native";
+import { useGameStore } from "../store/GameProvider";
+import { SYMBOLS, CHIP_VALUES, toMinor, fromMinor } from "../types";
 
 function getSymbolIcon(symbol: string) {
   const found = SYMBOLS.find((s) => s.key === symbol);
@@ -15,12 +21,14 @@ export function BettingPanel() {
   const removeBet = useGameStore((state) => state.removeBet);
   const setSelectedChip = useGameStore((state) => state.setSelectedChip);
 
-  const chipMultiplier = currency === 'real' ? 100 : 1;
-
   return (
     <View style={styles.container}>
       {/* Chip Selector */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipScroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.chipScroll}
+      >
         <View style={styles.chipRow}>
           {CHIP_VALUES.map((value) => (
             <TouchableOpacity
@@ -31,10 +39,12 @@ export function BettingPanel() {
               ]}
               onPress={() => setSelectedChip(value)}
             >
-              <Text style={[
-                styles.chipText,
-                selectedChip === value && styles.chipTextSelected,
-              ]}>
+              <Text
+                style={[
+                  styles.chipText,
+                  selectedChip === value && styles.chipTextSelected,
+                ]}
+              >
                 {value}
               </Text>
             </TouchableOpacity>
@@ -43,10 +53,15 @@ export function BettingPanel() {
       </ScrollView>
 
       {/* Symbol Bet Buttons */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.symbolsScroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.symbolsScroll}
+      >
         <View style={styles.symbolRow}>
           {SYMBOLS.map((sym) => {
-            const betAmount = currentBets[sym.key] || 0;
+            const betAmountMinor = currentBets[sym.key] || 0;
+            const betAmountDisplay = fromMinor(betAmountMinor, currency);
             return (
               <View key={sym.key} style={styles.symbolCard}>
                 <View style={styles.symbolIconContainer}>
@@ -56,24 +71,40 @@ export function BettingPanel() {
                   })()}
                 </View>
                 <Text style={styles.symbolName}>{sym.name}</Text>
+                <View
+                  style={[
+                    styles.multiplierBadge,
+                    { backgroundColor: sym.color },
+                  ]}
+                >
+                  <Text style={styles.multiplierBadgeText}>
+                    ×{sym.multiplier}
+                  </Text>
+                </View>
                 <View style={styles.betControls}>
                   <TouchableOpacity
                     style={[styles.betBtn, styles.betBtnMinus]}
-                    onPress={() => removeBet(sym.key, selectedChip * chipMultiplier)}
+                    onPress={() =>
+                      removeBet(sym.key, toMinor(selectedChip, currency))
+                    }
                   >
                     <Text style={styles.betBtnText}>−</Text>
                   </TouchableOpacity>
                   <View style={styles.betAmountContainer}>
-                    <Text style={[
-                      styles.betAmount,
-                      betAmount > 0 && styles.betAmountActive,
-                    ]}>
-                      {betAmount || '0'}
+                    <Text
+                      style={[
+                        styles.betAmount,
+                        betAmountMinor > 0 && styles.betAmountActive,
+                      ]}
+                    >
+                      {betAmountMinor > 0 ? betAmountDisplay : "0"}
                     </Text>
                   </View>
                   <TouchableOpacity
                     style={[styles.betBtn, styles.betBtnPlus]}
-                    onPress={() => placeBet(sym.key, selectedChip * chipMultiplier)}
+                    onPress={() =>
+                      placeBet(sym.key, toMinor(selectedChip, currency))
+                    }
                   >
                     <Text style={styles.betBtnText}>+</Text>
                   </TouchableOpacity>
@@ -89,17 +120,17 @@ export function BettingPanel() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#120024',
+    backgroundColor: "#120024",
     borderTopWidth: 1,
-    borderTopColor: '#2d1b4e',
+    borderTopColor: "#2d1b4e",
     maxHeight: 180,
   },
   chipScroll: {
     paddingHorizontal: 8,
   },
   chipRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 8,
   },
@@ -107,53 +138,65 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#333",
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: '#555',
+    borderColor: "#555",
   },
   chipSelected: {
-    backgroundColor: '#FFD700',
-    borderColor: '#FFD700',
+    backgroundColor: "#FFD700",
+    borderColor: "#FFD700",
   },
   chipText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     fontSize: 12,
   },
   chipTextSelected: {
-    color: '#1a0033',
+    color: "#1a0033",
   },
   symbolsScroll: {
     paddingHorizontal: 8,
   },
   symbolRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     paddingVertical: 8,
   },
   symbolCard: {
     width: 72,
-    backgroundColor: '#2d1b4e',
+    backgroundColor: "#2d1b4e",
     borderRadius: 10,
     padding: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#444',
+    borderColor: "#444",
   },
   symbolIconContainer: {
     marginBottom: 4,
   },
   symbolName: {
-    color: '#aaa',
+    color: "#aaa",
     fontSize: 9,
     marginTop: 2,
-    textAlign: 'center',
+    textAlign: "center",
+  },
+  multiplierBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  multiplierBadgeText: {
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 10,
   },
   betControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 6,
     gap: 4,
   },
@@ -161,31 +204,31 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   betBtnMinus: {
-    backgroundColor: '#dc3545',
+    backgroundColor: "#dc3545",
   },
   betBtnPlus: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
   },
   betBtnText: {
-    color: '#fff',
-    fontWeight: 'bold',
+    color: "#fff",
+    fontWeight: "bold",
     fontSize: 14,
     lineHeight: 14,
   },
   betAmountContainer: {
     minWidth: 30,
-    alignItems: 'center',
+    alignItems: "center",
   },
   betAmount: {
-    color: '#666',
+    color: "#666",
     fontSize: 11,
   },
   betAmountActive: {
-    color: '#FFD700',
-    fontWeight: 'bold',
+    color: "#FFD700",
+    fontWeight: "bold",
   },
 });

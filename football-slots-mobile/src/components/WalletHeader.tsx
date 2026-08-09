@@ -1,10 +1,10 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useGameStore } from '../store/GameProvider';
-import { CurrencyType } from '../types';
+import { CurrencyType, formatMinor } from '../types';
 
 export function WalletHeader() {
   const currency = useGameStore((state) => state.currency);
-  const balance = useGameStore((state) => state.balances[currency]);
+  const balanceMinor = useGameStore((state) => state.balances[currency]);
   const setCurrency = useGameStore((state) => state.setCurrency);
 
   const currencies: { key: CurrencyType; label: string; icon: string }[] = [
@@ -12,10 +12,6 @@ export function WalletHeader() {
     { key: 'real', label: 'KES', icon: '💰' },
     { key: 'bonus', label: 'BONUS', icon: '🎁' },
   ];
-
-  const formatBalance = (minor: number) => {
-    return (minor / 100).toFixed(2);
-  };
 
   return (
     <View style={styles.container}>
@@ -25,7 +21,7 @@ export function WalletHeader() {
         </Text>
         <Text style={styles.balance}>
           {currency === 'real' ? 'KES ' : ''}
-          {formatBalance(balance)}
+          {formatMinor(balanceMinor, currency)}
         </Text>
       </View>
 

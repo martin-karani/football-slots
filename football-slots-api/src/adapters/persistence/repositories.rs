@@ -5,7 +5,6 @@ use uuid::Uuid;
 use crate::adapters::persistence::postgres::PgPool;
 use crate::domain::models::{
     errors::{DomainError, DomainResult},
-    gamble::GambleRound,
     game::{BonusProgress, GameRound},
     mpesa::{MpesaTransaction, TransactionStatus},
     user::{CreateUserRequest, KycStatus, User},
@@ -402,11 +401,11 @@ impl GameRepository for PgGameRepository {
         let r: GameRound = sqlx::query_as(
             r#"INSERT INTO game_rounds (id, user_id, currency, total_stake_minor, bets,
                result_position, result_symbol, result_multiplier, gross_payout_minor,
-               net_result_minor, is_win, server_seed_hash, server_seed, client_seed, nonce, created_at)
-               VALUES ($1, $2, $3::currency_type, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+               net_result_minor, is_win, server_seed_hash, server_seed, client_seed, nonce, created_at, paytable_version)
+               VALUES ($1, $2, $3::currency_type, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
                RETURNING id, user_id, currency, total_stake_minor, bets, result_position,
                result_symbol, result_multiplier, gross_payout_minor, net_result_minor, is_win,
-               server_seed_hash, server_seed, client_seed, nonce, created_at"#,
+               server_seed_hash, server_seed, client_seed, nonce, created_at, paytable_version"#,
         )
         .bind(round.id)
         .bind(round.user_id)
@@ -424,6 +423,7 @@ impl GameRepository for PgGameRepository {
         .bind(&round.client_seed)
         .bind(round.nonce)
         .bind(round.created_at)
+        .bind(round.paytable_version)
         .fetch_one(&self.pool)
         .await?;
         Ok(r)
@@ -433,7 +433,7 @@ impl GameRepository for PgGameRepository {
         let r: Option<GameRound> = sqlx::query_as(
             r#"SELECT id, user_id, currency, total_stake_minor, bets, result_position,
                result_symbol, result_multiplier, gross_payout_minor, net_result_minor,
-               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at
+               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at, paytable_version
                FROM game_rounds WHERE id = $1"#,
         )
         .bind(id)
@@ -451,7 +451,7 @@ impl GameRepository for PgGameRepository {
         let rows: Vec<GameRound> = sqlx::query_as(
             r#"SELECT id, user_id, currency, total_stake_minor, bets, result_position,
                result_symbol, result_multiplier, gross_payout_minor, net_result_minor,
-               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at
+               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at, paytable_version
                FROM game_rounds WHERE user_id = $1
                ORDER BY created_at DESC LIMIT $2 OFFSET $3"#,
         )
@@ -476,57 +476,12 @@ impl GameRepository for PgGameRepository {
         let r: Option<GameRound> = sqlx::query_as(
             r#"SELECT id, user_id, currency, total_stake_minor, bets, result_position,
                result_symbol, result_multiplier, gross_payout_minor, net_result_minor,
-               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at
+               is_win, server_seed_hash, server_seed, client_seed, nonce, created_at, paytable_version
                FROM game_rounds
                WHERE user_id = $1 AND (server_seed IS NULL OR server_seed = '')
                ORDER BY created_at ASC LIMIT 1"#,
         )
         .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await?;
-        Ok(r)
-    }
-
-    async fn create_gamble_round(&self, round: &GambleRound) -> DomainResult<GambleRound> {
-        let r: GambleRound = sqlx::query_as(
-            r#"INSERT INTO gamble_rounds (id, game_round_id, user_id, stake_minor, choice,
-               result_number, won, payout_minor, net_result_minor, server_seed_hash,
-               server_seed, client_seed, nonce, created_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-               RETURNING id, game_round_id, user_id, stake_minor, choice, result_number,
-               won, payout_minor, net_result_minor, server_seed_hash, server_seed,
-               client_seed, nonce, created_at"#,
-        )
-        .bind(round.id)
-        .bind(round.game_round_id)
-        .bind(round.user_id)
-        .bind(round.stake_minor)
-        .bind(&round.choice)
-        .bind(round.result_number)
-        .bind(round.won)
-        .bind(round.payout_minor)
-        .bind(round.net_result_minor)
-        .bind(&round.server_seed_hash)
-        .bind(round.server_seed.clone())
-        .bind(&round.client_seed)
-        .bind(round.nonce)
-        .bind(round.created_at)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(r)
-    }
-
-    async fn find_gamble_by_game_round(
-        &self,
-        game_round_id: Uuid,
-    ) -> DomainResult<Option<GambleRound>> {
-        let r: Option<GambleRound> = sqlx::query_as(
-            r#"SELECT id, game_round_id, user_id, stake_minor, choice, result_number,
-               won, payout_minor, net_result_minor, server_seed_hash, server_seed,
-               client_seed, nonce, created_at
-               FROM gamble_rounds WHERE game_round_id = $1"#,
-        )
-        .bind(game_round_id)
         .fetch_optional(&self.pool)
         .await?;
         Ok(r)
@@ -635,6 +590,20 @@ impl GameRepository for PgGameRepository {
         .await?;
 
         Ok((seed, seed_hash, nonce_start))
+    }
+
+    async fn find_seed_by_hash(&self, user_id: Uuid, seed_hash: &str) -> DomainResult<Option<String>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            r#"SELECT seed FROM server_seeds
+               WHERE user_id = $1 AND seed_hash = $2 AND seed IS NOT NULL
+               LIMIT 1"#,
+        )
+        .bind(user_id)
+        .bind(seed_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|r| r.0))
     }
 }
 

@@ -20,9 +20,6 @@ pub enum DomainError {
     #[error("deposit exceeds your daily limit of {limit_minor}")]
     DepositLimitExceeded { limit_minor: i64 },
 
-    #[error("the gamble feature has already been used for this round")]
-    GambleAlreadyUsed,
-
     #[error("invalid stake: {0}")]
     InvalidStake(String),
 
@@ -34,9 +31,6 @@ pub enum DomainError {
 
     #[error("round already completed")]
     RoundAlreadyCompleted,
-
-    #[error("only winning rounds can be gambled")]
-    GambleRequiresWin,
 
     #[error("repository error: {0}")]
     Repository(#[from] anyhow::Error),

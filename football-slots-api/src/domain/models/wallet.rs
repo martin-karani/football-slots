@@ -25,7 +25,6 @@ pub enum LedgerEntryType {
     Deposit,
     Withdrawal,
     BonusCredit,
-    Gamble,
 }
 
 impl std::fmt::Display for LedgerEntryType {
@@ -36,7 +35,6 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::Deposit => write!(f, "deposit"),
             LedgerEntryType::Withdrawal => write!(f, "withdrawal"),
             LedgerEntryType::BonusCredit => write!(f, "bonus_credit"),
-            LedgerEntryType::Gamble => write!(f, "gamble"),
         }
     }
 }
@@ -71,16 +69,4 @@ pub struct PlaceBetRequest {
     pub client_seed: String,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct GambleRequest {
-    pub game_round_id: Uuid,
-    pub choice: GambleChoice,
-    pub client_seed: String,
-}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum GambleChoice {
-    Home,  // 1-12
-    Away,  // 13-24
-}

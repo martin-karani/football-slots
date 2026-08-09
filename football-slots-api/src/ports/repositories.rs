@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use crate::domain::models::{
     errors::DomainResult,
-    gamble::GambleRound,
     game::{BonusProgress, GameRound},
     mpesa::{MpesaTransaction, TransactionStatus},
     user::{CreateUserRequest, KycStatus, User},
@@ -88,12 +87,6 @@ pub trait GameRepository: Send + Sync {
     async fn reveal_server_seed(&self, round_id: Uuid, seed: &str) -> DomainResult<()>;
     async fn find_oldest_unrevealed_round(&self, user_id: Uuid) -> DomainResult<Option<GameRound>>;
 
-    async fn create_gamble_round(&self, round: &GambleRound) -> DomainResult<GambleRound>;
-    async fn find_gamble_by_game_round(
-        &self,
-        game_round_id: Uuid,
-    ) -> DomainResult<Option<GambleRound>>;
-
     async fn get_or_create_bonus_progress(&self, user_id: Uuid) -> DomainResult<BonusProgress>;
     async fn increment_bonus_progress(
         &self,
@@ -105,6 +98,9 @@ pub trait GameRepository: Send + Sync {
     /// Get the active server seed for a user, or generate a new one.
     /// Returns (seed, seed_hash, nonce).
     async fn get_active_server_seed(&self, user_id: Uuid) -> DomainResult<(String, String, i64)>;
+
+    /// Look up the actual server seed by its hash (for reveal endpoint).
+    async fn find_seed_by_hash(&self, user_id: Uuid, seed_hash: &str) -> DomainResult<Option<String>>;
 }
 
 /// M-Pesa transaction repository trait.

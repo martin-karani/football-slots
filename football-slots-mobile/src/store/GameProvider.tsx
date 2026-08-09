@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { CurrencyType, BetMap, SpinResult, GambleResult } from "../types";
+import { CurrencyType, BetMap, SpinResult } from "../types";
 
 interface GameState {
   // Auth
@@ -30,14 +30,8 @@ interface GameState {
   // Game state
   isSpinning: boolean;
   lastSpin: SpinResult | null;
-  lastGamble: GambleResult | null;
   setSpinning: (v: boolean) => void;
   setLastSpin: (result: SpinResult | null) => void;
-  setLastGamble: (result: GambleResult | null) => void;
-
-  // UI state
-  showGambleModal: boolean;
-  setShowGambleModal: (v: boolean) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -101,14 +95,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   // Game state
   isSpinning: false,
   lastSpin: null,
-  lastGamble: null,
   setSpinning: (v) => set({ isSpinning: v }),
   setLastSpin: (result) => set({ lastSpin: result }),
-  setLastGamble: (result) => set({ lastGamble: result }),
-
-  // UI state
-  showGambleModal: false,
-  setShowGambleModal: (v) => set({ showGambleModal: v }),
 }));
 
 // ============================================================

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
 import { gameApi } from "../api/client";
-import { GameRound } from "../types";
+import { GameRound, formatMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
 
 export function HistoryScreen() {
@@ -32,10 +32,6 @@ export function HistoryScreen() {
     }
   }, [isAuthenticated]);
 
-  const formatAmount = (minor: number) => {
-    return (minor / 100).toFixed(2);
-  };
-
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString("en-KE", {
@@ -65,13 +61,13 @@ export function HistoryScreen() {
         <View style={styles.statRow}>
           <Text style={styles.statLabel}>Stake</Text>
           <Text style={styles.statValue}>
-            {formatAmount(item.total_stake_minor)}
+            {formatMinor(item.total_stake_minor, item.currency)}
           </Text>
         </View>
         <View style={styles.statRow}>
           <Text style={styles.statLabel}>Payout</Text>
           <Text style={[styles.statValue, item.is_win && styles.winValue]}>
-            {formatAmount(item.gross_payout_minor)}
+            {formatMinor(item.gross_payout_minor, item.currency)}
           </Text>
         </View>
         <View style={styles.statRow}>
@@ -83,7 +79,7 @@ export function HistoryScreen() {
             ]}
           >
             {item.net_result_minor >= 0 ? "+" : ""}
-            {formatAmount(item.net_result_minor)}
+            {formatMinor(item.net_result_minor, item.currency)}
           </Text>
         </View>
       </View>

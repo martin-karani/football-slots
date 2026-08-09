@@ -25,6 +25,9 @@ pub struct AppState {
     pub game_engine: Arc<GameEngineImpl>,
     pub wallet_service: Arc<WalletServiceImpl>,
     pub mpesa_service: Arc<MpesaServiceImpl>,
+    /// Kept for the seed-hashing helpers still used elsewhere; the weighted
+    /// draw itself (spin + verify) now calls `WeightedRng` directly rather
+    /// than going through this trait object.
     pub rng: Arc<ProvablyFairRng>,
     pub config: Config,
 }
@@ -64,14 +67,22 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // Game routes (authenticated)
+    // Game routes (authenticated) – actions tied to a specific player
     let game_routes = Router::new()
         .route("/spin", post(game::spin))
-        .route("/gamble", post(game::gamble))
         .route("/history", get(game::history))
-        .route("/verify", post(game::verify))
         .route("/reveal-seed", get(game::reveal_seed))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state.clone());
+
+    // Game routes (PUBLIC, no auth) – provably-fair auditing must not
+    // require an account. /verify lets anyone (including a player who
+    // logged out, or a third-party auditor) recompute a spin from its
+    // revealed seeds; /paytable publicly discloses the live multipliers
+    // and win probabilities behind that computation.
+    let game_public_routes = Router::new()
+        .route("/verify", post(game::verify))
+        .route("/paytable", get(game::paytable))
         .with_state(state.clone());
 
     // Wallet routes (authenticated)
@@ -97,7 +108,7 @@ pub fn create_router(
     Router::new()
         .merge(health_routes)
         .nest("/api/v1/auth", auth_routes.merge(auth_protected_routes))
-        .nest("/api/v1/game", game_routes)
+        .nest("/api/v1/game", game_routes.merge(game_public_routes))
         .nest("/api/v1/wallet", wallet_routes)
         .nest("/api/v1/mpesa", mpesa_routes)
         .fallback(not_found)
