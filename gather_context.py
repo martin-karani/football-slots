@@ -14,6 +14,7 @@ EXCLUDE_DIRS = {
     "android",
     "build",
     "dist",
+    "assets"
     "__pycache__",
     ".gemini"
 }

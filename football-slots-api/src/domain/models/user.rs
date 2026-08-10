@@ -24,6 +24,7 @@ pub struct User {
     pub date_of_birth: Option<NaiveDate>,
     pub self_excluded_until: Option<DateTime<Utc>>,
     pub daily_deposit_limit_minor: Option<i64>,
+    pub daily_withdrawal_limit_minor: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -50,6 +51,12 @@ impl User {
             }
         }
         Ok(())
+    }
+
+    /// Withdrawals gate on the same rules as real-money play: verified KYC
+    /// (this is the AML checkpoint) and no active self-exclusion.
+    pub fn can_withdraw(&self, now: DateTime<Utc>) -> Result<(), DomainError> {
+        self.can_play_real_money(now)
     }
 }
 

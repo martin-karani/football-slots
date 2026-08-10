@@ -69,6 +69,12 @@ export interface GameRound {
   created_at: string;
 }
 
+export interface WithdrawResponse {
+  transaction_id: string;
+  status: string;
+  message: string;
+}
+
 // ============================================================
 // Symbols — 7 UCL teams + the trophy (jackpot).
 // Keys MUST match the backend Symbol::name() values exactly.

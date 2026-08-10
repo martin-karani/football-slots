@@ -19,11 +19,14 @@ export function WalletScreen() {
   const _currency = useGameStore((state) => state.currency);
   const _setCurrency = useGameStore((state) => state.setCurrency);
   const clearAuth = useGameStore((state) => state.clearAuth);
-  const { deposit, fetchBalance, topupVirtual } = useWallet();
+  const { deposit, withdraw, fetchBalance, topupVirtual } = useWallet();
   const { showError } = useToast();
 
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawPhone, setWithdrawPhone] = useState("");
+  const kycStatus = useGameStore((state) => state.kycStatus);
 
   const handleLogout = async () => {
     await authStorage.clearToken();
@@ -137,6 +140,63 @@ export function WalletScreen() {
           <Text style={styles.depositHint}>
             STK Push will be sent to your M-Pesa number
           </Text>
+        </View>
+      )}
+
+      {/* Withdrawal Section (Real Money Only) */}
+      {_currency === "real" && (
+        <View style={styles.depositCard}>
+          <Text style={styles.sectionTitle}>💸 Withdraw to M-Pesa</Text>
+          {kycStatus !== "verified" ? (
+            <Text style={styles.depositHint}>
+              Withdrawals require a verified account. Complete KYC verification to enable this.
+            </Text>
+          ) : (
+            <>
+              <TextInput
+                style={styles.input}
+                placeholder="M-Pesa Phone Number"
+                value={withdrawPhone}
+                onChangeText={setWithdrawPhone}
+                keyboardType="phone-pad"
+                placeholderTextColor="#666"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Amount (KES)"
+                value={withdrawAmount}
+                onChangeText={setWithdrawAmount}
+                keyboardType="numeric"
+                placeholderTextColor="#666"
+              />
+              <TouchableOpacity
+                style={[styles.depositButton, { backgroundColor: "#c0392b" }]}
+                onPress={async () => {
+                  const amount = parseInt(withdrawAmount);
+                  if (!amount || amount < 100) {
+                    showError("Minimum withdrawal is KES 100");
+                    return;
+                  }
+                  if (!withdrawPhone || withdrawPhone.length < 10) {
+                    showError("Enter a valid M-Pesa phone number");
+                    return;
+                  }
+                  if (amount * 100 > balances.real) {
+                    showError("Withdrawal exceeds your available balance");
+                    return;
+                  }
+
+                  await withdraw(withdrawPhone, amount);
+                  setWithdrawAmount("");
+                }}
+              >
+                <Text style={styles.depositButtonText}>Withdraw</Text>
+              </TouchableOpacity>
+              <Text style={styles.depositHint}>
+                Funds are held from your balance immediately and sent to M-Pesa within a few minutes.
+              </Text>
+            </>
+          )}
         </View>
       )}
 

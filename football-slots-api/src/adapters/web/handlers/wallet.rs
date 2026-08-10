@@ -65,19 +65,15 @@ pub async fn ledger(
 ) -> Result<Json<LedgerResponse>, StatusCode> {
     let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let wallet = state
-        .wallet_repo
-        .get_or_create(claims.sub, query.currency)
+    let wallet_id = state
+        .wallet_service
+        .get_wallet(claims.sub, query.currency)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let entries = state
-        .wallet_repo
-        .get_ledger_entries(
-            wallet.id,
-            query.limit.unwrap_or(20),
-            query.offset.unwrap_or(0),
-        )
+        .wallet_service
+        .get_ledger_entries(wallet_id, query.limit.unwrap_or(20), query.offset.unwrap_or(0))
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -93,7 +89,7 @@ pub async fn topup_virtual(
     let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
 
     let wallet = state
-        .wallet_repo
+        .wallet_service
         .topup_virtual(claims.sub)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

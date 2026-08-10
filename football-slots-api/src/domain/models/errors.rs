@@ -20,6 +20,18 @@ pub enum DomainError {
     #[error("deposit exceeds your daily limit of {limit_minor}")]
     DepositLimitExceeded { limit_minor: i64 },
 
+    #[error("minimum withdrawal is {minimum_minor}")]
+    MinimumWithdrawalNotMet { minimum_minor: i64 },
+
+    #[error("maximum withdrawal is {maximum_minor}")]
+    MaximumWithdrawalExceeded { maximum_minor: i64 },
+
+    #[error("withdrawal exceeds your daily limit of {limit_minor}")]
+    WithdrawalLimitExceeded { limit_minor: i64 },
+
+    #[error("you already have a withdrawal in progress")]
+    PendingWithdrawalExists,
+
     #[error("invalid stake: {0}")]
     InvalidStake(String),
 

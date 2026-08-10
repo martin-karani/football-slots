@@ -3,8 +3,36 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::adapters::web::handlers::auth::extract_claims;
+use crate::adapters::web::handlers::ErrorResponse;
 use crate::adapters::web::router::AppState;
 use crate::domain::models::errors::DomainError;
+
+fn error_response(e: DomainError) -> (StatusCode, Json<ErrorResponse>) {
+    let (status, code) = match &e {
+        DomainError::InsufficientBalance => (StatusCode::PAYMENT_REQUIRED, "insufficient_balance"),
+        DomainError::WalletNotFound | DomainError::UserNotFound => (StatusCode::NOT_FOUND, "not_found"),
+        DomainError::KycRequired => (StatusCode::FORBIDDEN, "kyc_required"),
+        DomainError::SelfExcluded(_) => (StatusCode::FORBIDDEN, "self_excluded"),
+        DomainError::DepositLimitExceeded { .. } => (StatusCode::BAD_REQUEST, "deposit_limit_exceeded"),
+        DomainError::MinimumWithdrawalNotMet { .. } => (StatusCode::BAD_REQUEST, "minimum_withdrawal_not_met"),
+        DomainError::MaximumWithdrawalExceeded { .. } => (StatusCode::BAD_REQUEST, "maximum_withdrawal_exceeded"),
+        DomainError::WithdrawalLimitExceeded { .. } => (StatusCode::BAD_REQUEST, "withdrawal_limit_exceeded"),
+        DomainError::PendingWithdrawalExists => (StatusCode::CONFLICT, "pending_withdrawal_exists"),
+        DomainError::Payment(_) => (StatusCode::SERVICE_UNAVAILABLE, "payment_provider_error"),
+        _ => (StatusCode::INTERNAL_SERVER_ERROR, "internal_error"),
+    };
+    (
+        status,
+        Json(ErrorResponse {
+            error: code.to_string(),
+            message: e.to_string(),
+        }),
+    )
+}
+
+// ============================================================
+// Deposits
+// ============================================================
 
 #[derive(Deserialize)]
 pub struct DepositRequest {
@@ -22,46 +50,44 @@ pub struct DepositResponse {
 pub async fn initiate_deposit(
     State(state): State<Arc<AppState>>,
     req: axum::http::Request<axum::body::Body>,
-) -> Result<Json<DepositResponse>, StatusCode> {
-    let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
+) -> Result<Json<DepositResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let claims = extract_claims(&req).ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(ErrorResponse { error: "unauthorized".into(), message: "Missing or invalid token".into() }),
+    ))?;
 
     let body: DepositRequest = axum::body::to_bytes(req.into_body(), 65536)
         .await
-        .map_err(|_| StatusCode::BAD_REQUEST)
-        .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_REQUEST))?;
+        .map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Invalid body".into() })))
+        .and_then(|bytes| {
+            serde_json::from_slice(&bytes)
+                .map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Invalid JSON".into() })))
+        })?;
 
-    // Validate amount
     if body.amount_minor <= 0 {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Amount must be positive".into() })));
     }
 
-    // Check deposit limit
     let user = state
         .user_repo
         .find_by_id(claims.sub)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .map_err(error_response)?
+        .ok_or((StatusCode::NOT_FOUND, Json(ErrorResponse { error: "not_found".into(), message: "User not found".into() })))?;
 
-    user.can_deposit(chrono::Utc::now())
-        .map_err(|_| StatusCode::FORBIDDEN)?;
+    user.can_deposit(chrono::Utc::now()).map_err(error_response)?;
 
-    // Initiate STK Push
-    match state
+    let tx = state
         .mpesa_service
         .initiate_stk_push(claims.sub, &body.phone_number, body.amount_minor)
         .await
-    {
-        Ok(tx) => Ok(Json(DepositResponse {
-            checkout_request_id: tx.checkout_request_id,
-            status: format!("{:?}", tx.status),
-            message: "STK Push initiated. Check your phone.".to_string(),
-        })),
-        Err(e) => Err(match e {
-            DomainError::Payment(_) => StatusCode::SERVICE_UNAVAILABLE,
-            _ => StatusCode::INTERNAL_SERVER_ERROR,
-        }),
-    }
+        .map_err(error_response)?;
+
+    Ok(Json(DepositResponse {
+        checkout_request_id: tx.checkout_request_id,
+        status: format!("{:?}", tx.status),
+        message: "STK Push initiated. Check your phone.".to_string(),
+    }))
 }
 
 #[derive(Serialize)]
@@ -75,33 +101,97 @@ pub async fn handle_callback(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<serde_json::Value>,
 ) -> Json<CallbackResponse> {
-    // Extract checkout request ID (clone to avoid borrow conflict)
-    let stk_callback = &payload.clone()["Body"]["stkCallback"];
-    let checkout_id = stk_callback["CheckoutRequestID"].as_str().unwrap_or("");
+    let payload_clone = payload.clone();
+    let checkout_id = payload_clone["Body"]["stkCallback"]["CheckoutRequestID"].as_str().unwrap_or("");
 
     if checkout_id.is_empty() {
-        return Json(CallbackResponse {
-            result_code: 1,
-            result_desc: "Missing CheckoutRequestID".to_string(),
-        });
+        return Json(CallbackResponse { result_code: 1, result_desc: "Missing CheckoutRequestID".to_string() });
     }
 
-    // Process callback
-    match state
-        .mpesa_service
-        .process_callback(checkout_id, payload)
-        .await
-    {
-        Ok(_) => Json(CallbackResponse {
-            result_code: 0,
-            result_desc: "Accepted".to_string(),
-        }),
+    match state.mpesa_service.process_callback(checkout_id, payload).await {
+        Ok(_) => Json(CallbackResponse { result_code: 0, result_desc: "Accepted".to_string() }),
         Err(e) => {
             tracing::error!("M-Pesa callback processing failed: {}", e);
-            Json(CallbackResponse {
-                result_code: 0, // Still accept to prevent retries on our error
-                result_desc: "Accepted (processing failed internally)".to_string(),
-            })
+            Json(CallbackResponse { result_code: 0, result_desc: "Accepted (processing failed internally)".to_string() })
+        }
+    }
+}
+
+// ============================================================
+// Withdrawals
+// ============================================================
+
+#[derive(Deserialize)]
+pub struct WithdrawRequest {
+    pub phone_number: String,
+    pub amount_minor: i64,
+}
+
+#[derive(Serialize)]
+pub struct WithdrawResponse {
+    pub transaction_id: uuid::Uuid,
+    pub status: String,
+    pub message: String,
+}
+
+#[axum::debug_handler]
+pub async fn initiate_withdrawal(
+    State(state): State<Arc<AppState>>,
+    req: axum::http::Request<axum::body::Body>,
+) -> Result<Json<WithdrawResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let claims = extract_claims(&req).ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(ErrorResponse { error: "unauthorized".into(), message: "Missing or invalid token".into() }),
+    ))?;
+
+    let body: WithdrawRequest = axum::body::to_bytes(req.into_body(), 65536)
+        .await
+        .map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Invalid body".into() })))
+        .and_then(|bytes| {
+            serde_json::from_slice(&bytes)
+                .map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Invalid JSON".into() })))
+        })?;
+
+    let tx = state
+        .mpesa_service
+        .initiate_withdrawal(claims.sub, &body.phone_number, body.amount_minor)
+        .await
+        .map_err(error_response)?;
+
+    Ok(Json(WithdrawResponse {
+        transaction_id: tx.id,
+        status: format!("{:?}", tx.status),
+        message: "Withdrawal submitted. Funds are on the way.".to_string(),
+    }))
+}
+
+#[axum::debug_handler]
+pub async fn handle_b2c_result(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Json<CallbackResponse> {
+    match state.mpesa_service.process_b2c_result(payload).await {
+        Ok(_) => Json(CallbackResponse { result_code: 0, result_desc: "Accepted".to_string() }),
+        Err(e) => {
+            tracing::error!("B2C result processing failed: {}", e);
+            Json(CallbackResponse { result_code: 0, result_desc: "Accepted (processing failed internally)".to_string() })
+        }
+    }
+}
+
+#[axum::debug_handler]
+pub async fn handle_b2c_timeout(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<serde_json::Value>,
+) -> Json<CallbackResponse> {
+    // Safaricom posts the same envelope shape to the timeout URL when a
+    // request sits in the queue too long -- route it through the same
+    // settle-or-reverse logic as a normal result.
+    match state.mpesa_service.process_b2c_result(payload).await {
+        Ok(_) => Json(CallbackResponse { result_code: 0, result_desc: "Accepted".to_string() }),
+        Err(e) => {
+            tracing::error!("B2C timeout processing failed: {}", e);
+            Json(CallbackResponse { result_code: 0, result_desc: "Accepted (processing failed internally)".to_string() })
         }
     }
 }

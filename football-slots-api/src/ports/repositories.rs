@@ -71,6 +71,10 @@ pub trait WalletRepository: Send + Sync {
     ) -> DomainResult<Vec<WalletLedgerEntry>>;
 
     async fn get_today_deposits(&self, user_id: Uuid) -> DomainResult<i64>;
+
+    /// Net amount withdrawn today (holds minus any same-currency reversals).
+    /// A withdrawal that fails and gets reversed doesn't burn the daily quota.
+    async fn get_today_withdrawals(&self, user_id: Uuid) -> DomainResult<i64>;
 }
 
 /// Game repository trait.
@@ -122,9 +126,14 @@ pub trait MpesaRepository: Send + Sync {
         raw_callback: Option<serde_json::Value>,
     ) -> DomainResult<MpesaTransaction>;
 
-    async fn update_with_merchant_request_id(
+    /// Replaces `update_with_merchant_request_id`. Also writes
+    /// `checkout_request_id` (previously never set to Safaricom's real
+    /// CheckoutRequestID for deposits -- see the fix in mpesa_service).
+    /// Either field may be `None` to leave it untouched.
+    async fn update_provider_ids(
         &self,
         id: Uuid,
+        checkout_request_id: Option<String>,
         merchant_request_id: Option<String>,
     ) -> DomainResult<MpesaTransaction>;
 

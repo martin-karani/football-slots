@@ -57,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
     let mpesa_service = Arc::new(MpesaServiceImpl::new(
         mpesa_repo.clone(),
         wallet_repo.clone(),
+        user_repo.clone(),
         config.clone(),
     ));
 

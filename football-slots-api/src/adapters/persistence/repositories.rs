@@ -32,7 +32,8 @@ impl UserRepository for PgUserRepository {
         let user: User = sqlx::query_as(
             r#"INSERT INTO users (phone_number, display_name) VALUES ($1, $2)
                RETURNING id, phone_number, display_name, kyc_status, date_of_birth,
-               self_excluded_until, daily_deposit_limit_minor, created_at, updated_at"#,
+               self_excluded_until, daily_deposit_limit_minor, daily_withdrawal_limit_minor,
+               created_at, updated_at"#,
         )
         .bind(&req.phone_number)
         .bind(req.display_name.as_deref())
@@ -44,7 +45,8 @@ impl UserRepository for PgUserRepository {
     async fn find_by_id(&self, id: Uuid) -> DomainResult<Option<User>> {
         let user: Option<User> = sqlx::query_as(
             r#"SELECT id, phone_number, display_name, kyc_status, date_of_birth,
-               self_excluded_until, daily_deposit_limit_minor, created_at, updated_at
+               self_excluded_until, daily_deposit_limit_minor, daily_withdrawal_limit_minor,
+               created_at, updated_at
                FROM users WHERE id = $1"#,
         )
         .bind(id)
@@ -56,7 +58,8 @@ impl UserRepository for PgUserRepository {
     async fn find_by_phone(&self, phone: &str) -> DomainResult<Option<User>> {
         let user: Option<User> = sqlx::query_as(
             r#"SELECT id, phone_number, display_name, kyc_status, date_of_birth,
-               self_excluded_until, daily_deposit_limit_minor, created_at, updated_at
+               self_excluded_until, daily_deposit_limit_minor, daily_withdrawal_limit_minor,
+               created_at, updated_at
                FROM users WHERE phone_number = $1"#,
         )
         .bind(phone)
@@ -70,7 +73,8 @@ impl UserRepository for PgUserRepository {
             r#"UPDATE users SET kyc_status = $1::kyc_status, updated_at = now()
                WHERE id = $2
                RETURNING id, phone_number, display_name, kyc_status, date_of_birth,
-               self_excluded_until, daily_deposit_limit_minor, created_at, updated_at"#,
+               self_excluded_until, daily_deposit_limit_minor, daily_withdrawal_limit_minor,
+               created_at, updated_at"#,
         )
         .bind(status)
         .bind(id)
@@ -88,7 +92,8 @@ impl UserRepository for PgUserRepository {
             r#"UPDATE users SET self_excluded_until = $1, updated_at = now()
                WHERE id = $2
                RETURNING id, phone_number, display_name, kyc_status, date_of_birth,
-               self_excluded_until, daily_deposit_limit_minor, created_at, updated_at"#,
+               self_excluded_until, daily_deposit_limit_minor, daily_withdrawal_limit_minor,
+               created_at, updated_at"#,
         )
         .bind(until)
         .bind(id)
@@ -379,6 +384,27 @@ impl WalletRepository for PgWalletRepository {
         let total: i64 = row.try_get("total")?;
         Ok(total)
     }
+
+    async fn get_today_withdrawals(&self, user_id: Uuid) -> DomainResult<i64> {
+        // Debits are stored negative, reversal credits positive, so
+        // -SUM(...) over both types nets out anything that was reversed
+        // the same day. (Edge case: a reversal that lands after midnight
+        // for a withdrawal initiated the day before will make that later
+        // day's total look artificially low by that amount -- acceptable
+        // since it only ever makes the limit *more* permissive, never less.)
+        let row = sqlx::query(
+            r#"SELECT COALESCE(-SUM(l.amount_minor), 0) as total FROM wallet_ledger l
+               JOIN wallets w ON l.wallet_id = w.id
+               WHERE w.user_id = $1 AND l.entry_type IN ('withdrawal', 'withdrawal_reversal')
+               AND l.created_at >= CURRENT_DATE"#,
+        )
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let total: i64 = row.try_get("total")?;
+        Ok(total)
+    }
 }
 
 // ============================================================
@@ -624,7 +650,7 @@ impl PgMpesaRepository {
 #[async_trait]
 impl MpesaRepository for PgMpesaRepository {
     async fn create_transaction(&self, tx: &MpesaTransaction) -> DomainResult<MpesaTransaction> {
-        let t: MpesaTransaction = sqlx::query_as(
+        let result = sqlx::query_as(
             r#"INSERT INTO mpesa_transactions (id, user_id, direction, checkout_request_id,
                merchant_request_id, amount_minor, phone_number, status)
                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -641,8 +667,21 @@ impl MpesaRepository for PgMpesaRepository {
         .bind(&tx.phone_number)
         .bind(tx.status.to_string())
         .fetch_one(&self.pool)
-        .await?;
-        Ok(t)
+        .await;
+
+        match result {
+            Ok(t) => Ok(t),
+            // A concurrent request already holds this user's one allowed
+            // pending withdrawal -- surface that distinctly rather than a
+            // generic 500.
+            Err(sqlx::Error::Database(db_err))
+                if db_err.kind() == sqlx::error::ErrorKind::UniqueViolation
+                    && db_err.constraint() == Some("idx_one_pending_withdrawal_per_user") =>
+            {
+                Err(DomainError::PendingWithdrawalExists)
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     async fn find_by_checkout_request_id(
@@ -689,18 +728,23 @@ impl MpesaRepository for PgMpesaRepository {
         Ok(t)
     }
 
-    async fn update_with_merchant_request_id(
+    async fn update_provider_ids(
         &self,
         id: Uuid,
+        checkout_request_id: Option<String>,
         merchant_request_id: Option<String>,
     ) -> DomainResult<MpesaTransaction> {
         let t: MpesaTransaction = sqlx::query_as(
-            r#"UPDATE mpesa_transactions SET merchant_request_id = $1, updated_at = now()
-               WHERE id = $2
+            r#"UPDATE mpesa_transactions SET
+               checkout_request_id = COALESCE($1, checkout_request_id),
+               merchant_request_id = COALESCE($2, merchant_request_id),
+               updated_at = now()
+               WHERE id = $3
                RETURNING id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
                result_desc, raw_callback, created_at, updated_at"#,
         )
+        .bind(checkout_request_id)
         .bind(merchant_request_id)
         .bind(id)
         .fetch_one(&self.pool)

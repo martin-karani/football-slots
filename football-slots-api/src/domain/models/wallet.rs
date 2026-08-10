@@ -24,6 +24,7 @@ pub enum LedgerEntryType {
     Win,
     Deposit,
     Withdrawal,
+    WithdrawalReversal, // funds given back after a failed/timed-out payout
     BonusCredit,
 }
 
@@ -34,6 +35,7 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::Win => write!(f, "win"),
             LedgerEntryType::Deposit => write!(f, "deposit"),
             LedgerEntryType::Withdrawal => write!(f, "withdrawal"),
+            LedgerEntryType::WithdrawalReversal => write!(f, "withdrawal_reversal"),
             LedgerEntryType::BonusCredit => write!(f, "bonus_credit"),
         }
     }

@@ -93,11 +93,14 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // M-Pesa routes (deposit is authenticated, callback is public webhook)
+    // M-Pesa routes (deposit/withdraw are authenticated, callbacks are public webhooks)
     let mpesa_routes = Router::new()
         .route("/deposit", post(mpesa::initiate_deposit))
+        .route("/withdraw", post(mpesa::initiate_withdrawal))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .route("/callback", post(mpesa::handle_callback)) // public webhook – no auth
+        .route("/b2c/result", post(mpesa::handle_b2c_result)) // public webhook – no auth
+        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout)) // public webhook – no auth
         .with_state(state.clone());
 
     // Health checks

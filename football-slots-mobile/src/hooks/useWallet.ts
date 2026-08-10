@@ -42,6 +42,29 @@ export function useWallet(currency?: CurrencyType) {
     [showInfo, showError],
   );
 
+  const withdraw = useCallback(
+    async (phoneNumber: string, amountKES: number) => {
+      try {
+        const amountMinor = toMinor(amountKES, "real");
+        await mpesaApi.withdraw(phoneNumber, amountMinor);
+        showInfo(
+          "Withdrawal submitted. Funds are on the way to your M-Pesa.",
+          "Withdrawal",
+        );
+        // The balance drops the moment the backend holds the funds, so
+        // refresh right away, then again once the B2C result usually lands.
+        fetchBalance();
+        setTimeout(fetchBalance, 8000);
+      } catch (error: any) {
+        console.error("Withdrawal failed:", error);
+        showError(
+          error.response?.data?.message || "Withdrawal failed. Try again.",
+        );
+      }
+    },
+    [showInfo, showError, fetchBalance],
+  );
+
   const topupVirtual = useCallback(async () => {
     try {
       const res = await walletApi.topupVirtual();
@@ -64,7 +87,7 @@ export function useWallet(currency?: CurrencyType) {
     return () => clearInterval(interval);
   }, [fetchBalance, isAuthenticated]);
 
-  return { fetchBalance, deposit, topupVirtual };
+  return { fetchBalance, deposit, withdraw, topupVirtual };
 }
 
 export function useAuthWallet() {

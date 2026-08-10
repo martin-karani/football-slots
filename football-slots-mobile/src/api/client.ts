@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { AuthResponse, SpinResult, PaytableResponse, WalletBalance, LedgerEntry, GameRound } from '../types';
+import { AuthResponse, SpinResult, PaytableResponse, WalletBalance, LedgerEntry, GameRound, WithdrawResponse } from '../types';
 
 // Android Emulator uses 10.0.2.2 to reach the host machine's localhost
 const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
@@ -99,6 +99,9 @@ export const walletApi = {
 export const mpesaApi = {
   deposit: (phoneNumber: string, amountMinor: number) =>
     client.post('/mpesa/deposit', { phone_number: phoneNumber, amount_minor: amountMinor }),
+
+  withdraw: (phoneNumber: string, amountMinor: number) =>
+    client.post('/mpesa/withdraw', { phone_number: phoneNumber, amount_minor: amountMinor }) as Promise<{ data: WithdrawResponse }>,
 };
 
 // ============================================================

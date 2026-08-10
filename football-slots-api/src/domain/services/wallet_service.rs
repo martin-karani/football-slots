@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::domain::models::{
     errors::DomainResult,
-    wallet::{CurrencyType, LedgerEntryType},
+    wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
 };
 use crate::ports::repositories::WalletRepository;
 
@@ -13,6 +13,13 @@ use crate::ports::repositories::WalletRepository;
 pub trait WalletService: Send + Sync {
     async fn get_balance(&self, user_id: Uuid, currency: CurrencyType) -> DomainResult<i64>;
     async fn get_wallet(&self, user_id: Uuid, currency: CurrencyType) -> DomainResult<Uuid>;
+    async fn get_ledger_entries(
+        &self,
+        wallet_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<WalletLedgerEntry>>;
+    async fn topup_virtual(&self, user_id: Uuid) -> DomainResult<Wallet>;
     async fn debit_bet(
         &self,
         wallet_id: Uuid,
@@ -58,6 +65,19 @@ impl WalletService for WalletServiceImpl {
     async fn get_wallet(&self, user_id: Uuid, currency: CurrencyType) -> DomainResult<Uuid> {
         let wallet = self.wallet_repo.get_or_create(user_id, currency).await?;
         Ok(wallet.id)
+    }
+
+    async fn get_ledger_entries(
+        &self,
+        wallet_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<WalletLedgerEntry>> {
+        self.wallet_repo.get_ledger_entries(wallet_id, limit, offset).await
+    }
+
+    async fn topup_virtual(&self, user_id: Uuid) -> DomainResult<Wallet> {
+        self.wallet_repo.topup_virtual(user_id).await
     }
 
     async fn debit_bet(

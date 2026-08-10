@@ -28,6 +28,27 @@ pub struct Config {
     pub mpesa_lipa_url: String,
     pub mpesa_base_url: String,
 
+    // Public base URL this server is reachable at. Used to build the
+    // M-Pesa callback/result/timeout URLs Safaricom posts back to.
+    // Point this at your ngrok/cloudflared tunnel in dev.
+    pub app_base_url: String,
+
+    // M-Pesa B2C (withdrawals). SecurityCredential is your initiator
+    // password encrypted with Safaricom's public certificate -- generate
+    // it once (offline, via the cert from the Daraja portal) and store the
+    // resulting base64 string here. It is NOT the raw password.
+    pub mpesa_initiator_name: String,
+    pub mpesa_security_credential: Secret<String>,
+    pub mpesa_b2c_shortcode: String,
+    pub mpesa_b2c_url: String,
+
+    // Real-money withdrawal limits (minor units). These are placeholder
+    // defaults, not a compliance recommendation -- set them to whatever
+    // your actual Safaricom B2C agreement and risk policy call for.
+    pub real_min_withdrawal: i64,
+    pub real_max_withdrawal: i64,
+    pub daily_withdrawal_limit_minor: i64,
+
     // OTP
     pub otp_api_key: Option<Secret<String>>,
     pub otp_from_number: Option<String>,
@@ -76,6 +97,28 @@ impl Config {
             mpesa_base_url: std::env::var("MPESA_BASE_URL").unwrap_or_else(|_| {
                 "https://sandbox.safaricom.co.ke".to_string()
             }),
+            app_base_url: std::env::var("APP_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:3000".to_string()),
+            mpesa_initiator_name: std::env::var("MPESA_INITIATOR_NAME").unwrap_or_default(),
+            mpesa_security_credential: Secret::from(
+                std::env::var("MPESA_SECURITY_CREDENTIAL").unwrap_or_default(),
+            ),
+            mpesa_b2c_shortcode: std::env::var("MPESA_B2C_SHORTCODE").unwrap_or_default(),
+            mpesa_b2c_url: std::env::var("MPESA_B2C_URL").unwrap_or_else(|_| {
+                "https://sandbox.safaricom.co.ke/mpesa/b2c/v1/paymentrequest".to_string()
+            }),
+            real_min_withdrawal: std::env::var("REAL_MIN_WITHDRAWAL")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10_000), // KES 100
+            real_max_withdrawal: std::env::var("REAL_MAX_WITHDRAWAL")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(7_000_000), // KES 70,000
+            daily_withdrawal_limit_minor: std::env::var("DAILY_WITHDRAWAL_LIMIT_MINOR")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(15_000_000), // KES 150,000
             otp_api_key: std::env::var("OTP_API_KEY").ok().map(Secret::from),
             otp_from_number: std::env::var("OTP_FROM_NUMBER").ok(),
         })
