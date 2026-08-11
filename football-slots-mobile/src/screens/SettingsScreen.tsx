@@ -5,12 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  StatusBar,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { authStorage } from "../api/client";
-import { CurrencyType, formatMinor } from "../types";
+import { formatMinor } from "../types";
+import { theme } from "../components/theme";
+
+/** Top-level play modes – separates free fun from real-money play */
+type PlayMode = "fun" | "real";
 
 export function SettingsScreen() {
   const navigation = useNavigation<any>();
@@ -20,6 +25,14 @@ export function SettingsScreen() {
   const clearAuth = useGameStore((state) => state.clearAuth);
   const phoneNumber = useGameStore((state) => state.phoneNumber);
   const { topupVirtual } = useWallet();
+
+  // Derive current play mode from the active currency
+  const playMode: PlayMode =
+    currency === "real" || currency === "bonus" ? "real" : "fun";
+
+  const switchMode = (mode: PlayMode) => {
+    setCurrency(mode === "fun" ? "virtual" : "real");
+  };
 
   const handleLogout = () => {
     Alert.alert("Log Out", "Are you sure you want to log out?", [
@@ -35,51 +48,7 @@ export function SettingsScreen() {
     ]);
   };
 
-  const currencies: {
-    key: CurrencyType;
-    label: string;
-    icon: string;
-    desc: string;
-  }[] = [
-    {
-      key: "virtual",
-      label: "FUN",
-      icon: "🎮",
-      desc: "Free play money. No real value.",
-    },
-    {
-      key: "real",
-      label: "KES",
-      icon: "💰",
-      desc: "Real money via M-Pesa. Withdrawable.",
-    },
-    {
-      key: "bonus",
-      label: "BONUS",
-      icon: "🎁",
-      desc: "Promo credits. Cannot withdraw.",
-    },
-  ];
-
-  const menuItems = [
-    {
-      icon: "💰",
-      label: "Wallet & Deposit",
-      sub: "Manage your balances and deposit via M-Pesa",
-      onPress: () => navigation.navigate("Wallet"),
-    },
-    {
-      icon: "📜",
-      label: "Bet History",
-      sub: "View your past spins and results",
-      onPress: () => navigation.navigate("History"),
-    },
-    {
-      icon: "🎁",
-      label: "Free FUN Refill",
-      sub: "Get 1,000 free FUN credits to keep playing",
-      onPress: topupVirtual,
-    },
+  const infoItems = [
     {
       icon: "🔒",
       label: "Responsible Gambling",
@@ -102,200 +71,475 @@ export function SettingsScreen() {
     },
   ];
 
+  const isFun = playMode === "fun";
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Header */}
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.surface} />
+
+      {/* ─── Header ─────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backBtnText}>✕</Text>
+          <Text style={styles.backArrow}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>⚙️ Settings</Text>
-        <View style={{ width: 36 }} />
+        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={{ width: 38 }} />
       </View>
 
-      {/* Profile Card */}
-      <View style={styles.profileCard}>
-        <View style={styles.profileAvatar}>
-          <Text style={styles.profileAvatarText}>⚽</Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ─── Profile Card ────────────────────────────── */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarRing}>
+            <Text style={styles.avatarEmoji}>⚽</Text>
+          </View>
+          <View style={styles.profileInfo}>
+            <Text style={styles.profilePhone}>{phoneNumber}</Text>
+            <Text style={styles.profileSub}>Football Slots Player</Text>
+          </View>
         </View>
-        <View>
-          <Text style={styles.profilePhone}>{phoneNumber}</Text>
-          <Text style={styles.profileSub}>Football Slots Player</Text>
-        </View>
-      </View>
 
-      {/* Balance Summary */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>💼 Balances</Text>
-        <View style={styles.balanceGrid}>
-          {currencies.map((c) => (
-            <TouchableOpacity
-              key={c.key}
-              style={[
-                styles.balanceCard,
-                currency === c.key && styles.balanceCardActive,
-              ]}
-              onPress={() => setCurrency(c.key)}
-            >
-              <Text style={styles.balanceIcon}>{c.icon}</Text>
-              <Text style={styles.balanceLabel}>{c.label}</Text>
-              <Text style={styles.balanceAmount}>
-                {formatMinor(balances[c.key], c.key)}
+        {/* ─── Active Mode Banner ─────────────────────── */}
+        <View style={[styles.activeModeBadge, isFun ? styles.activeModeBadgeFun : styles.activeModeBadgeReal]}>
+          <Text style={styles.activeModeIcon}>{isFun ? "🎮" : "💰"}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.activeModeTitle}>
+              {isFun ? "FUN Mode Active" : "REAL Mode Active (KES)"}
+            </Text>
+            <Text style={styles.activeModeSub}>
+              {isFun ? "Free Play · Virtual Credits" : "M-Pesa · Real Money Play"}
+            </Text>
+          </View>
+        </View>
+
+        {/* ─── Balance Panel (FUN mode) ─────────────────── */}
+        {isFun && (
+          <>
+            <View style={[styles.balancePanel, styles.balancePanelFun]}>
+              <View style={styles.balancePanelRow}>
+                <View>
+                  <Text style={styles.balancePanelLabel}>FUN Credits</Text>
+                  <Text style={[styles.balancePanelAmount, styles.funAmount]}>
+                    {formatMinor(balances.virtual, "virtual")}
+                  </Text>
+                </View>
+                <View style={styles.funBadge}>
+                  <Text style={styles.funBadgeText}>FREE PLAY</Text>
+                </View>
+              </View>
+              {balances.bonus > 0 && (
+                <View style={styles.bonusRow}>
+                  <Text style={styles.bonusIcon}>🎁</Text>
+                  <Text style={styles.bonusLabel}>Bonus Credits</Text>
+                  <Text style={styles.bonusValue}>
+                    {formatMinor(balances.bonus, "bonus")}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* FUN actions */}
+            <View style={styles.menuGroup}>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={topupVirtual}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuRowIcon, styles.iconFun]}>
+                  <Text style={styles.menuRowIconText}>🎁</Text>
+                </View>
+                <View style={styles.menuRowContent}>
+                  <Text style={styles.menuRowLabel}>Free FUN Refill</Text>
+                  <Text style={styles.menuRowSub}>
+                    Get 1,000 free FUN credits instantly
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* ─── Balance Panel (REAL mode) ────────────────── */}
+        {!isFun && (
+          <>
+            <View style={[styles.balancePanel, styles.balancePanelReal]}>
+              <View style={styles.balancePanelRow}>
+                <View>
+                  <Text style={styles.balancePanelLabel}>KES Balance</Text>
+                  <Text style={[styles.balancePanelAmount, styles.realAmount]}>
+                    KES {formatMinor(balances.real, "real")}
+                  </Text>
+                </View>
+                <View style={styles.realBadge}>
+                  <Text style={styles.realBadgeText}>REAL MONEY</Text>
+                </View>
+              </View>
+              {balances.bonus > 0 && (
+                <View style={styles.bonusRow}>
+                  <Text style={styles.bonusIcon}>🎁</Text>
+                  <Text style={styles.bonusLabel}>Bonus Credits</Text>
+                  <Text style={styles.bonusValue}>
+                    {formatMinor(balances.bonus, "bonus")}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* REAL actions */}
+            <View style={styles.menuGroup}>
+              <TouchableOpacity
+                style={[styles.menuRow, styles.menuRowBorder]}
+                onPress={() => navigation.navigate("Wallet")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuRowIcon, styles.iconReal]}>
+                  <Text style={styles.menuRowIconText}>💳</Text>
+                </View>
+                <View style={styles.menuRowContent}>
+                  <Text style={styles.menuRowLabel}>Deposit via M-Pesa</Text>
+                  <Text style={styles.menuRowSub}>
+                    Add real money to your account
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuRow}
+                onPress={() => navigation.navigate("Wallet")}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuRowIcon, styles.iconReal]}>
+                  <Text style={styles.menuRowIconText}>💸</Text>
+                </View>
+                <View style={styles.menuRowContent}>
+                  <Text style={styles.menuRowLabel}>Withdraw Winnings</Text>
+                  <Text style={styles.menuRowSub}>
+                    Send your balance to M-Pesa
+                  </Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+
+        {/* ─── Navigation Items ────────────────────────── */}
+        <View style={styles.menuGroup}>
+          <TouchableOpacity
+            style={[styles.menuRow, styles.menuRowBorder]}
+            onPress={() => navigation.navigate("History")}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuRowIcon}>
+              <Text style={styles.menuRowIconText}>📜</Text>
+            </View>
+            <View style={styles.menuRowContent}>
+              <Text style={styles.menuRowLabel}>Bet History</Text>
+              <Text style={styles.menuRowSub}>
+                View your past spins and results
               </Text>
-              <Text style={styles.balanceDesc}>{c.desc}</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.menuRow, styles.menuRowBorder]}
+            onPress={() => navigation.navigate("Wallet")}
+            activeOpacity={0.7}
+          >
+            <View style={styles.menuRowIcon}>
+              <Text style={styles.menuRowIconText}>👛</Text>
+            </View>
+            <View style={styles.menuRowContent}>
+              <Text style={styles.menuRowLabel}>Full Wallet</Text>
+              <Text style={styles.menuRowSub}>
+                Manage all your balances
+              </Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
+          </TouchableOpacity>
+          {infoItems.map((item, i) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[
+                styles.menuRow,
+                i < infoItems.length - 1 && styles.menuRowBorder,
+              ]}
+              onPress={item.onPress}
+              activeOpacity={0.7}
+            >
+              <View style={styles.menuRowIcon}>
+                <Text style={styles.menuRowIconText}>{item.icon}</Text>
+              </View>
+              <View style={styles.menuRowContent}>
+                <Text style={styles.menuRowLabel}>{item.label}</Text>
+                <Text style={styles.menuRowSub}>{item.sub}</Text>
+              </View>
+              <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
           ))}
         </View>
-      </View>
 
-      {/* Menu Items */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>🔧 Options</Text>
-        {menuItems.map((item) => (
+        {/* ─── Logout ──────────────────────────────────── */}
+        <View style={styles.menuGroup}>
           <TouchableOpacity
-            key={item.label}
-            style={styles.menuItem}
-            onPress={item.onPress}
+            style={styles.menuRow}
+            onPress={handleLogout}
+            activeOpacity={0.7}
           >
-            <Text style={styles.menuItemIcon}>{item.icon}</Text>
-            <View style={styles.menuItemText}>
-              <Text style={styles.menuItemLabel}>{item.label}</Text>
-              <Text style={styles.menuItemSub}>{item.sub}</Text>
+            <View style={[styles.menuRowIcon, styles.menuRowIconDanger]}>
+              <Text style={styles.menuRowIconText}>🚪</Text>
             </View>
-            <Text style={styles.menuItemChevron}>›</Text>
+            <View style={styles.menuRowContent}>
+              <Text style={[styles.menuRowLabel, styles.dangerText]}>
+                Log Out
+              </Text>
+            </View>
+            <Text style={[styles.chevron, styles.dangerText]}>›</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+        </View>
 
-      {/* Logout */}
-      <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-        <Text style={styles.logoutText}>🚪 Log Out</Text>
-      </TouchableOpacity>
-
-      <Text style={styles.version}>
-        Football Slots v1.0 · Powered by Provably Fair RNG
-      </Text>
-    </ScrollView>
+        <Text style={styles.version}>
+          Football Slots v1.0 · Provably Fair RNG
+        </Text>
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#1a0d3d" },
-  content: { paddingBottom: 40 },
+const { colors, radius, spacing } = theme;
 
+// Mode accent colours
+const FUN_COLOR = "#22c55e";   // green
+const REAL_COLOR = "#FFD700";  // gold
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.background },
+  scroll: { flex: 1 },
+  content: { paddingBottom: 48 },
+
+  /* Header */
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "#250d50",
+    paddingHorizontal: spacing.md,
+    paddingTop: 52,
+    paddingBottom: spacing.md,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: "#3d1a6e",
+    borderBottomColor: colors.border,
   },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
     alignItems: "center",
   },
-  backBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  title: { color: "#FFD700", fontWeight: "900", fontSize: 18 },
+  backArrow: { color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
+  headerTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
 
+  /* Profile card */
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: "#2d1b4e",
-    margin: 16,
-    padding: 16,
-    borderRadius: 14,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    padding: spacing.md,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#3d2b5e",
+    borderColor: colors.borderMuted,
   },
-  profileAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  avatarRing: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: "#4a1a7e",
+    borderWidth: 2,
+    borderColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
   },
-  profileAvatarText: { fontSize: 28 },
-  profilePhone: { color: "#FFD700", fontWeight: "800", fontSize: 16 },
-  profileSub: { color: "#aaa", fontSize: 12, marginTop: 2 },
+  avatarEmoji: { fontSize: 30 },
+  profileInfo: { flex: 1 },
+  profilePhone: { color: colors.accent, fontWeight: "800", fontSize: 16 },
+  profileSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
-  section: { marginHorizontal: 16, marginBottom: 16 },
-  sectionTitle: {
-    color: "#FFD700",
-    fontWeight: "800",
-    fontSize: 13,
-    letterSpacing: 1,
-    textTransform: "uppercase",
-    marginBottom: 10,
-  },
-
-  balanceGrid: { gap: 8 },
-  balanceCard: {
-    backgroundColor: "#2d1b4e",
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#3d2b5e",
+  /* Mode toggle */
+  modeToggleWrap: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
-  balanceCardActive: { borderColor: "#FFD700", backgroundColor: "#3a2260" },
-  balanceIcon: { fontSize: 22 },
-  balanceLabel: { color: "#fff", fontWeight: "700", fontSize: 14, width: 50 },
-  balanceAmount: {
-    color: "#FFD700",
-    fontWeight: "900",
-    fontSize: 16,
+  modeTab: {
     flex: 1,
-    textAlign: "right",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    borderWidth: 1.5,
+    borderColor: colors.borderMuted,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 4,
   },
-  balanceDesc: {
-    color: "#777",
-    fontSize: 10,
-    position: "absolute",
-    bottom: 5,
-    right: 12,
+  modeTabFunActive: {
+    borderColor: FUN_COLOR,
+    backgroundColor: "rgba(34,197,94,0.1)",
   },
+  modeTabRealActive: {
+    borderColor: REAL_COLOR,
+    backgroundColor: "rgba(255,215,0,0.08)",
+  },
+  modeTabIcon: { fontSize: 24, marginBottom: 2 },
+  modeTabLabel: {
+    color: colors.textMuted,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  modeTabLabelFunActive: { color: FUN_COLOR },
+  modeTabLabelRealActive: { color: REAL_COLOR },
+  modeTabSub: { color: colors.textDim, fontSize: 10, textAlign: "center" },
+  modeTabSubActive: { color: colors.textMuted },
 
-  menuItem: {
+  /* Balance panel */
+  balancePanel: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.md,
+  },
+  balancePanelFun: {
+    backgroundColor: "rgba(34,197,94,0.08)",
+    borderColor: "rgba(34,197,94,0.3)",
+  },
+  balancePanelReal: {
+    backgroundColor: "rgba(255,215,0,0.06)",
+    borderColor: "rgba(255,215,0,0.3)",
+  },
+  balancePanelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  balancePanelLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  balancePanelAmount: { fontSize: 28, fontWeight: "900" },
+  funAmount: { color: FUN_COLOR },
+  realAmount: { color: REAL_COLOR },
+
+  funBadge: {
+    backgroundColor: "rgba(34,197,94,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: "rgba(34,197,94,0.4)",
+  },
+  funBadgeText: { color: FUN_COLOR, fontSize: 10, fontWeight: "800" },
+
+  realBadge: {
+    backgroundColor: "rgba(255,215,0,0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: "rgba(255,215,0,0.4)",
+  },
+  realBadgeText: { color: REAL_COLOR, fontSize: 10, fontWeight: "800" },
+
+  bonusRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2d1b4e",
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.07)",
+    gap: 8,
+  },
+  bonusIcon: { fontSize: 14 },
+  bonusLabel: { color: colors.textMuted, fontSize: 12, flex: 1 },
+  bonusValue: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 },
+
+  /* Menu group */
+  menuGroup: {
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#3d2b5e",
+    borderColor: colors.borderMuted,
+    overflow: "hidden",
+  },
+  menuRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
     gap: 12,
   },
-  menuItemIcon: { fontSize: 22, width: 32, textAlign: "center" },
-  menuItemText: { flex: 1 },
-  menuItemLabel: { color: "#fff", fontWeight: "700", fontSize: 14 },
-  menuItemSub: { color: "#888", fontSize: 11, marginTop: 2 },
-  menuItemChevron: { color: "#FFD700", fontSize: 22, fontWeight: "bold" },
-
-  logoutBtn: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    backgroundColor: "rgba(255,77,77,0.12)",
-    padding: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,77,77,0.3)",
+  menuRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.06)",
   },
-  logoutText: { color: "#ff4d4d", fontWeight: "800", fontSize: 15 },
-  version: { textAlign: "center", color: "#444", fontSize: 10, marginTop: 4 },
+  menuRowIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(124,58,237,0.25)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconFun: { backgroundColor: "rgba(34,197,94,0.15)" },
+  iconReal: { backgroundColor: "rgba(255,215,0,0.12)" },
+  menuRowIconDanger: { backgroundColor: "rgba(255,77,77,0.15)" },
+  menuRowIconText: { fontSize: 18 },
+  menuRowContent: { flex: 1 },
+  menuRowLabel: { color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
+  menuRowSub: { color: colors.textMuted, fontSize: 11, marginTop: 1 },
+  chevron: { color: colors.textMuted, fontSize: 22, fontWeight: "300" },
+  dangerText: { color: colors.danger },
+
+  version: {
+    textAlign: "center",
+    color: colors.textDim,
+    fontSize: 10,
+    marginTop: spacing.md,
+  },
+  activeModeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+    gap: 12,
+  },
+  activeModeBadgeFun: {
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    borderColor: "rgba(34, 197, 94, 0.4)",
+  },
+  activeModeBadgeReal: {
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    borderColor: "rgba(255, 215, 0, 0.4)",
+  },
+  activeModeIcon: { fontSize: 24 },
+  activeModeTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 14 },
+  activeModeSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
 });
+

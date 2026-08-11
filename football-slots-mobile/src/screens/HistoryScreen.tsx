@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
-import { View, Text, FlatList, StyleSheet, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  RefreshControl,
+  StatusBar,
+} from "react-native";
 import { gameApi } from "../api/client";
 import { GameRound, formatMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
+import { theme } from "../components/theme";
 
 export function HistoryScreen() {
   const [rounds, setRounds] = useState<GameRound[]>([]);
@@ -27,9 +35,7 @@ export function HistoryScreen() {
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchHistory();
-    }
+    if (isAuthenticated) fetchHistory();
   }, [isAuthenticated]);
 
   const formatDate = (dateStr: string) => {
@@ -42,40 +48,55 @@ export function HistoryScreen() {
     });
   };
 
-  const renderItem = ({ item }: { item: GameRound }) => (
+  const renderItem = ({ item, index }: { item: GameRound; index: number }) => (
     <View style={[styles.card, item.is_win && styles.winCard]}>
+      {/* Card header */}
       <View style={styles.cardHeader}>
-        <Text style={styles.symbolText}>
-          {item.result_symbol.replace(/_/g, " ")} ×{item.result_multiplier}
-        </Text>
-        <Text
+        <View style={styles.symbolWrap}>
+          <Text style={styles.symbolText}>
+            {item.result_symbol.replace(/_/g, " ")}
+          </Text>
+          <Text style={styles.multiplierText}>×{item.result_multiplier}</Text>
+        </View>
+        <View
           style={[
-            styles.resultText,
-            item.is_win ? styles.winText : styles.loseText,
+            styles.badge,
+            item.is_win ? styles.badgeWin : styles.badgeLoss,
           ]}
         >
-          {item.is_win ? "WIN" : "LOSS"}
-        </Text>
+          <Text
+            style={[
+              styles.badgeText,
+              item.is_win ? styles.badgeTextWin : styles.badgeTextLoss,
+            ]}
+          >
+            {item.is_win ? "WIN" : "LOSS"}
+          </Text>
+        </View>
       </View>
-      <View style={styles.cardBody}>
-        <View style={styles.statRow}>
+
+      {/* Stats row */}
+      <View style={styles.statsRow}>
+        <View style={styles.statItem}>
           <Text style={styles.statLabel}>Stake</Text>
           <Text style={styles.statValue}>
             {formatMinor(item.total_stake_minor, item.currency)}
           </Text>
         </View>
-        <View style={styles.statRow}>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
           <Text style={styles.statLabel}>Payout</Text>
           <Text style={[styles.statValue, item.is_win && styles.winValue]}>
             {formatMinor(item.gross_payout_minor, item.currency)}
           </Text>
         </View>
-        <View style={styles.statRow}>
+        <View style={styles.statDivider} />
+        <View style={styles.statItem}>
           <Text style={styles.statLabel}>Net</Text>
           <Text
             style={[
               styles.statValue,
-              item.net_result_minor >= 0 ? styles.winValue : styles.loseValue,
+              item.net_result_minor >= 0 ? styles.winValue : styles.lossValue,
             ]}
           >
             {item.net_result_minor >= 0 ? "+" : ""}
@@ -83,17 +104,43 @@ export function HistoryScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Date */}
       <Text style={styles.dateText}>{formatDate(item.created_at)}</Text>
     </View>
   );
 
+  const currency = useGameStore((state) => state.currency);
+  const isRealMode = currency === "real" || currency === "bonus";
+
+  const activeRounds = rounds.filter((item) =>
+    isRealMode
+      ? item.currency === "real" || item.currency === "bonus"
+      : item.currency === "virtual"
+  );
+
   return (
-    <View style={styles.container}>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+
       <FlatList
-        data={rounds}
+        data={activeRounds}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View style={[styles.modeBanner, !isRealMode ? styles.modeBannerFun : styles.modeBannerReal]}>
+            <Text style={styles.modeBannerIcon}>{!isRealMode ? "🎮" : "💰"}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.modeBannerTitle}>
+                {!isRealMode ? "FUN Mode Bet History" : "REAL Mode Bet History"}
+              </Text>
+              <Text style={styles.modeBannerSub}>
+                {!isRealMode ? "Showing Free Play Spins" : "Showing M-Pesa Real Money Spins"}
+              </Text>
+            </View>
+          </View>
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -101,15 +148,15 @@ export function HistoryScreen() {
               setRefreshing(true);
               fetchHistory();
             }}
-            tintColor="#FFD700"
+            tintColor={colors.accent}
           />
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🏈</Text>
-            <Text style={styles.emptyText}>No spins yet</Text>
+            <Text style={styles.emptyEmoji}>⚽</Text>
+            <Text style={styles.emptyTitle}>No {!isRealMode ? "FUN" : "REAL"} spins yet</Text>
             <Text style={styles.emptyHint}>
-              Start playing to see your history
+              Spin in {!isRealMode ? "FUN" : "REAL"} mode to see your history here
             </Text>
           </View>
         }
@@ -118,95 +165,76 @@ export function HistoryScreen() {
   );
 }
 
+const { colors, radius, spacing } = theme;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#1a0033",
-  },
-  list: {
-    padding: 16,
-    gap: 12,
-  },
+  root: { flex: 1, backgroundColor: colors.background },
+  list: { padding: spacing.md, gap: 10, paddingBottom: 40 },
+
   card: {
-    backgroundColor: "#2d1b4e",
-    borderRadius: 12,
-    padding: 16,
-  },
-  winCard: {
-    borderColor: "#4CAF50",
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.md,
     borderWidth: 1,
+    borderColor: colors.borderMuted,
   },
+  winCard: { borderColor: colors.positive },
+
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
+  symbolWrap: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   symbolText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "700",
+    textTransform: "capitalize",
   },
-  resultText: {
-    fontSize: 12,
-    fontWeight: "bold",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+  multiplierText: {
+    color: colors.accent,
+    fontSize: 13,
+    fontWeight: "700",
   },
-  winText: {
-    color: "#4CAF50",
-    backgroundColor: "rgba(76,175,80,0.2)",
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: radius.full,
   },
-  loseText: {
-    color: "#dc3545",
-    backgroundColor: "rgba(220,53,69,0.2)",
-  },
-  cardBody: {
-    gap: 6,
-  },
-  statRow: {
+  badgeWin: { backgroundColor: "rgba(76,175,80,0.15)" },
+  badgeLoss: { backgroundColor: "rgba(220,53,69,0.15)" },
+  badgeText: { fontSize: 11, fontWeight: "700" },
+  badgeTextWin: { color: colors.positive },
+  badgeTextLoss: { color: colors.negative },
+
+  statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: radius.sm,
+    overflow: "hidden",
   },
-  statLabel: {
-    color: "#aaa",
-    fontSize: 13,
-  },
-  statValue: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  winValue: {
-    color: "#4CAF50",
-  },
-  loseValue: {
-    color: "#dc3545",
-  },
+  statItem: { flex: 1, alignItems: "center", paddingVertical: 10 },
+  statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.07)" },
+  statLabel: { color: colors.textMuted, fontSize: 10, marginBottom: 3 },
+  statValue: { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
+  winValue: { color: colors.positive },
+  lossValue: { color: colors.negative },
+
   dateText: {
-    color: "#666",
-    fontSize: 11,
+    color: colors.textDim,
+    fontSize: 10,
     marginTop: 10,
     textAlign: "right",
   },
-  empty: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-  emptyEmoji: {
-    fontSize: 60,
-    marginBottom: 16,
-  },
-  emptyText: {
-    color: "#fff",
+
+  empty: { alignItems: "center", paddingVertical: 80 },
+  emptyEmoji: { fontSize: 64, marginBottom: 16 },
+  emptyTitle: {
+    color: colors.textPrimary,
     fontSize: 18,
-    fontWeight: "bold",
+    fontWeight: "700",
   },
-  emptyHint: {
-    color: "#aaa",
-    fontSize: 14,
-    marginTop: 8,
-  },
+  emptyHint: { color: colors.textMuted, fontSize: 13, marginTop: 6 },
 });

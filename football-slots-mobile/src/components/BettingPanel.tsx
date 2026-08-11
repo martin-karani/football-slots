@@ -21,6 +21,8 @@ export function BettingPanel() {
   const removeBet = useGameStore((state) => state.removeBet);
   const setSelectedChip = useGameStore((state) => state.setSelectedChip);
 
+  const clearBets = useGameStore((state) => state.clearBets);
+
   return (
     <View style={styles.container}>
       {/* Chip Selector */}
@@ -37,7 +39,14 @@ export function BettingPanel() {
                 styles.chip,
                 selectedChip === value && styles.chipSelected,
               ]}
-              onPress={() => setSelectedChip(value)}
+              onPress={() => {
+                if (selectedChip === value) {
+                  setSelectedChip(0);
+                  clearBets();
+                } else {
+                  setSelectedChip(value);
+                }
+              }}
             >
               <Text
                 style={[

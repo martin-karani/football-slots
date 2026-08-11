@@ -8,10 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  StatusBar,
 } from "react-native";
 import { authApi, authStorage } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
 import { useToast } from "../components/Toast";
+import { theme } from "../components/theme";
 
 export function LoginScreen() {
   const [phone, setPhone] = useState("");
@@ -26,7 +28,6 @@ export function LoginScreen() {
       showError("Enter a valid phone number");
       return;
     }
-
     setLoading(true);
     try {
       await authApi.sendOtp(phone);
@@ -43,12 +44,10 @@ export function LoginScreen() {
       showError("Enter the 6-digit OTP code");
       return;
     }
-
     setLoading(true);
     try {
       const res = await authApi.verifyOtp(phone, code);
       const { token, phone_number, kyc_status } = res.data;
-
       await authStorage.setToken(token);
       setAuth(phone_number, kyc_status);
     } catch (error: any) {
@@ -61,161 +60,189 @@ export function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
+      style={styles.root}
     >
-      <View style={styles.logoContainer}>
-        <Text style={styles.logo}>⚽</Text>
-        <Text style={styles.title}>Football Slots</Text>
-        <Text style={styles.subtitle}>Spin. Bet. Win.</Text>
+      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+
+      {/* ─── Logo / Brand ─────────────────────────────── */}
+      <View style={styles.brand}>
+        <View style={styles.logoRing}>
+          <Text style={styles.logoEmoji}>⚽</Text>
+        </View>
+        <Text style={styles.appName}>Football Slots</Text>
+        <Text style={styles.tagline}>Spin. Bet. Win.</Text>
       </View>
 
-      <View style={styles.form}>
+      {/* ─── Form Card ─────────────────────────────────── */}
+      <View style={styles.card}>
         {step === "phone" ? (
           <>
-            <Text style={styles.label}>Phone Number</Text>
+            <Text style={styles.cardTitle}>Enter your phone number</Text>
+            <Text style={styles.cardSub}>
+              We'll send a one-time code to verify your account
+            </Text>
+
+            <Text style={styles.fieldLabel}>Phone Number</Text>
             <TextInput
               style={styles.input}
               placeholder="+254 712 345 678"
               value={phone}
               onChangeText={setPhone}
               keyboardType="phone-pad"
-              placeholderTextColor="#666"
+              placeholderTextColor={colors.textDim}
+              autoFocus
             />
+
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.btn, loading && styles.btnDisabled]}
               onPress={sendOtp}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#1a0033" />
+                <ActivityIndicator color={colors.background} />
               ) : (
-                <Text style={styles.buttonText}>Send OTP</Text>
+                <Text style={styles.btnText}>Send OTP</Text>
               )}
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={styles.label}>Enter OTP Code</Text>
-            <Text style={styles.hint}>Sent to {phone}</Text>
+            <Text style={styles.cardTitle}>Verify your number</Text>
+            <Text style={styles.cardSub}>Code sent to {phone}</Text>
+
+            <Text style={styles.fieldLabel}>OTP Code</Text>
             <TextInput
-              style={[styles.input, styles.codeInput]}
+              style={[styles.input, styles.otpInput]}
               placeholder="123456"
               value={code}
               onChangeText={setCode}
               keyboardType="number-pad"
               maxLength={6}
-              placeholderTextColor="#666"
+              placeholderTextColor={colors.textDim}
+              autoFocus
             />
+
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.btn, loading && styles.btnDisabled]}
               onPress={verify}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#1a0033" />
+                <ActivityIndicator color={colors.background} />
               ) : (
-                <Text style={styles.buttonText}>Verify & Play</Text>
+                <Text style={styles.btnText}>Verify & Play</Text>
               )}
             </TouchableOpacity>
+
             <TouchableOpacity
               onPress={() => setStep("phone")}
               style={styles.backLink}
             >
-              <Text style={styles.backText}>← Change number</Text>
+              <Text style={styles.backLinkText}>← Change number</Text>
             </TouchableOpacity>
           </>
         )}
       </View>
 
-      <Text style={styles.footer}>Play responsibly. 18+ only.</Text>
+      {/* ─── Footer ────────────────────────────────────── */}
+      <Text style={styles.footer}>Play responsibly · 18+ only</Text>
     </KeyboardAvoidingView>
   );
 }
 
+const { colors, radius, spacing } = theme;
+
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: "#1a0033",
+    backgroundColor: colors.background,
     justifyContent: "center",
-    padding: 24,
+    paddingHorizontal: spacing.md,
   },
-  logoContainer: {
+
+  /* Brand section */
+  brand: { alignItems: "center", marginBottom: 32 },
+  logoRing: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: "#2d1b4e",
+    borderWidth: 3,
+    borderColor: colors.accent,
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 80,
     marginBottom: 16,
   },
-  title: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#FFD700",
-    textAlign: "center",
+  logoEmoji: { fontSize: 44 },
+  appName: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: colors.accent,
+    letterSpacing: 0.5,
   },
-  subtitle: {
+  tagline: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+
+  /* Form card */
+  card: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+    padding: spacing.lg,
+    marginBottom: 24,
+  },
+  cardTitle: {
+    color: colors.textPrimary,
     fontSize: 18,
-    color: "#aaa",
-    marginTop: 8,
+    fontWeight: "800",
+    marginBottom: 6,
   },
-  form: {
-    width: "100%",
+  cardSub: {
+    color: colors.textMuted,
+    fontSize: 13,
+    marginBottom: spacing.md,
+    lineHeight: 18,
   },
-  label: {
-    fontSize: 16,
-    color: "#fff",
-    marginBottom: 8,
+  fieldLabel: {
+    color: colors.textPrimary,
+    fontSize: 13,
     fontWeight: "600",
-  },
-  hint: {
-    fontSize: 14,
-    color: "#aaa",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    padding: 16,
-    borderRadius: 12,
-    fontSize: 18,
-    color: "#fff",
-    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.07)",
+    padding: 14,
+    borderRadius: radius.md,
+    fontSize: 16,
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: colors.borderMuted,
   },
-  codeInput: {
+  otpInput: {
     textAlign: "center",
-    letterSpacing: 8,
-    fontWeight: "bold",
+    letterSpacing: 10,
+    fontWeight: "800",
+    fontSize: 22,
   },
-  button: {
-    backgroundColor: "#FFD700",
-    padding: 16,
-    borderRadius: 12,
+  btn: {
+    backgroundColor: colors.accent,
+    padding: 15,
+    borderRadius: radius.md,
     alignItems: "center",
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  btnDisabled: { opacity: 0.6 },
+  btnText: {
+    color: colors.background,
+    fontWeight: "800",
+    fontSize: 16,
   },
-  buttonText: {
-    color: "#1a0033",
-    fontWeight: "bold",
-    fontSize: 18,
-  },
-  backLink: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  backText: {
-    color: "#FFD700",
-    fontSize: 14,
-  },
+  backLink: { marginTop: spacing.md, alignItems: "center" },
+  backLinkText: { color: colors.accent, fontSize: 14 },
+
   footer: {
-    position: "absolute",
-    bottom: 40,
-    left: 0,
-    right: 0,
     textAlign: "center",
-    color: "#666",
-    fontSize: 12,
+    color: colors.textDim,
+    fontSize: 11,
   },
 });

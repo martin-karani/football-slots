@@ -64,12 +64,7 @@ export function AppNavigation() {
             <Stack.Screen
               name="Wallet"
               component={WalletScreen}
-              options={{
-                headerShown: true,
-                headerStyle: { backgroundColor: '#1a0d3d' },
-                headerTintColor: '#FFD700',
-                headerTitle: '💰 Wallet',
-              }}
+              options={{ headerShown: false }}
             />
             {/* History pushed from Settings */}
             <Stack.Screen
@@ -77,9 +72,10 @@ export function AppNavigation() {
               component={HistoryScreen}
               options={{
                 headerShown: true,
-                headerStyle: { backgroundColor: '#1a0d3d' },
-                headerTintColor: '#FFD700',
-                headerTitle: '📜 Bet History',
+                headerStyle: { backgroundColor: '#250d50' },
+                headerTintColor: '#fff',
+                headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+                headerTitle: 'Bet History',
               }}
             />
           </>

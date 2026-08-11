@@ -6,7 +6,9 @@ import {
   StyleSheet,
   SafeAreaView,
   StatusBar,
-  ScrollView,
+  Modal,
+  TouchableWithoutFeedback,
+  Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
@@ -15,6 +17,7 @@ import { useWallet } from "../hooks/useWallet";
 import { WheelDisplay } from "../components/WheelDisplay";
 import { PaytableModal } from "../components/PaytableModal";
 import { WinCelebration } from "../components/WinCelebration";
+import { authStorage } from "../api/client";
 import {
   SYMBOLS,
   CHIP_VALUES,
@@ -46,8 +49,10 @@ export function GameScreen() {
   const setSelected = useGameStore((s) => s.setSelectedChip);
   const placeBet = useGameStore((s) => s.placeBet);
   const removeBet = useGameStore((s) => s.removeBet);
+  const clearAuth = useGameStore((s) => s.clearAuth);
   const [showPaytable, setShowPaytable] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showDropdownMenu, setShowDropdownMenu] = useState(false);
 
   const { spin, step } = useGame();
   const { fetchBalance } = useWallet();
@@ -79,23 +84,11 @@ export function GameScreen() {
           OUTER MACHINE BODY — cherry-red with thick brass gold border
        ══════════════════════════════════════════════════════════════════ */}
       <View style={st.machine}>
-        {/* Side brass light-rail pillars */}
-        <View style={st.railL} pointerEvents="none">
-          {[...Array(14)].map((_, i) => (
-            <View key={i} style={st.railDot} />
-          ))}
-        </View>
-        <View style={st.railR} pointerEvents="none">
-          {[...Array(14)].map((_, i) => (
-            <View key={i} style={st.railDot} />
-          ))}
-        </View>
-
         {/* ═══════════════════════════════════════════════════════════
             HEADER — rich purple marquee bar
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.header}>
-          <Text style={st.headerTxt}>⚽ FOOTBALL SLOTS ⚽</Text>
+          <Text style={st.headerTxt}>FOOTBALL SLOTS</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity
               style={st.menuBtn}
@@ -105,7 +98,7 @@ export function GameScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={st.menuBtn}
-              onPress={() => navigation.navigate("Settings")}
+              onPress={() => setShowDropdownMenu(!showDropdownMenu)}
             >
               <Text style={st.menuBtnTxt}>≡</Text>
             </TouchableOpacity>
@@ -125,63 +118,35 @@ export function GameScreen() {
               {currencyLabel(currency)}
             </Text>
           </View>
-          <View style={st.modePill}>
-            {(["virtual", "real"] as CurrencyType[]).map((k) => (
-              <TouchableOpacity
-                key={k}
-                style={[
-                  st.modeBtn,
-                  currency === k &&
-                    (k === "real" ? st.modeBtnOnReal : st.modeBtnOnFun),
-                ]}
-                onPress={() => setCurrency(k)}
-              >
-                <Text
-                  style={[
-                    st.modeTxt,
-                    currency === k &&
-                      (k === "real" ? st.modeTxtOnReal : st.modeTxtOnFun),
-                  ]}
-                >
-                  {k === "virtual" ? "🎮 FUN" : "💰 KES"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
-        {/* ═══════════════════════════════════════════════════════════
-            BONUS METER BAR
-         ═══════════════════════════════════════════════════════════ */}
-        {lastSpin && (
-          <View style={st.bonusMeterBar}>
-            <Text style={st.bonusMeterLabel}>🎯 GOAL BONUS</Text>
-            <View style={st.bonusMeterTrack}>
-              <View
-                style={[
-                  st.bonusMeterFill,
-                  {
-                    width: `${Math.min(
-                      ((lastSpin.bonus_progress_current ?? 0) /
-                        Math.max(lastSpin.bonus_progress_target ?? 1, 1)) *
-                        100,
-                      100,
-                    )}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={st.bonusMeterText}>
-              {lastSpin.bonus_progress_current ?? 0} /{" "}
-              {lastSpin.bonus_progress_target ?? 300}
+          <TouchableOpacity
+            style={st.modeBadgePill}
+            onPress={() => setShowDropdownMenu(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={st.modeBadgeTxt}>
+              {isReal ? "💰 REAL MODE ▾" : "🎮 FUN MODE ▾"}
             </Text>
-          </View>
-        )}
+          </TouchableOpacity>
+        </View>
 
         {/* ═══════════════════════════════════════════════════════════
             SLOT WHEEL BOARD
          ═══════════════════════════════════════════════════════════ */}
-        <WheelDisplay step={step} isSpinning={isSpinning} isReal={isReal} />
+        <View style={st.wheelWrapper}>
+          {/* Side brass light-rail pillars — only beside wheel */}
+          <View style={st.railL} pointerEvents="none">
+            {[...Array(8)].map((_, i) => (
+              <View key={i} style={st.railDot} />
+            ))}
+          </View>
+          <View style={st.railR} pointerEvents="none">
+            {[...Array(8)].map((_, i) => (
+              <View key={i} style={st.railDot} />
+            ))}
+          </View>
+          <WheelDisplay step={step} isSpinning={isSpinning} isReal={isReal} />
+        </View>
 
         {/* ═══════════════════════════════════════════════════════════
             CONTROL DECK — darker red machine bottom
@@ -232,7 +197,6 @@ export function GameScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={st.goLabel}>{isSpinning ? "⏳" : "GO"}</Text>
-                <Text style={st.goSub}>About to Pay {totalStakeDisplay}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -243,31 +207,34 @@ export function GameScreen() {
             <View style={st.rivetDotR} />
           </View>
 
-          {/* ── ROW 3: CHIP SELECTORS SHELF ────────────────────────── */}
+          {/* -- ROW 3: CHIP SELECTORS SHELF -- */}
           <View style={st.chipShelf}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={st.chipRow}
-              bounces={false}
-            >
+            <View style={st.chipRow}>
               {CHIP_VALUES.slice()
                 .reverse()
-                .map((v) => (
-                  <TouchableOpacity
-                    key={v}
-                    style={[st.chip, selectedChip === v && st.chipOn]}
-                    onPress={() => setSelected(v)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[st.chipTxt, selectedChip === v && st.chipTxtOn]}
+                .map((v, idx) => {
+                  const isOn = selectedChip === v;
+                  return (
+                    <TouchableOpacity
+                      key={`${v}-${idx}`}
+                      style={[st.chip, isOn && st.chipOn]}
+                      onPress={() => {
+                        if (isOn) {
+                          setSelected(0);
+                          clearBets();
+                        } else {
+                          setSelected(v);
+                        }
+                      }}
+                      activeOpacity={1}
                     >
-                      {v}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-            </ScrollView>
+                      <View style={[st.chipInnerRing, isOn && st.chipInnerRingOn]} />
+                      <Text style={[st.chipTxt, isOn && st.chipTxtOn]}>{v}</Text>
+                      {isOn && <View style={st.chipDot} />}
+                    </TouchableOpacity>
+                  );
+                })}
+            </View>
           </View>
 
           {/* ── SHELF: CLUB LOGOS (deepest/darkest shelf) ──────────── */}
@@ -275,23 +242,47 @@ export function GameScreen() {
             {SYMBOLS.map((sym) => {
               const betMinor = currentBets[sym.key] || 0;
               const betDisplay = fromMinor(betMinor, currency);
+              const hasBet = betMinor > 0;
               return (
                 <TouchableOpacity
                   key={sym.key}
-                  style={[st.clubCard, betMinor > 0 && st.clubCardOn]}
+                  style={[st.clubCard, hasBet && st.clubCardOn]}
                   onPress={() => {
-                    placeBet(sym.key, toMinor(selectedChip, currency));
-                    playSound("bet_place");
+                    if (hasBet) {
+                      // Tapping a selected club unselects it automatically
+                      removeBet(sym.key, betMinor);
+                      playSound("bet_remove");
+                    } else {
+                      // Tapping an unselected club selects it with active stake chip (defaults to 10 if 0)
+                      const chipToUse = selectedChip > 0 ? selectedChip : 10;
+                      if (selectedChip === 0) {
+                        setSelected(10);
+                      }
+                      placeBet(sym.key, toMinor(chipToUse, currency));
+                      playSound("bet_place");
+                    }
                   }}
                   onLongPress={() => {
-                    removeBet(sym.key, toMinor(selectedChip, currency));
-                    playSound("bet_remove");
+                    if (hasBet) {
+                      removeBet(sym.key, betMinor);
+                      playSound("bet_remove");
+                    }
                   }}
-                  activeOpacity={0.7}
+                  activeOpacity={0.75}
                 >
+                  {/* Warm top-left light bevel */}
+                  <View pointerEvents="none" style={st.clubTiltHi} />
+                  {/* Dark bottom-right shadow bevel */}
+                  <View pointerEvents="none" style={st.clubTiltLo} />
+
+                  {/* Gold active top bar indicator */}
+                  {hasBet && (
+                    <View pointerEvents="none" style={st.clubActiveBar} />
+                  )}
+
                   {sym.icon && <sym.icon width={28} height={28} />}
-                  <Text style={[st.clubBet, betMinor > 0 && st.clubBetOn]}>
-                    {betMinor > 0 ? betDisplay : "00"}
+                  <Text style={[st.clubBet, hasBet && st.clubBetOn]}>
+                    {hasBet ? betDisplay : "00"}
                   </Text>
                 </TouchableOpacity>
               );
@@ -313,6 +304,120 @@ export function GameScreen() {
         currency={currency}
         onDone={() => setShowCelebration(false)}
       />
+
+      {/* ── Settings Dropdown Modal ── */}
+      <Modal
+        visible={showDropdownMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDropdownMenu(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowDropdownMenu(false)}>
+          <View style={st.dropdownOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={st.dropdownCard}>
+                {/* Active Mode Banner */}
+                <View style={[st.dropdownModeHeader, isReal ? st.dropdownModeHeaderReal : st.dropdownModeHeaderFun]}>
+                  <Text style={st.dropdownModeBadge}>
+                    {isReal ? "💰 REAL MODE ACTIVE" : "🎮 FUN MODE ACTIVE"}
+                  </Text>
+                  <Text style={st.dropdownModeSub}>
+                    {isReal ? "Playing with M-Pesa KES" : "Free Play Credits"}
+                  </Text>
+                </View>
+
+                {/* Switch Mode Action Item */}
+                <TouchableOpacity
+                  style={st.dropdownSwitchBtn}
+                  onPress={() => {
+                    setCurrency(isReal ? "virtual" : "real");
+                    setShowDropdownMenu(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={st.dropdownSwitchTxt}>
+                    {isReal ? "🎮  Switch to FUN Mode" : "💰  Switch to REAL Mode (KES)"}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={st.dropdownDivider} />
+
+                {/* Navigation Items */}
+                <TouchableOpacity
+                  style={st.dropdownItem}
+                  onPress={() => {
+                    setShowDropdownMenu(false);
+                    navigation.navigate("Wallet");
+                  }}
+                >
+                  <Text style={st.dropdownItemIcon}>👛</Text>
+                  <Text style={st.dropdownItemTxt}>Wallet &amp; Deposit</Text>
+                  <Text style={st.dropdownItemArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={st.dropdownItem}
+                  onPress={() => {
+                    setShowDropdownMenu(false);
+                    navigation.navigate("History");
+                  }}
+                >
+                  <Text style={st.dropdownItemIcon}>📜</Text>
+                  <Text style={st.dropdownItemTxt}>Bet History</Text>
+                  <Text style={st.dropdownItemArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={st.dropdownItem}
+                  onPress={() => {
+                    setShowDropdownMenu(false);
+                    setShowPaytable(true);
+                  }}
+                >
+                  <Text style={st.dropdownItemIcon}>📋</Text>
+                  <Text style={st.dropdownItemTxt}>Rules &amp; Paytable</Text>
+                  <Text style={st.dropdownItemArrow}>›</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={st.dropdownItem}
+                  onPress={() => {
+                    setShowDropdownMenu(false);
+                    navigation.navigate("Settings");
+                  }}
+                >
+                  <Text style={st.dropdownItemIcon}>⚙️</Text>
+                  <Text style={st.dropdownItemTxt}>Profile &amp; Settings</Text>
+                  <Text style={st.dropdownItemArrow}>›</Text>
+                </TouchableOpacity>
+
+                <View style={st.dropdownDivider} />
+
+                <TouchableOpacity
+                  style={[st.dropdownItem, st.dropdownLogoutItem]}
+                  onPress={() => {
+                    setShowDropdownMenu(false);
+                    Alert.alert("Log Out", "Are you sure you want to log out?", [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Log Out",
+                        style: "destructive",
+                        onPress: async () => {
+                          await authStorage.clearToken();
+                          clearAuth();
+                        },
+                      },
+                    ]);
+                  }}
+                >
+                  <Text style={st.dropdownItemIcon}>🚪</Text>
+                  <Text style={[st.dropdownItemTxt, { color: "#ff6666" }]}>Log Out</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -346,6 +451,12 @@ const st = StyleSheet.create({
     shadowRadius: 16,
     elevation: 20,
     position: "relative",
+  },
+
+  // ── Wheel wrapper (anchors side-rails to wheel height only) ────────────
+  wheelWrapper: {
+    position: "relative",
+    width: "100%",
   },
 
   // ── Side wood light-rails ────────────────────────────────────────────────
@@ -532,18 +643,26 @@ const st = StyleSheet.create({
     fontWeight: "900",
   },
 
-  // ── Control Deck — darker red machine bottom ──────────────────────────────
+  // ── Control Deck — darker red machine bottom (STRONG 3D SHELF CASCADE) ──
   deck: {
-    backgroundColor: "#7a0818",
-    borderTopWidth: 4,
-    borderTopColor: "#8b5a2b",
+    backgroundColor: "#8a1420",
+    borderTopWidth: 6,
+    borderLeftWidth: 5,
+    borderRightWidth: 5,
+    borderBottomWidth: 6,
+    borderTopColor: "#e85a3c",
+    borderLeftColor: "#d04428",
+    borderRightColor: "#3a0810",
+    borderBottomColor: "#200306",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 8,
-    elevation: 12,
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 14,
     position: "relative",
-    paddingBottom: 8,
+    paddingTop: 6,
+    paddingBottom: 0,
+    paddingHorizontal: 6,
   },
   watermarkContainer: {
     position: "absolute",
@@ -554,7 +673,7 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 0,
-    opacity: 0.15,
+    opacity: 0.1,
   },
   watermarkTxt: {
     fontSize: 42,
@@ -568,49 +687,66 @@ const st = StyleSheet.create({
     color: "#00ffff",
   },
 
-  // ── Info Bar (WIN / STAKE / GIFT) ─────────────────────────────────────────
+  // ── Info Bar (WIN / STAKE / GIFT) — RECESSED DISH ────────────────────────
   infoBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#2a0307",
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderBottomWidth: 2,
-    borderBottomColor: "#501218",
-    gap: 12,
+    backgroundColor: "#3a020a",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 3,
+    borderTopColor: "#1a0104",
+    borderLeftColor: "#200105",
+    borderBottomColor: "#8a2a38",
+    borderRightColor: "#702230",
+    borderRadius: 8,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.6,
+    shadowRadius: 4,
+    elevation: 2,
+    marginBottom: 5,
   },
   infoPiece: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 5,
+    gap: 4,
   },
   winBadge: {
-    backgroundColor: "#cc2222",
+    backgroundColor: "#d6982b",
     paddingHorizontal: 6,
     paddingVertical: 1,
     borderRadius: 3,
-    borderWidth: 1,
-    borderTopColor: "#ee4444",
-    borderLeftColor: "#ee4444",
-    borderBottomColor: "#880000",
-    borderRightColor: "#880000",
+    borderWidth: 2,
+    borderTopColor: "#ffe480",
+    borderLeftColor: "#ffd060",
+    borderBottomColor: "#8a5a10",
+    borderRightColor: "#a06a18",
+    shadowColor: "#ffaa00",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
+    elevation: 3,
   },
   winBadgeTxt: {
     color: "#fff",
     fontSize: 10,
     fontWeight: "900",
     letterSpacing: 1,
+    textShadowColor: "#000",
+    textShadowOffset: { width: 0.5, height: 0.5 },
   },
   infoLabel: {
-    color: "#ffd700",
+    color: "#ffe8b0",
     fontWeight: "700",
-    fontSize: 12,
+    fontSize: 11,
     letterSpacing: 0.5,
   },
   infoVal: {
     color: "#fff",
     fontWeight: "900",
-    fontSize: 15,
+    fontSize: 14,
     fontVariant: ["tabular-nums"],
     textShadowColor: "#000",
     textShadowOffset: { width: 1, height: 1 },
@@ -619,155 +755,190 @@ const st = StyleSheet.create({
   giftPill: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 3,
+    backgroundColor: "rgba(255,200,50,0.08)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderTopColor: "rgba(255,220,100,0.35)",
+    borderLeftColor: "rgba(255,220,100,0.35)",
+    borderBottomColor: "rgba(0,0,0,0.4)",
+    borderRightColor: "rgba(0,0,0,0.4)",
   },
   giftTxt: {
-    color: "#ffd700",
-    fontWeight: "700",
-    fontSize: 11,
+    color: "#ffd678",
+    fontWeight: "800",
+    fontSize: 10,
   },
   giftVal: {
     color: "#ffe866",
     fontWeight: "800",
-    fontSize: 11,
+    fontSize: 10,
   },
 
-  // ── GO + CLEAR shelf ──────────────────────────────────────────────────────
+  // ── GO + CLEAR shelf — RAISED PLATFORM 1 ────────────────────────────────
   goShelf: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#8a101c",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: "#a01828",
+    borderRadius: 10,
+    borderWidth: 3,
+    borderTopColor: "#ff5a3a",
+    borderLeftColor: "#e03a1a",
+    borderBottomColor: "#30040a",
+    borderRightColor: "#400812",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.7,
+    shadowRadius: 5,
+    elevation: 8,
+    marginBottom: 3,
   },
   clearBtn: {
     backgroundColor: "#e67e22",
     borderRadius: 10,
-    paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
     borderWidth: 3,
-    borderTopColor: "#f39c12",
-    borderLeftColor: "#f39c12",
-    borderBottomColor: "#d35400",
-    borderRightColor: "#d35400",
+    borderTopColor: "#ffcc44",
+    borderLeftColor: "#ffaa33",
+    borderBottomColor: "#8a3a00",
+    borderRightColor: "#a04800",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.65,
     shadowRadius: 4,
-    elevation: 6,
+    elevation: 8,
   },
   clearTxt: {
     color: "#fff",
     fontWeight: "900",
-    fontSize: 15,
+    fontSize: 13,
     letterSpacing: 1,
     textShadowColor: "#000",
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
 
-  // Right Metallic 3D Platform Socket for GO Button
+  // Right Metallic 3D Platform Socket for GO Button (HEAVY METAL TRAY)
   goPlatformSocket: {
-    backgroundColor: "#808080", // Metallic silver plate base
+    backgroundColor: "#707070",
     borderRadius: 10,
     padding: 3,
     borderWidth: 2,
-    borderTopColor: "#d0d0d0", // Specular silver top highlight
-    borderLeftColor: "#b0b0b0",
-    borderBottomColor: "#404040", // Dark bottom metallic shadow
-    borderRightColor: "#404040",
+    borderTopColor: "#f0f0f0",
+    borderLeftColor: "#d0d0d0",
+    borderBottomColor: "#202020",
+    borderRightColor: "#2a2a2a",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.6,
-    shadowRadius: 4,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.75,
+    shadowRadius: 5,
+    elevation: 8,
   },
   goBtnBase: {
     borderRadius: 8,
-    width: 116,
-    height: 52,
+    width: 100,
+    height: 44,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.6,
-    shadowRadius: 8,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 12,
   },
   goBtnFun: {
-    backgroundColor: "#dd2222",
-    borderTopColor: "#ff6666",
+    backgroundColor: "#e82020",
+    borderTopColor: "#ff8888",
     borderLeftColor: "#ff6666",
-    borderBottomColor: "#880000",
-    borderRightColor: "#880000",
+    borderBottomColor: "#700000",
+    borderRightColor: "#900000",
     shadowColor: "#ff0000",
   },
   goBtnReal: {
-    backgroundColor: "#1e8e3e",
-    borderTopColor: "#44cc66",
-    borderLeftColor: "#44cc66",
-    borderBottomColor: "#0e5520",
-    borderRightColor: "#0e5520",
-    shadowColor: "#00ff00",
+    backgroundColor: "#22a848",
+    borderTopColor: "#66ff99",
+    borderLeftColor: "#44ee77",
+    borderBottomColor: "#0a5018",
+    borderRightColor: "#0e6020",
+    shadowColor: "#00ff33",
   },
   goBtnOff: { opacity: 0.4 },
   goLabel: {
     color: "#fff",
     fontWeight: "900",
-    fontSize: 26,
-    lineHeight: 28,
+    fontSize: 22,
+    lineHeight: 24,
     textShadowColor: "#000",
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 3,
   },
   goSub: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 9,
+    color: "rgba(255,255,255,0.95)",
+    fontSize: 8,
     fontWeight: "700",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
     textAlign: "center",
+    marginTop: 1,
   },
 
-  // ── 3D Horizontal Cliff Ledge Divider with Rivets ─────────────────────────
+  // ── 3D Horizontal Cliff Ledge Divider with Rivets (THICK STEP) ─────────
   cliffLedgeDivider: {
-    height: 10,
-    backgroundColor: "#a01420",
+    height: 8,
+    backgroundColor: "#b01828",
     borderTopWidth: 2,
-    borderTopColor: "#ff5533", // Bright orange-red specular highlight line
+    borderTopColor: "#ff7050",
     borderBottomWidth: 3,
-    borderBottomColor: "#200205", // Deep 3D drop shadow underneath
+    borderBottomColor: "#200205",
     position: "relative",
     justifyContent: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.6,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.7,
+    shadowRadius: 4,
+    elevation: 6,
     zIndex: 10,
+    marginVertical: 1,
   },
   rivetDotL: {
     position: "absolute",
-    left: 10,
+    left: 14,
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#c08040",
+    backgroundColor: "#d8a058",
     borderWidth: 1,
-    borderColor: "#ffe0a0",
+    borderTopColor: "#fff0c0",
+    borderLeftColor: "#ffe0a0",
+    borderBottomColor: "#805820",
+    borderRightColor: "#90682a",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 1 },
   },
   rivetDotR: {
     position: "absolute",
-    right: 10,
+    right: 14,
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#c08040",
+    backgroundColor: "#d8a058",
     borderWidth: 1,
-    borderColor: "#ffe0a0",
+    borderTopColor: "#fff0c0",
+    borderLeftColor: "#ffe0a0",
+    borderBottomColor: "#805820",
+    borderRightColor: "#90682a",
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 1 },
   },
 
-  // ── Middle Shelf (CLEAR button + Chips) ──────────────────────────────────
+  // ── Middle Shelf ──────────────────────────────────────────────────────────
   deckMiddleShelf: {
     flexDirection: "row",
     alignItems: "center",
@@ -776,167 +947,326 @@ const st = StyleSheet.create({
     paddingVertical: 6,
     gap: 8,
     borderBottomWidth: 2,
-    borderBottomColor: "#3a060d", // Flattening 2D transition into lower shelf
+    borderBottomColor: "#3a060d",
   },
 
-  // ── Chip shelf (stake input shelf - physical arcade coin-slot tray) ────────
+  // ── Chip shelf (stake input shelf - DEEP RECESSED TRAY) ──────────────────
   chipShelf: {
-    backgroundColor: "#400610",
-    borderTopWidth: 4,
-    borderTopColor: "#8b5a2b",
-    borderBottomWidth: 3,
-    borderBottomColor: "#2a040a",
+    backgroundColor: "#1e0208",
+    borderRadius: 8,
+    borderWidth: 2,
+    borderTopColor: "#3a0810",
+    borderLeftColor: "#300608",
+    borderBottomColor: "#6a2818",
+    borderRightColor: "#502010",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.4,
-    shadowRadius: 2,
-    elevation: 3,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.55,
+    shadowRadius: 3,
+    elevation: 2,
+    marginBottom: 0,
+    paddingBottom: 6,
+  },
+  chipShelfLabel: {
+    color: "rgba(255,200,100,0.4)",
+    fontSize: 8,
+    fontWeight: "700",
+    letterSpacing: 2,
+    textAlign: "center",
+    paddingTop: 5,
+    paddingBottom: 2,
   },
   chipRow: {
     flexDirection: "row",
-    paddingHorizontal: 10,
-    paddingVertical: 9,
-    gap: 7,
+    paddingHorizontal: 6,
+    paddingTop: 2,
+    gap: 5,
     alignItems: "center",
+    justifyContent: "space-between",
   },
+  // ── Chip coin base ──
   chip: {
-    minWidth: 42,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: "#2a1604",
+    flex: 1,
+    minWidth: 0,
+    aspectRatio: 1,
+    maxHeight: 42,
+    borderRadius: 100,
+    backgroundColor: "#1a0c02",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 9,
-    borderWidth: 2,
-    borderTopColor: "#4a2f0a",
-    borderLeftColor: "#4a2f0a",
-    borderBottomColor: "#140802",
-    borderRightColor: "#140802",
+    borderWidth: 1.5,
+    borderColor: "#3a2208",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.55,
-    shadowRadius: 2,
+    shadowOpacity: 0.7,
+    shadowRadius: 3,
     elevation: 3,
+    overflow: "visible",
   },
+  // ── Selected chip coin ──
   chipOn: {
-    backgroundColor: "#2a1604",
-    borderWidth: 3,
-    borderTopColor: "#fff4a0",
-    borderLeftColor: "#ffe066",
-    borderBottomColor: "#ffb020",
-    borderRightColor: "#ffc040",
-    shadowColor: "#ffd700",
-    shadowOpacity: 1,
+    backgroundColor: "#7a4a00",
+    borderColor: "#FFD700",
+    borderWidth: 2,
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.9,
     shadowRadius: 10,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 14,
+  },
+  // Subtle inner ring etched on coin face
+  chipInnerRing: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    right: 4,
+    bottom: 4,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: "rgba(255,200,80,0.15)",
+  },
+  chipInnerRingOn: {
+    borderColor: "rgba(255,220,80,0.55)",
+  },
+  // Gold dot indicator below active chip
+  chipDot: {
+    position: "absolute",
+    bottom: -7,
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 0 },
   },
   chipTxt: {
-    color: "#8a6820",
+    color: "#FFFFFF",
     fontWeight: "900",
-    fontSize: 13,
-    letterSpacing: 0.3,
+    fontSize: 12,
+    letterSpacing: 0.2,
+    textShadowColor: "rgba(0, 0, 0, 0.9)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   chipTxtOn: {
-    color: "#ffe080",
+    color: "#FFFFFF",
     fontWeight: "900",
-    fontSize: 14,
-    letterSpacing: 0.3,
-    textShadowColor: "#ff9900",
+    fontSize: 13,
+    letterSpacing: 0.2,
+    textShadowColor: "#FFD700",
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 6,
   },
 
-  // ── Club logos shelf (deepest recessed tray with arcade keypad tiles) ───────
+  // ── Club logos shelf (DEEPEST RECESSED ARCADE KEYPAD TRAY) ───────────────
   clubShelf: {
     flexDirection: "row",
-    backgroundColor: "#200308",
-    paddingHorizontal: 5,
-    paddingTop: 14,
-    paddingBottom: 18,
-    marginBottom: 4,
-    borderTopWidth: 4,
-    borderTopColor: "#6a4218",
-    borderBottomWidth: 2,
-    borderBottomColor: "#0a0103",
+    backgroundColor: "#701020",
+    paddingHorizontal: 6,
+    paddingTop: 10,
+    paddingBottom: 4,
+    borderRadius: 10,
+    borderWidth: 3,
+    borderTopColor: "#a02830",
+    borderLeftColor: "#902028",
+    borderBottomColor: "#180206",
+    borderRightColor: "#280408",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.7,
+    shadowRadius: 5,
+    elevation: 3,
+    gap: 5,
   },
   clubCard: {
     flex: 1,
-    height: 56,
+    height: 66,
+    minWidth: 0,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#180207",
-    marginHorizontal: 2,
-    borderRadius: 7,
-    borderWidth: 2,
-    borderTopColor: "#3a0a14",
-    borderLeftColor: "#2e0810",
-    borderBottomWidth: 3,
-    borderBottomColor: "#060001",
-    borderRightWidth: 3,
-    borderRightColor: "#060001",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.6,
-    shadowRadius: 2,
-    elevation: 3,
-  },
-  clubCardOn: {
-    backgroundColor: "#180207",
-    borderWidth: 3,
-    borderTopColor: "#80ffff",
-    borderLeftColor: "#40e0ff",
-    borderBottomColor: "#0099cc",
-    borderRightColor: "#00aadd",
-    shadowColor: "#00ddff",
-    shadowOpacity: 1,
-    shadowRadius: 9,
-    elevation: 9,
-  },
-  clubBet: {
-    color: "#4a2020",
-    fontSize: 9,
-    fontWeight: "900",
-    marginTop: 2,
-    fontVariant: ["tabular-nums"],
-  },
-  clubBetOn: {
-    color: "#80ffff",
-    textShadowColor: "#00aaff",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 5,
-  },
-
-  // ── Bonus Meter ────────────────────────────────────────────────────────────
-  bonusMeterBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    gap: 8,
-  },
-  bonusMeterLabel: {
-    color: "#FFD700",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  bonusMeterTrack: {
-    flex: 1,
-    height: 8,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 4,
+    backgroundColor: "#3d0810",
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#280410",
+    shadowColor: "transparent",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
     overflow: "hidden",
   },
-  bonusMeterFill: {
-    height: "100%",
-    backgroundColor: "#FFD700",
-    borderRadius: 4,
+  // ── SELECTED state: gold glow + lifted card ──
+  clubCardOn: {
+    backgroundColor: "#6a1420",
+    borderWidth: 1.5,
+    borderColor: "#FFD700",
+    shadowColor: "#FFD700",
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
   },
-  bonusMeterText: {
-    color: "#ccc",
+  // Gold top bar that appears on active club
+  clubActiveBar: {
+    position: "absolute",
+    top: 0,
+    left: 4,
+    right: 4,
+    height: 2.5,
+    backgroundColor: "#FFD700",
+    borderBottomLeftRadius: 2,
+    borderBottomRightRadius: 2,
+    shadowColor: "#FFD700",
+    shadowOpacity: 1,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 0 },
+    zIndex: 10,
+  },
+  clubTiltHi: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "rgba(255,160,100,0.07)",
+    borderTopLeftRadius: 5,
+    borderTopRightRadius: 5,
+  },
+  clubTiltLo: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: "50%",
+    backgroundColor: "rgba(0,0,0,0.30)",
+    borderBottomLeftRadius: 5,
+    borderBottomRightRadius: 5,
+  },
+  clubTiltLightStrip: {},
+  clubTiltDarkStrip: {},
+  clubBet: {
+    color: "#FFFFFF",
     fontSize: 10,
-    fontWeight: "600",
-    minWidth: 50,
-    textAlign: "right",
+    fontWeight: "normal",
+    marginTop: 3,
+    fontVariant: ["tabular-nums"],
+    textShadowColor: "rgba(0, 0, 0, 0.9)",
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  clubBetOn: {
+    color: "#FFFFFF",
+    fontWeight: "normal",
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 6,
+  },
+  modeBadgePill: {
+    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.4)",
+  },
+  modeBadgeTxt: {
+    color: "#FFE566",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  dropdownOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    justifyContent: "flex-start",
+    alignItems: "flex-end",
+    paddingTop: 55,
+    paddingRight: 12,
+  },
+  dropdownCard: {
+    width: 250,
+    backgroundColor: "#220038",
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#FFD700",
+    padding: 10,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 20,
+  },
+  dropdownModeHeader: {
+    padding: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  dropdownModeHeaderFun: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    borderColor: "#22c55e",
+    borderWidth: 1,
+  },
+  dropdownModeHeaderReal: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderColor: "#FFD700",
+    borderWidth: 1,
+  },
+  dropdownModeBadge: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1,
+  },
+  dropdownModeSub: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 9,
+    marginTop: 2,
+  },
+  dropdownSwitchBtn: {
+    backgroundColor: "#400070",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#aa44ee",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  dropdownSwitchTxt: {
+    color: "#FFE566",
+    fontWeight: "900",
+    fontSize: 11,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    marginVertical: 6,
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 9,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  dropdownItemIcon: {
+    fontSize: 16,
+    marginRight: 10,
+  },
+  dropdownItemTxt: {
+    flex: 1,
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  dropdownItemArrow: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  dropdownLogoutItem: {
+    backgroundColor: "rgba(220, 53, 69, 0.1)",
   },
 });

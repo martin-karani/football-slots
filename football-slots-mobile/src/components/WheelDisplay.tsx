@@ -9,13 +9,13 @@ import Animated, {
   Easing,
   useSharedValue,
 } from "react-native-reanimated";
-import { WHEEL_POSITIONS, SYMBOLS, getGridCoords } from "../types";
+import { WHEEL_POSITIONS, SYMBOLS, getGridCoords, fromMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
 
 interface Props {
   step: SharedValue<number>;
   isSpinning: boolean;
-  isReal: boolean;
+  isReal?: boolean;
 }
 
 // Total grid dimensions — 7 cols × 7 rows (square)
@@ -55,6 +55,7 @@ function WheelCell({
   const coords = getGridCoords(pos);
   const team = getTeamInfo(symbol);
 
+  // Container: dim inactive cells, full brightness + slight pop on active
   const animatedContainerStyle = useAnimatedStyle(() => {
     "worklet";
     const s = Math.round(step.value);
@@ -62,25 +63,30 @@ function WheelCell({
     const isActive = currentPos === pos - 1;
     return {
       backgroundColor: team.color,
-      transform: [{ scale: isActive ? 1.1 : 1 }],
+      opacity: isActive ? 1 : 0.52,
+      transform: [{ scale: isActive ? 1.06 : 1 }],
       zIndex: isActive ? 40 : 1,
-      borderTopWidth: isActive ? 2 : 1.5,
-      borderLeftWidth: isActive ? 2 : 1.5,
-      borderBottomWidth: isActive ? 2.5 : 1.5,
-      borderRightWidth: isActive ? 2.5 : 1.5,
-      borderTopColor: isActive ? "#ffffff" : "#b07a38",
-      borderLeftColor: isActive ? "#fff8a0" : "#a06a30",
-      borderBottomColor: isActive ? "#ffb000" : "#5a3a18",
-      borderRightColor: isActive ? "#ff8000" : "#6a4018",
-      shadowColor: isActive ? "#FFEB3B" : "#000000",
-      shadowOpacity: isActive ? 0.9 : 0.5,
-      shadowRadius: isActive ? 11 : 3,
+      borderWidth: 1,
+      borderColor: "#6a4018",
+      shadowColor: isActive ? "#FFD700" : "#000",
+      shadowOpacity: isActive ? 0.85 : 0.3,
+      shadowRadius: isActive ? 10 : 2,
       shadowOffset: { width: 0, height: 0 },
-      elevation: isActive ? 16 : 2,
+      elevation: isActive ? 12 : 2,
     };
   });
 
-  const animatedNeonRing = useAnimatedStyle(() => {
+  // White spotlight flash overlay — fades in on active cell
+  const animatedSpotlight = useAnimatedStyle(() => {
+    "worklet";
+    const s = Math.round(step.value);
+    const currentPos = ((s % 24) + 24) % 24;
+    const isActive = currentPos === pos - 1;
+    return { opacity: isActive ? 0.22 : 0 };
+  });
+
+  // Corner bracket visibility
+  const animatedBracket = useAnimatedStyle(() => {
     "worklet";
     const s = Math.round(step.value);
     const currentPos = ((s % 24) + 24) % 24;
@@ -95,15 +101,17 @@ function WheelCell({
     const isActive = currentPos === pos - 1;
     return {
       color: isActive ? "#FFFFFF" : "#FFD700",
-      transform: [{ scale: isActive ? 1.15 : 1 }],
+      transform: [{ scale: isActive ? 1.1 : 1 }],
       textShadowColor: isActive ? "#FF8F00" : "rgba(0,0,0,0.9)",
-      textShadowRadius: isActive ? 6 : 2,
+      textShadowRadius: isActive ? 5 : 2,
     };
   });
 
   const BOX_MARGIN = 2;
   const cellW = CELL_SIZE - BOX_MARGIN * 2;
   const cellH = CELL_SIZE - BOX_MARGIN * 2;
+  const BKT = 5; // bracket arm length
+  const BKT_W = 1.5; // bracket stroke width
 
   return (
     <Animated.View
@@ -118,22 +126,27 @@ function WheelCell({
         animatedContainerStyle,
       ]}
     >
-      {/* Thick asymmetric WHITE-ORANGE-YELLOW neon inner ring — visible only when active */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.neonRing, animatedNeonRing]}
-      />
-      {/* Inner specular white lip for extra pop */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.neonSpecularLip, animatedNeonRing]}
-      />
+      {/* Spotlight white wash overlay */}
+      <Animated.View pointerEvents="none" style={[styles.spotlight, animatedSpotlight]} />
+
+      {/* Corner brackets — top-left */}
+      <Animated.View pointerEvents="none" style={[styles.bktTL, { width: BKT, height: BKT_W, top: 3, left: 3 }, animatedBracket]} />
+      <Animated.View pointerEvents="none" style={[styles.bktTL, { width: BKT_W, height: BKT, top: 3, left: 3 }, animatedBracket]} />
+      {/* top-right */}
+      <Animated.View pointerEvents="none" style={[styles.bktTR, { width: BKT, height: BKT_W, top: 3, right: 3 }, animatedBracket]} />
+      <Animated.View pointerEvents="none" style={[styles.bktTR, { width: BKT_W, height: BKT, top: 3, right: 3 }, animatedBracket]} />
+      {/* bottom-left */}
+      <Animated.View pointerEvents="none" style={[styles.bktBL, { width: BKT, height: BKT_W, bottom: 3, left: 3 }, animatedBracket]} />
+      <Animated.View pointerEvents="none" style={[styles.bktBL, { width: BKT_W, height: BKT, bottom: 3, left: 3 }, animatedBracket]} />
+      {/* bottom-right */}
+      <Animated.View pointerEvents="none" style={[styles.bktBR, { width: BKT, height: BKT_W, bottom: 3, right: 3 }, animatedBracket]} />
+      <Animated.View pointerEvents="none" style={[styles.bktBR, { width: BKT_W, height: BKT, bottom: 3, right: 3 }, animatedBracket]} />
 
       <View style={styles.cellBevelTopLeft} />
       <View style={styles.cellBevelBottomRight} />
 
       <View style={styles.iconContainer}>
-        {team.icon && <team.icon width={34} height={34} />}
+        {team.icon && <team.icon width={28} height={28} />}
       </View>
       <Animated.Text style={[styles.cellMultiplier, animatedTextStyle]}>
         X{multiplier}
@@ -180,20 +193,18 @@ function PositionHalo({ step }: { step: SharedValue<number> }) {
     const BOX_MARGIN = 2;
     const cellW = CELL_SIZE - BOX_MARGIN * 2;
     const cellH = CELL_SIZE - BOX_MARGIN * 2;
-    // Tight ring barely outside the cell — 2px base, ~3px at peak.
-    const haloSpread = 2 + pulse.value * 1;
+    // Very tight halo — just 1px outside the cell.
+    const haloSpread = 1 + pulse.value * 0.5;
     return {
       left: coords.col * CELL_SIZE + BOX_MARGIN - haloSpread,
       top: coords.row * CELL_SIZE + BOX_MARGIN - haloSpread,
       width: cellW + haloSpread * 2,
       height: cellH + haloSpread * 2,
-      // Very low opacity — barely visible accent.
-      opacity: 0.18 + pulse.value * 0.12,
-      borderRadius: 10 + haloSpread,
-      // Hairline border — just a whisper of a ring.
-      borderWidth: 1 + pulse.value * 0.5,
-      shadowRadius: 5 + pulse.value * 3,
-      transform: [{ scale: 1 + pulse.value * 0.008 }],
+      opacity: 0.12 + pulse.value * 0.08,
+      borderRadius: 9 + haloSpread,
+      borderWidth: 0.5 + pulse.value * 0.25,
+      shadowRadius: 3 + pulse.value * 2,
+      transform: [{ scale: 1 + pulse.value * 0.004 }],
     };
   });
 
@@ -202,8 +213,9 @@ function PositionHalo({ step }: { step: SharedValue<number> }) {
   );
 }
 
-export function WheelDisplay({ step, isSpinning, isReal }: Props) {
+export function WheelDisplay({ step, isSpinning }: Props) {
   const lastSpin = useGameStore((state) => state.lastSpin);
+  const currency = useGameStore((state) => state.currency);
   const lastTeam = lastSpin ? getTeamInfo(lastSpin.symbol) : null;
 
   const centerLeft = CELL_SIZE;
@@ -260,7 +272,7 @@ export function WheelDisplay({ step, isSpinning, isReal }: Props) {
                 <>
                   <View style={styles.resultIconContainer}>
                     {lastTeam?.icon ? (
-                      <lastTeam.icon width={64} height={64} />
+                      <lastTeam.icon width={54} height={54} />
                     ) : (
                       <Text style={styles.resultEmoji}>⚽</Text>
                     )}
@@ -270,7 +282,9 @@ export function WheelDisplay({ step, isSpinning, isReal }: Props) {
                   </Text>
                   <View style={styles.resultScoreBox}>
                     <Text style={styles.resultScore}>
-                      {lastSpin.is_win ? `+${lastSpin.gross_payout}` : "NO WIN"}
+                      {lastSpin.is_win
+                        ? `+${fromMinor(lastSpin.gross_payout, currency).toLocaleString()}`
+                        : "NO WIN"}
                     </Text>
                   </View>
                 </>
@@ -351,42 +365,20 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
 
-  // ── Layer 2: thick asymmetric neon inner ring inside the active cell ─
-  neonRing: {
+  // ── Spotlight overlay: white wash on active cell ──
+  spotlight: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "#FFFFFF",
     borderRadius: 8,
-    borderTopWidth: 4.5,
-    borderLeftWidth: 4.5,
-    borderBottomWidth: 5.5,
-    borderRightWidth: 5.5,
-    borderTopColor: "#FFFFFF",
-    borderLeftColor: "#FFF59D",
-    borderBottomColor: "#FF6D00",
-    borderRightColor: "#FF9100",
     zIndex: 5,
   },
 
-  // ── Layer 3: ultra-bright inner specular lip (top + left 1px strip) ──
-  neonSpecularLip: {
-    position: "absolute",
-    top: 2,
-    left: 2,
-    right: 2,
-    height: 1.5,
-    backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    opacity: 0.9,
-    zIndex: 6,
-    shadowColor: "#FFFFFF",
-    shadowOpacity: 0.9,
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 4,
-  },
+  // ── Corner bracket arms ── (positioned absolutely via inline style)
+  bktTL: { position: "absolute", backgroundColor: "#FFD700", zIndex: 10, borderTopLeftRadius: 1 },
+  bktTR: { position: "absolute", backgroundColor: "#FFD700", zIndex: 10, borderTopRightRadius: 1 },
+  bktBL: { position: "absolute", backgroundColor: "#FFD700", zIndex: 10, borderBottomLeftRadius: 1 },
+  bktBR: { position: "absolute", backgroundColor: "#FFD700", zIndex: 10, borderBottomRightRadius: 1 },
 
   cellBevelTopLeft: {
     position: "absolute",
