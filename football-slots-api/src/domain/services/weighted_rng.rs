@@ -1,28 +1,3 @@
-//! Weighted, provably-fair symbol selection.
-//!
-//! Replaces the old direct 1-of-24 uniform position draw. Two problems with
-//! the uniform draw made it unsafe for real-money play:
-//!
-//! 1. **It was exploitable.** Because a player can stake on any subset of
-//!    the 8 symbols, a uniform 1/8-per-symbol probability combined with the
-//!    old fixed multipliers (×3 up to ×50) meant betting only on the UCL
-//!    Trophy had an expected return of 0.125 × 50 = **625% RTP**. A player
-//!    who found that would have a guaranteed, massive long-run edge over
-//!    the house.
-//! 2. **The first weighted-RNG draft fixed the odds but broke fairness.**
-//!    It called `rand::thread_rng()` directly, so a spin's outcome was no
-//!    longer a function of `(server_seed, client_seed, nonce)` — nothing
-//!    about it could be reproduced or audited, which defeats the entire
-//!    provably-fair commit-reveal scheme this app advertises to players.
-//!
-//! This module fixes both: outcomes are still 100% determined by the
-//! existing HMAC-SHA256 commit-reveal seeds (so `/verify` keeps working),
-//! and every symbol is weighted so that `P(symbol) * multiplier(symbol)` is
-//! identical across all 8 symbols — no symbol is ever a better bet than
-//! another, regardless of the target RTP or multiplier ladder chosen. See
-//! `domain::models::game::PAYTABLE_V1` for the multiplier source of truth
-//! and `docs/rtp-weighting.md` for the full derivation.
-
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 

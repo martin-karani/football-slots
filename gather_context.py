@@ -16,7 +16,8 @@ EXCLUDE_DIRS = {
     "dist",
     "assets"
     "__pycache__",
-    ".gemini"
+    ".gemini",
+    ".expo",
 }
 
 # Specific files or extensions to exclude

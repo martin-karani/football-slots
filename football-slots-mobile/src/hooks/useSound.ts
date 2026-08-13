@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Platform, Vibration } from 'react-native';
+import { useGameStore } from '../store/GameProvider';
 
 // ============================================================
 // Sound types
@@ -198,7 +199,8 @@ function ensureInitialized(): void {
 // ============================================================
 
 export function useSound() {
-  const enabled = useRef(true);
+  const soundEnabled = useGameStore((state) => state.soundEnabled);
+  const setSoundEnabled = useGameStore((state) => state.setSoundEnabled);
 
   useEffect(() => {
     ensureInitialized();
@@ -208,9 +210,12 @@ export function useSound() {
   /**
    * Play a sound effect.
    * Always triggers haptic feedback; audio is best-effort.
+   *
+   * Reads soundEnabled from the store at call time via getState()
+   * so the callback doesn't need to be recreated on every toggle.
    */
   const play = useCallback((event: SoundEvent) => {
-    if (!enabled.current) return;
+    if (!useGameStore.getState().soundEnabled) return;
     ensureInitialized(); // safety net
 
     switch (event) {
@@ -268,8 +273,8 @@ export function useSound() {
   }, []);
 
   const toggle = useCallback(() => {
-    enabled.current = !enabled.current;
-  }, []);
+    setSoundEnabled(!soundEnabled);
+  }, [soundEnabled, setSoundEnabled]);
 
-  return { play, stop, toggle, isEnabled: enabled.current };
+  return { play, stop, toggle, isEnabled: soundEnabled };
 }

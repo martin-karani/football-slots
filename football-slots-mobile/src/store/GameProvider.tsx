@@ -32,6 +32,10 @@ interface GameState {
   lastSpin: SpinResult | null;
   setSpinning: (v: boolean) => void;
   setLastSpin: (result: SpinResult | null) => void;
+
+  // Preferences
+  soundEnabled: boolean;
+  setSoundEnabled: (v: boolean) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -97,6 +101,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastSpin: null,
   setSpinning: (v) => set({ isSpinning: v }),
   setLastSpin: (result) => set({ lastSpin: result }),
+
+  // Preferences
+  soundEnabled: true,
+  setSoundEnabled: (v) => set({ soundEnabled: v }),
 }));
 
 // ============================================================

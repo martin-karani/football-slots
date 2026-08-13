@@ -6,16 +6,53 @@ import {
   ScrollView,
   Alert,
   StatusBar,
+  Animated,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
+import { useSound } from "../hooks/useSound";
 import { authStorage } from "../api/client";
+import { useState, useRef, useEffect } from "react";
 import { formatMinor } from "../types";
 import { theme } from "../components/theme";
 
 /** Top-level play modes – separates free fun from real-money play */
 type PlayMode = "fun" | "real";
+
+/** Animated toggle switch component */
+function ToggleSwitch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
+  const anim = useRef(new Animated.Value(value ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: value ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [value, anim]);
+
+  const knobPosition = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 22],
+  });
+
+  const bgColor = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["rgba(255,255,255,0.12)", "rgba(255,215,0,0.5)"],
+  });
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={() => onValueChange(!value)}
+      style={styles.toggleTrack}
+    >
+      <Animated.View style={[styles.toggleBg, { backgroundColor: bgColor as any }]} />
+      <Animated.View style={[styles.toggleKnob, { transform: [{ translateX: knobPosition }] }]} />
+    </TouchableOpacity>
+  );
+}
 
 export function SettingsScreen() {
   const navigation = useNavigation<any>();
@@ -24,6 +61,8 @@ export function SettingsScreen() {
   const setCurrency = useGameStore((state) => state.setCurrency);
   const clearAuth = useGameStore((state) => state.clearAuth);
   const phoneNumber = useGameStore((state) => state.phoneNumber);
+  const soundEnabled = useGameStore((state) => state.soundEnabled);
+  const setSoundEnabled = useGameStore((state) => state.setSoundEnabled);
   const { topupVirtual } = useWallet();
 
   // Derive current play mode from the active currency
@@ -286,6 +325,22 @@ export function SettingsScreen() {
           ))}
         </View>
 
+        {/* ─── Sound Toggle ────────────────────────────── */}
+        <View style={styles.menuGroup}>
+          <View style={styles.menuRow}>
+            <View style={styles.menuRowIcon}>
+              <Text style={styles.menuRowIconText}>{soundEnabled ? "🔊" : "🔇"}</Text>
+            </View>
+            <View style={styles.menuRowContent}>
+              <Text style={styles.menuRowLabel}>Sound Effects</Text>
+              <Text style={styles.menuRowSub}>
+                {soundEnabled ? "Sounds are on" : "Sounds are off"}
+              </Text>
+            </View>
+            <ToggleSwitch value={soundEnabled} onValueChange={setSoundEnabled} />
+          </View>
+        </View>
+
         {/* ─── Logout ──────────────────────────────────── */}
         <View style={styles.menuGroup}>
           <TouchableOpacity
@@ -542,5 +597,28 @@ const styles = StyleSheet.create({
   activeModeIcon: { fontSize: 24 },
   activeModeTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 14 },
   activeModeSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+
+  /* Toggle switch */
+  toggleTrack: {
+    width: 50,
+    height: 30,
+    justifyContent: "center",
+  },
+  toggleBg: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 15,
+  },
+  toggleKnob: {
+    position: "absolute",
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
 });
 
