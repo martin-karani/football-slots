@@ -16,20 +16,24 @@
     "@react-navigation/native": "^7.3.15",
     "@react-navigation/stack": "^7.10.20",
     "axios": "^1.19.0",
-    "expo": "^57.0.11",
-    "expo-font": "^57.0.1",
-    "expo-secure-store": "^57.0.1",
-    "expo-status-bar": "^57.0.1",
+    "expo": "57.0.12",
+    "expo-asset": "~57.0.10",
+    "expo-audio": "~57.0.3",
+    "expo-font": "~57.0.1",
+    "expo-secure-store": "~57.0.1",
+    "expo-splash-screen": "~57.0.6",
+    "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
-    "react-native": "^0.86.2",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.2",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-linear-gradient": "^2.8.3",
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
-    "react-native-screens": "^4.26.2",
+    "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
-    "react-native-web": "^0.21.2",
-    "react-native-worklets": "^0.10.3",
+    "react-native-web": "0.21.2",
+    "react-native-worklets": "0.10.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -39,6 +43,6 @@
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.1",
     "react-native-svg-transformer": "^1.5.3",
-    "typescript": "^5.9.3"
+    "typescript": "~6.0.3"
   }
 }

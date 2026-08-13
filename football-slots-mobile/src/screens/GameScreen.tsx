@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay, cancelAnimation } from "react-native-reanimated";
 import {
   View,
   Text,
@@ -16,7 +17,7 @@ import { useGame } from "../hooks/useGame";
 import { useWallet } from "../hooks/useWallet";
 import { WheelDisplay } from "../components/WheelDisplay";
 import { PaytableModal } from "../components/PaytableModal";
-import { WinCelebration } from "../components/WinCelebration";
+// WinCelebration modal removed — replaced with rail-dot flash animation
 import { authStorage } from "../api/client";
 import {
   SYMBOLS,
@@ -31,10 +32,59 @@ import { useSound } from "../hooks/useSound";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  "ARCADE MACHINE" THEME
-//  Inspired by the Fruit Slots reference: vibrant cherry-red body, thick brass
-//  gold trim, rich purple header, bright warm colours throughout.
-//  Every panel has 3D beveled edges (light top-left, dark bottom-right).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─── Flashing rail dot — owns its own animation shared value ─────────────────
+function FlashingRailDot({
+  style,
+  dotIndex,
+  flashTick,
+}: {
+  style: object;
+  dotIndex: number;
+  flashTick: number;
+}) {
+  const brightness = useSharedValue(0.3);
+  const prevTick = useRef(0);
+
+  useEffect(() => {
+    if (flashTick === 0) return;
+    if (flashTick === prevTick.current) return;
+    prevTick.current = flashTick;
+
+    const CHASE_INTERVAL = 120;
+    const FLASH_ON = 200;
+    const CYCLE = CHASE_INTERVAL * 8;
+    const FLASH_OFF = CYCLE - FLASH_ON;
+    const delayMs = dotIndex * CHASE_INTERVAL;
+
+    brightness.value = withDelay(
+      delayMs,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: FLASH_ON }),
+          withTiming(0.3, { duration: FLASH_OFF })
+        ),
+        -1,
+        false
+      )
+    );
+
+    const stopTimer = setTimeout(() => {
+      cancelAnimation(brightness);
+      brightness.value = withTiming(0.3, { duration: 400 });
+    }, 3000 + delayMs);
+
+    return () => clearTimeout(stopTimer);
+  }, [flashTick]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: brightness.value,
+    transform: [{ scale: 0.8 + brightness.value * 0.5 }],
+  }));
+
+  return <Animated.View style={[style, animStyle]} />;
+}
 
 export function GameScreen() {
   const isSpinning = useGameStore((s) => s.isSpinning);
@@ -51,8 +101,12 @@ export function GameScreen() {
   const removeBet = useGameStore((s) => s.removeBet);
   const clearAuth = useGameStore((s) => s.clearAuth);
   const [showPaytable, setShowPaytable] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
+  // winFlashTick increments on each win to trigger rail-dot chase flash
+  const [winFlashTick, setWinFlashTick] = useState(0);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
+  // Track where the ≡ menu button is on-screen so the dropdown opens right below it
+  const menuBtnRef = useRef<any>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 60, right: 12 });
 
   const { spin, step } = useGame();
   const { fetchBalance } = useWallet();
@@ -65,10 +119,10 @@ export function GameScreen() {
 
   const winAmount = lastSpin?.is_win ? lastSpin.gross_payout : 0;
 
-  // Trigger celebration on new win
+  // Trigger rail flash on new win
   useEffect(() => {
     if (lastSpin?.is_win && lastSpin.gross_payout > 0) {
-      setShowCelebration(true);
+      setWinFlashTick((t) => t + 1);
     }
   }, [lastSpin?.round_id]);
   const balanceMinor = balances[currency];
@@ -97,8 +151,20 @@ export function GameScreen() {
               <Text style={st.menuBtnTxt}>?</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              ref={menuBtnRef}
               style={st.menuBtn}
-              onPress={() => setShowDropdownMenu(!showDropdownMenu)}
+              onPress={() => {
+                if (menuBtnRef.current) {
+                  menuBtnRef.current.measure(
+                    (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                      setDropdownPos({ top: pageY + height + 6, right: 12 });
+                      setShowDropdownMenu(true);
+                    }
+                  );
+                } else {
+                  setShowDropdownMenu(!showDropdownMenu);
+                }
+              }}
             >
               <Text style={st.menuBtnTxt}>≡</Text>
             </TouchableOpacity>
@@ -134,15 +200,15 @@ export function GameScreen() {
             SLOT WHEEL BOARD
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.wheelWrapper}>
-          {/* Side brass light-rail pillars — only beside wheel */}
+          {/* Side brass light-rail pillars — chase flash on win */}
           <View style={st.railL} pointerEvents="none">
             {[...Array(8)].map((_, i) => (
-              <View key={i} style={st.railDot} />
+              <FlashingRailDot key={i} style={st.railDot} dotIndex={i} flashTick={winFlashTick} />
             ))}
           </View>
           <View style={st.railR} pointerEvents="none">
             {[...Array(8)].map((_, i) => (
-              <View key={i} style={st.railDot} />
+              <FlashingRailDot key={i} style={st.railDot} dotIndex={i} flashTick={winFlashTick} />
             ))}
           </View>
           <WheelDisplay step={step} isSpinning={isSpinning} isReal={isReal} />
@@ -178,7 +244,7 @@ export function GameScreen() {
           <View style={st.goShelf}>
             <TouchableOpacity
               style={st.clearBtn}
-              onPress={clearBets}
+              onPress={() => { playSound('button_press'); clearBets(); }}
               activeOpacity={0.7}
             >
               <Text style={st.clearTxt}>CLEAR</Text>
@@ -192,7 +258,7 @@ export function GameScreen() {
                   isReal ? st.goBtnReal : st.goBtnFun,
                   (isSpinning || totalStake === 0) && st.goBtnOff,
                 ]}
-                onPress={spin}
+                onPress={() => { playSound('spin_click'); spin(); }}
                 disabled={isSpinning || totalStake === 0}
                 activeOpacity={0.8}
               >
@@ -222,8 +288,10 @@ export function GameScreen() {
                         if (isOn) {
                           setSelected(0);
                           clearBets();
+                          playSound("bet_remove");
                         } else {
                           setSelected(v);
+                          playSound("chip_select");
                         }
                       }}
                       activeOpacity={1}
@@ -259,7 +327,7 @@ export function GameScreen() {
                         setSelected(10);
                       }
                       placeBet(sym.key, toMinor(chipToUse, currency));
-                      playSound("bet_place");
+                      playSound("chip_select");
                     }
                   }}
                   onLongPress={() => {
@@ -295,15 +363,7 @@ export function GameScreen() {
         visible={showPaytable}
         onClose={() => setShowPaytable(false)}
       />
-      <WinCelebration
-        visible={showCelebration}
-        winAmountMinor={lastSpin?.gross_payout || 0}
-        stakeMinor={lastSpin?.total_stake || 0}
-        symbol={lastSpin?.symbol_display || ""}
-        multiplier={lastSpin?.multiplier || 0}
-        currency={currency}
-        onDone={() => setShowCelebration(false)}
-      />
+      {/* Win celebration is handled by rail-dot flash animation (no overlay modal) */}
 
       {/* ── Settings Dropdown Modal ── */}
       <Modal
@@ -315,7 +375,7 @@ export function GameScreen() {
         <TouchableWithoutFeedback onPress={() => setShowDropdownMenu(false)}>
           <View style={st.dropdownOverlay}>
             <TouchableWithoutFeedback>
-              <View style={st.dropdownCard}>
+              <View style={[st.dropdownCard, { position: "absolute", top: dropdownPos.top, right: dropdownPos.right }]}>
                 {/* Active Mode Banner */}
                 <View style={[st.dropdownModeHeader, isReal ? st.dropdownModeHeaderReal : st.dropdownModeHeaderFun]}>
                   <Text style={st.dropdownModeBadge}>
@@ -1179,10 +1239,6 @@ const st = StyleSheet.create({
   dropdownOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.65)",
-    justifyContent: "flex-start",
-    alignItems: "flex-end",
-    paddingTop: 55,
-    paddingRight: 12,
   },
   dropdownCard: {
     width: 250,

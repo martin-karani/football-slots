@@ -313,11 +313,7 @@ export function SettingsScreen() {
   );
 }
 
-const { colors, radius, spacing } = theme;
-
-// Mode accent colours
-const FUN_COLOR = "#22c55e";   // green
-const REAL_COLOR = "#FFD700";  // gold
+const { colors, radius, spacing, shadows } = theme;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
@@ -360,16 +356,18 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderMuted,
+    ...shadows.md,
   },
   avatarRing: {
     width: 62,
     height: 62,
     borderRadius: 31,
-    backgroundColor: "#4a1a7e",
+    backgroundColor: colors.surface,
     borderWidth: 2,
     borderColor: colors.accent,
     justifyContent: "center",
     alignItems: "center",
+    ...shadows.sm,
   },
   avatarEmoji: { fontSize: 30 },
   profileInfo: { flex: 1 },
@@ -393,14 +391,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
     gap: 4,
+    ...shadows.sm,
   },
   modeTabFunActive: {
-    borderColor: FUN_COLOR,
-    backgroundColor: "rgba(34,197,94,0.1)",
+    borderColor: colors.fun,
+    backgroundColor: colors.funLight,
   },
   modeTabRealActive: {
-    borderColor: REAL_COLOR,
-    backgroundColor: "rgba(255,215,0,0.08)",
+    borderColor: colors.real,
+    backgroundColor: colors.realLight,
   },
   modeTabIcon: { fontSize: 24, marginBottom: 2 },
   modeTabLabel: {
@@ -408,8 +407,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 14,
   },
-  modeTabLabelFunActive: { color: FUN_COLOR },
-  modeTabLabelRealActive: { color: REAL_COLOR },
+  modeTabLabelFunActive: { color: colors.fun },
+  modeTabLabelRealActive: { color: colors.real },
   modeTabSub: { color: colors.textDim, fontSize: 10, textAlign: "center" },
   modeTabSubActive: { color: colors.textMuted },
 
@@ -420,14 +419,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: spacing.md,
+    ...shadows.md,
   },
   balancePanelFun: {
-    backgroundColor: "rgba(34,197,94,0.08)",
-    borderColor: "rgba(34,197,94,0.3)",
+    backgroundColor: colors.funLight,
+    borderColor: colors.fun,
   },
   balancePanelReal: {
-    backgroundColor: "rgba(255,215,0,0.06)",
-    borderColor: "rgba(255,215,0,0.3)",
+    backgroundColor: colors.realLight,
+    borderColor: colors.real,
   },
   balancePanelRow: {
     flexDirection: "row",
@@ -440,28 +440,28 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   balancePanelAmount: { fontSize: 28, fontWeight: "900" },
-  funAmount: { color: FUN_COLOR },
-  realAmount: { color: REAL_COLOR },
+  funAmount: { color: colors.fun },
+  realAmount: { color: colors.real },
 
   funBadge: {
-    backgroundColor: "rgba(34,197,94,0.15)",
+    backgroundColor: colors.glassMedium,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: "rgba(34,197,94,0.4)",
+    borderColor: colors.funLight,
   },
-  funBadgeText: { color: FUN_COLOR, fontSize: 10, fontWeight: "800" },
+  funBadgeText: { color: colors.fun, fontSize: 10, fontWeight: "800" },
 
   realBadge: {
-    backgroundColor: "rgba(255,215,0,0.12)",
+    backgroundColor: colors.glassMedium,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.4)",
+    borderColor: colors.realLight,
   },
-  realBadgeText: { color: REAL_COLOR, fontSize: 10, fontWeight: "800" },
+  realBadgeText: { color: colors.real, fontSize: 10, fontWeight: "800" },
 
   bonusRow: {
     flexDirection: "row",
@@ -485,6 +485,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderMuted,
     overflow: "hidden",
+    ...shadows.sm,
   },
   menuRow: {
     flexDirection: "row",
@@ -495,19 +496,19 @@ const styles = StyleSheet.create({
   },
   menuRowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor: colors.glassLight,
   },
   menuRowIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "rgba(124,58,237,0.25)",
+    backgroundColor: colors.glassMedium,
     justifyContent: "center",
     alignItems: "center",
   },
-  iconFun: { backgroundColor: "rgba(34,197,94,0.15)" },
-  iconReal: { backgroundColor: "rgba(255,215,0,0.12)" },
-  menuRowIconDanger: { backgroundColor: "rgba(255,77,77,0.15)" },
+  iconFun: { backgroundColor: colors.funLight },
+  iconReal: { backgroundColor: colors.realLight },
+  menuRowIconDanger: { backgroundColor: colors.negativeLight },
   menuRowIconText: { fontSize: 18 },
   menuRowContent: { flex: 1 },
   menuRowLabel: { color: colors.textPrimary, fontWeight: "700", fontSize: 14 },

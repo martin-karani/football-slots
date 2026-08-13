@@ -22,7 +22,7 @@ export function useGame() {
 
   const { step, startSpin, stopOnIndex, stopAnimation } = useWheelAnimator();
   const { showSuccess, showError, showWarning } = useToast();
-  const { play: playSound } = useSound();
+  const { play: playSound, stop: stopSound } = useSound();
 
   const generateClientSeed = useCallback(() => {
     return Array.from({ length: 32 }, () =>
@@ -69,6 +69,7 @@ export function useGame() {
 
     setSpinning(true);
     startSpin();
+    const spinStartTime = Date.now();
     playSound('spin_start');
 
     try {
@@ -76,7 +77,14 @@ export function useGame() {
       const res = await gameApi.spin(currency, currentBets, clientSeed);
       const result = res.data;
 
-      await stopOnIndex(result.position - 1);
+      const elapsed = Date.now() - spinStartTime;
+      await stopOnIndex(result.position - 1, elapsed);
+
+      // Stop wheel spin audio so tail doesn't overlap celebration sound
+      stopSound('spin_start');
+
+      // Reel stop click when the wheel lands exactly on sound landing hit
+      playSound('reel_stop');
 
       setLastSpin(result);
       updateBalance(currency, result.net_result);
@@ -98,6 +106,7 @@ export function useGame() {
     } catch (error: any) {
       console.error("Spin failed:", error);
       stopAnimation();
+      stopSound('spin_start');
       const message =
         error.response?.data?.message || "Spin failed. Try again.";
       showError(message);

@@ -18,10 +18,6 @@ import { theme } from "../components/theme";
 
 type PlayMode = "fun" | "real";
 
-// Mode accent colours (same as SettingsScreen)
-const FUN_COLOR = "#22c55e";
-const REAL_COLOR = "#FFD700";
-
 export function WalletScreen() {
   const navigation = useNavigation<any>();
   const balances = useGameStore((state) => state.balances);
@@ -334,7 +330,7 @@ export function WalletScreen() {
   );
 }
 
-const { colors, radius, spacing } = theme;
+const { colors, radius, spacing, shadows } = theme;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
@@ -382,22 +378,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
     gap: 3,
+    ...shadows.sm,
   },
   modeTabFunActive: {
-    borderColor: FUN_COLOR,
-    backgroundColor: "rgba(34,197,94,0.1)",
+    borderColor: colors.fun,
+    backgroundColor: colors.funLight,
   },
   modeTabRealActive: {
-    borderColor: REAL_COLOR,
-    backgroundColor: "rgba(255,215,0,0.08)",
+    borderColor: colors.real,
+    backgroundColor: colors.realLight,
   },
   modeTabIcon: { fontSize: 24 },
   modeTabLabel: { color: colors.textMuted, fontWeight: "800", fontSize: 14 },
-  modeTabLabelFunActive: { color: FUN_COLOR },
-  modeTabLabelRealActive: { color: REAL_COLOR },
+  modeTabLabelFunActive: { color: colors.fun },
+  modeTabLabelRealActive: { color: colors.real },
   modeTabSub: { color: colors.textDim, fontSize: 10, textAlign: "center" },
-  modeTabSubFun: { color: "rgba(34,197,94,0.7)" },
-  modeTabSubReal: { color: "rgba(255,215,0,0.7)" },
+  modeTabSubFun: { color: colors.fun },
+  modeTabSubReal: { color: colors.real },
 
   /* Big balance card */
   bigBalanceCard: {
@@ -407,30 +404,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: spacing.lg,
     alignItems: "center",
+    ...shadows.md,
   },
   bigBalanceCardFun: {
-    backgroundColor: "rgba(34,197,94,0.07)",
-    borderColor: "rgba(34,197,94,0.3)",
+    backgroundColor: colors.funLight,
+    borderColor: colors.fun,
   },
   bigBalanceCardReal: {
-    backgroundColor: "rgba(255,215,0,0.05)",
-    borderColor: "rgba(255,215,0,0.3)",
+    backgroundColor: colors.realLight,
+    borderColor: colors.real,
   },
   bigBalanceBadge: {
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: radius.full,
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: colors.glassLight,
     marginBottom: 10,
   },
   bigBalanceBadgeFunText: {
-    color: FUN_COLOR,
+    color: colors.fun,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
   },
   bigBalanceBadgeRealText: {
-    color: REAL_COLOR,
+    color: colors.real,
     fontSize: 10,
     fontWeight: "800",
     letterSpacing: 1,
@@ -452,14 +450,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderMuted,
     overflow: "hidden",
+    ...shadows.sm,
   },
   sectionGroupFun: {
-    borderColor: "rgba(34,197,94,0.2)",
-    backgroundColor: "rgba(34,197,94,0.05)",
+    borderColor: colors.fun,
+    backgroundColor: colors.funLight,
   },
   sectionGroupReal: {
-    borderColor: "rgba(255,215,0,0.2)",
-    backgroundColor: "rgba(255,215,0,0.04)",
+    borderColor: colors.real,
+    backgroundColor: colors.realLight,
   },
   row: {
     flexDirection: "row",
@@ -470,19 +469,19 @@ const styles = StyleSheet.create({
   },
   rowBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
+    borderBottomColor: colors.glassLight,
   },
   rowIcon: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: "rgba(124,58,237,0.2)",
+    backgroundColor: colors.glassMedium,
     justifyContent: "center",
     alignItems: "center",
   },
-  rowIconFun: { backgroundColor: "rgba(34,197,94,0.15)" },
-  rowIconReal: { backgroundColor: "rgba(255,215,0,0.12)" },
-  rowIconDanger: { backgroundColor: "rgba(255,77,77,0.15)" },
+  rowIconFun: { backgroundColor: colors.funLight },
+  rowIconReal: { backgroundColor: colors.realLight },
+  rowIconDanger: { backgroundColor: colors.negativeLight },
   rowIconEmoji: { fontSize: 18 },
   rowLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, lineHeight: 18 },
   rowValue: { fontWeight: "700", fontSize: 14 },
@@ -498,6 +497,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderMuted,
     padding: spacing.md,
+    ...shadows.sm,
   },
   actionTitle: {
     fontWeight: "700",
@@ -512,7 +512,7 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   input: {
-    backgroundColor: "rgba(255,255,255,0.07)",
+    backgroundColor: colors.glassLight,
     padding: 14,
     borderRadius: radius.md,
     color: colors.textPrimary,
@@ -526,15 +526,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     marginTop: 4,
+    ...shadows.sm,
   },
-  btnFun: { backgroundColor: FUN_COLOR },
-  btnReal: { backgroundColor: "#7c3aed" },
-  btnDanger: { backgroundColor: "#b91c1c" },
+  btnFun: { backgroundColor: colors.fun },
+  btnReal: { backgroundColor: "#7c3aed" }, // Keep original brand purple for Real deposit button? Actually let's use colors.accent/gold or keep purple.
+  btnDanger: { backgroundColor: colors.negative },
   btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
   btnTextDark: { color: "#0f1a0f", fontWeight: "800", fontSize: 15 },
 
-  funText: { color: FUN_COLOR },
-  realText: { color: REAL_COLOR },
+  funText: { color: colors.fun },
+  realText: { color: colors.real },
   dangerText: { color: colors.danger },
   activeModeBadge: {
     flexDirection: "row",

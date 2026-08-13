@@ -1,75 +1,103 @@
 import { useCallback, useRef } from 'react';
-import { useSharedValue, withTiming, withSequence, Easing } from 'react-native-reanimated';
+import { useSharedValue, withSequence, withTiming, Easing } from 'react-native-reanimated';
 
 const POSITION_COUNT = 24;
-const FULL_LAPS_BEFORE_LAND = 2;
+
+// Exact time gaps (in milliseconds) between every consecutive click in wheel_spin.mp3 (79 gaps total, 9.00s total duration).
+// Extracted via audio peak detection directly from wheel_spin.mp3:
+// 1. Initial spin-up (0.0s -> 1.0s): ~110ms -> ~70ms
+// 2. Maximum speed spin (1.0s -> 3.5s): 60ms - 70ms per click
+// 3. Early deceleration (3.5s -> 5.8s): 90ms -> 170ms
+// 4. Slow spin & dramatic landing (5.8s -> 9.03s): 170ms -> 600ms landing
+const AUDIO_CLICK_GAPS = [
+  110, 120, 110, 100, 110, 90, 100, 90, 80, 80, 70, 70, 60, 60, 70, 60, 70, 60, 60, 70,
+  60, 70, 60, 70, 60, 60, 70, 60, 70, 60, 60, 70, 60, 70, 60, 70, 60, 60, 70, 60,
+  70, 60, 60, 70, 60, 70, 70, 70, 90, 90, 90, 90, 100, 100, 110, 100, 110, 100, 110, 110,
+  130, 140, 140, 130, 140, 150, 150, 160, 170, 170, 180, 210, 230, 260, 260, 290, 370, 470, 600
+];
 
 export function useWheelAnimator() {
   const step = useSharedValue(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Track the last final position on the JS side so we always know
-  // where the wheel stopped, even though the animation runs on the UI thread.
+  // Track the last final position on the JS side
   const lastFinalStep = useRef(0);
 
   const startSpin = useCallback(() => {
-    // No-op: we keep the wheel at its last stopped position.
-    // The animation in stopOnIndex picks up from lastFinalStep.
+    // Kept for interface compatibility; animation sequence is launched when result arrives in stopOnIndex
   }, []);
 
   const stopOnIndex = useCallback(
-    (targetIndex: number) => {
+    (targetIndex: number, elapsedSinceSpinStart: number = 0) => {
       return new Promise<void>((resolve) => {
-        // Use our JS-side ref — this is always correct.
         const currentStep = lastFinalStep.current;
 
-        // Which cell (0–23) is currently highlighted?
+        // Current visual cell (0..23)
         const currentVisualPos = ((currentStep % POSITION_COUNT) + POSITION_COUNT) % POSITION_COUNT;
 
-        // How many clockwise steps from current position to the target?
-        let stepsToTarget = (targetIndex - currentVisualPos + POSITION_COUNT) % POSITION_COUNT;
-        if (stepsToTarget === 0) stepsToTarget = POSITION_COUNT; // don't skip if already on target
+        // Total clicks in full audio clip
+        const totalAudioClicks = AUDIO_CLICK_GAPS.length; // 79 clicks
 
-        // Phase targets — all relative to currentStep
-        const phase1End = currentStep + POSITION_COUNT;                           // 1st lap (accel)
-        const phase2End = currentStep + POSITION_COUNT * FULL_LAPS_BEFORE_LAND;   // 2nd lap (full speed)
-        const finalEnd  = phase2End + stepsToTarget;                              // land on winner
+        // Find total steps so that (currentStep + totalSteps) % 24 === targetIndex
+        const rawRem = (targetIndex - currentVisualPos + POSITION_COUNT) % POSITION_COUNT;
+        
+        // We want totalSteps to be as close to totalAudioClicks (79) as possible while landing exactly on targetIndex
+        // 79 % 24 = 7. Adjust totalSteps so (currentStep + totalSteps) % 24 === targetIndex:
+        let totalSteps = Math.floor((totalAudioClicks - rawRem) / POSITION_COUNT) * POSITION_COUNT + rawRem;
+        if (totalSteps < POSITION_COUNT * 2) {
+          totalSteps += POSITION_COUNT * 2;
+        }
 
-        // Durations
-        const phase1Duration = 2000;
-        const phase2Duration = 1000;
-        const phase3Duration = 1200 + stepsToTarget * 60;
-        const totalDuration  = phase1Duration + phase2Duration + phase3Duration;
+        // Calculate click index offset based on elapsed time if spin API call took noticeable time
+        let startIndex = 0;
+        if (elapsedSinceSpinStart > 50) {
+          let accumulated = 0;
+          for (let i = 0; i < AUDIO_CLICK_GAPS.length; i++) {
+            accumulated += AUDIO_CLICK_GAPS[i];
+            if (accumulated >= elapsedSinceSpinStart) {
+              startIndex = i;
+              break;
+            }
+          }
+        }
 
-        // Snap the shared value to the current known position first,
-        // cancelling any lingering animation, then run the new sequence.
+        // Slice remaining audio click gaps
+        const activeGaps = AUDIO_CLICK_GAPS.slice(startIndex);
+        const activeClickCount = activeGaps.length;
+
+        // Map each step 1:1 to an audio click duration!
+        const stepAnimations = [];
+        let runningStep = currentStep;
+        let totalMs = 0;
+
+        for (let k = 0; k < activeClickCount; k++) {
+          const stepAmount = totalSteps / activeClickCount;
+          runningStep += stepAmount;
+          const gapMs = activeGaps[k];
+          totalMs += gapMs;
+
+          stepAnimations.push(
+            withTiming(runningStep, {
+              duration: gapMs,
+              easing: Easing.linear,
+            })
+          );
+        }
+
+        // Snap shared value to current visual position first
         step.value = currentStep;
 
-        // Kick off the 3-phase animation from the current position
-        step.value = withSequence(
-          withTiming(phase1End, {
-            duration: phase1Duration,
-            easing: Easing.in(Easing.cubic),
-          }),
-          withTiming(phase2End, {
-            duration: phase2Duration,
-            easing: Easing.linear,
-          }),
-          withTiming(finalEnd, {
-            duration: phase3Duration,
-            easing: Easing.out(Easing.cubic),
-          }),
-        );
+        // Execute 1-to-1 audio click animation sequence
+        step.value = withSequence(...stepAnimations);
 
-        // After the animation finishes, record where we landed.
+        const finalStepValue = currentStep + totalSteps;
+
         if (timerRef.current) clearTimeout(timerRef.current);
         timerRef.current = setTimeout(() => {
-          lastFinalStep.current = finalEnd;
-          // Also snap the shared value to the exact final number
-          // so the UI thread and JS thread are in sync.
-          step.value = finalEnd;
+          lastFinalStep.current = finalStepValue;
+          step.value = finalStepValue;
           resolve();
-        }, totalDuration + 200);
+        }, totalMs);
       });
     },
     [step],

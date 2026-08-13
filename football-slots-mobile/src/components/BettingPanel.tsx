@@ -23,6 +23,9 @@ export function BettingPanel() {
 
   const clearBets = useGameStore((state) => state.clearBets);
 
+  // Default to chip 10 when nothing is selected — prevents adding zero.
+  const chipToUse = selectedChip > 0 ? selectedChip : 10;
+
   return (
     <View style={styles.container}>
       {/* Chip Selector */}
@@ -94,7 +97,7 @@ export function BettingPanel() {
                   <TouchableOpacity
                     style={[styles.betBtn, styles.betBtnMinus]}
                     onPress={() =>
-                      removeBet(sym.key, toMinor(selectedChip, currency))
+                      removeBet(sym.key, toMinor(chipToUse, currency))
                     }
                   >
                     <Text style={styles.betBtnText}>−</Text>
@@ -112,7 +115,7 @@ export function BettingPanel() {
                   <TouchableOpacity
                     style={[styles.betBtn, styles.betBtnPlus]}
                     onPress={() =>
-                      placeBet(sym.key, toMinor(selectedChip, currency))
+                      placeBet(sym.key, toMinor(chipToUse, currency))
                     }
                   >
                     <Text style={styles.betBtnText}>+</Text>

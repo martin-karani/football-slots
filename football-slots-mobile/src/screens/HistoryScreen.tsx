@@ -165,7 +165,7 @@ export function HistoryScreen() {
   );
 }
 
-const { colors, radius, spacing } = theme;
+const { colors, radius, spacing, shadows } = theme;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
@@ -177,6 +177,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     borderWidth: 1,
     borderColor: colors.borderMuted,
+    ...shadows.sm,
   },
   winCard: { borderColor: colors.positive },
 
@@ -203,20 +204,20 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: radius.full,
   },
-  badgeWin: { backgroundColor: "rgba(76,175,80,0.15)" },
-  badgeLoss: { backgroundColor: "rgba(220,53,69,0.15)" },
+  badgeWin: { backgroundColor: colors.positiveLight },
+  badgeLoss: { backgroundColor: colors.negativeLight },
   badgeText: { fontSize: 11, fontWeight: "700" },
   badgeTextWin: { color: colors.positive },
   badgeTextLoss: { color: colors.negative },
 
   statsRow: {
     flexDirection: "row",
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: colors.glassLight,
     borderRadius: radius.sm,
     overflow: "hidden",
   },
   statItem: { flex: 1, alignItems: "center", paddingVertical: 10 },
-  statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.07)" },
+  statDivider: { width: 1, backgroundColor: colors.glassMedium },
   statLabel: { color: colors.textMuted, fontSize: 10, marginBottom: 3 },
   statValue: { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
   winValue: { color: colors.positive },
@@ -237,4 +238,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   emptyHint: { color: colors.textMuted, fontSize: 13, marginTop: 6 },
+
+  modeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: radius.md,
+    marginBottom: 12,
+    gap: 12,
+  },
+  modeBannerFun: { backgroundColor: colors.funLight, borderWidth: 1, borderColor: colors.fun },
+  modeBannerReal: { backgroundColor: colors.realLight, borderWidth: 1, borderColor: colors.real },
+  modeBannerIcon: { fontSize: 24 },
+  modeBannerTitle: { color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
+  modeBannerSub: { color: colors.textMuted, fontSize: 12 },
 });

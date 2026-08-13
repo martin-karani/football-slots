@@ -11,6 +11,7 @@ import {
 import { SYMBOLS } from '../types';
 import { gameApi } from '../api/client';
 import { PaytableRow } from '../types';
+import { theme } from './theme';
 
 interface Props {
   visible: boolean;
@@ -116,6 +117,8 @@ export function PaytableModal({ visible, onClose }: Props) {
   );
 }
 
+const { colors, radius, spacing, shadows } = theme;
+
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -124,35 +127,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: '#1a0d3d',
+    backgroundColor: colors.surface,
     width: '92%',
     maxHeight: '80%',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 2,
-    borderColor: '#FFD700',
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    ...shadows.md,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#FFD700',
+    color: colors.accent,
   },
   closeBtn: {
     width: 32,
     height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: radius.full,
+    backgroundColor: colors.glassLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeText: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -160,27 +164,29 @@ const styles = StyleSheet.create({
     maxHeight: 500,
   },
   section: {
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   sectionTitle: {
-    color: '#FFD700',
+    color: colors.accent,
     fontSize: 15,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   rule: {
-    color: '#ccc',
+    color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
-    marginBottom: 2,
+    marginBottom: 4,
   },
   symbolRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 10,
-    padding: 10,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    padding: spacing.sm,
     marginBottom: 6,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
   },
   symbolIconWrap: {
     width: 36,
@@ -193,29 +199,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   symbolName: {
-    color: '#fff',
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
   symbolTier: {
-    color: '#999',
+    color: colors.textDim,
     fontSize: 11,
     marginTop: 2,
   },
   multiplierBadge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   multiplierText: {
-    color: '#fff',
+    color: colors.surface,
     fontSize: 14,
     fontWeight: 'bold',
   },
   tip: {
-    color: '#bbb',
+    color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
-    marginBottom: 2,
+    marginBottom: 4,
   },
 });

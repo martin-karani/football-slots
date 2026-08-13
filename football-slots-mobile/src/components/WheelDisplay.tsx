@@ -28,6 +28,7 @@ const OUTER_PADDING = 12;
 const GRID_WIDTH = windowWidth - OUTER_PADDING * 2 - FRAME_PADDING * 2;
 const CELL_SIZE = Math.floor(GRID_WIDTH / COLS);
 const GRID_HEIGHT = CELL_SIZE * ROWS;
+const BOX_MARGIN = 0.5; // tight gap between cells and around center marquee
 
 function getTeamInfo(symbolKey: string) {
   return (
@@ -55,7 +56,7 @@ function WheelCell({
   const coords = getGridCoords(pos);
   const team = getTeamInfo(symbol);
 
-  // Container: dim inactive cells, full brightness + slight pop on active
+  // Container: vibrant inactive cells (0.90 opacity), full brightness + pop on active
   const animatedContainerStyle = useAnimatedStyle(() => {
     "worklet";
     const s = Math.round(step.value);
@@ -63,16 +64,16 @@ function WheelCell({
     const isActive = currentPos === pos - 1;
     return {
       backgroundColor: team.color,
-      opacity: isActive ? 1 : 0.52,
-      transform: [{ scale: isActive ? 1.06 : 1 }],
+      opacity: isActive ? 1 : 0.9,
+      transform: [{ scale: isActive ? 1.08 : 1 }],
       zIndex: isActive ? 40 : 1,
-      borderWidth: 1,
-      borderColor: "#6a4018",
+      borderWidth: isActive ? 2 : 1,
+      borderColor: isActive ? "#FFD700" : "#5a3212",
       shadowColor: isActive ? "#FFD700" : "#000",
-      shadowOpacity: isActive ? 0.85 : 0.3,
-      shadowRadius: isActive ? 10 : 2,
+      shadowOpacity: isActive ? 0.95 : 0.3,
+      shadowRadius: isActive ? 12 : 2,
       shadowOffset: { width: 0, height: 0 },
-      elevation: isActive ? 12 : 2,
+      elevation: isActive ? 14 : 2,
     };
   });
 
@@ -107,7 +108,6 @@ function WheelCell({
     };
   });
 
-  const BOX_MARGIN = 2;
   const cellW = CELL_SIZE - BOX_MARGIN * 2;
   const cellH = CELL_SIZE - BOX_MARGIN * 2;
   const BKT = 5; // bracket arm length
@@ -258,52 +258,61 @@ export function WheelDisplay({ step, isSpinning }: Props) {
             style={[
               styles.centerArea,
               {
-                left: centerLeft + 4,
-                top: centerTop + 4,
-                width: centerWidth - 8,
-                height: centerHeight - 8,
+                left: centerLeft + BOX_MARGIN,
+                top: centerTop + BOX_MARGIN,
+                width: centerWidth - BOX_MARGIN * 2,
+                height: centerHeight - BOX_MARGIN * 2,
               },
             ]}
           >
-            {/* Inner arcade marquee */}
-            <View style={styles.marqueeInner}>
-              {lastSpin && !isSpinning ? (
-                // Result state
-                <>
-                  <View style={styles.resultIconContainer}>
-                    {lastTeam?.icon ? (
-                      <lastTeam.icon width={54} height={54} />
-                    ) : (
-                      <Text style={styles.resultEmoji}>⚽</Text>
-                    )}
-                  </View>
-                  <Text style={styles.resultTeamName}>
-                    {lastTeam?.name ?? ""}
-                  </Text>
-                  <View style={styles.resultScoreBox}>
-                    <Text style={styles.resultScore}>
-                      {lastSpin.is_win
-                        ? `+${fromMinor(lastSpin.gross_payout, currency).toLocaleString()}`
-                        : "NO WIN"}
+            {/* Sleek Gold Metallic Frame matching reference image */}
+            <View style={styles.marqueeGoldFrame}>
+              {/* Corner metallic rivets in the 4 rounded corners */}
+              <View style={[styles.cornerRivet, styles.rivetTL]} />
+              <View style={[styles.cornerRivet, styles.rivetTR]} />
+              <View style={[styles.cornerRivet, styles.rivetBL]} />
+              <View style={[styles.cornerRivet, styles.rivetBR]} />
+
+              {/* Inner deep purple marquee display */}
+              <View style={styles.marqueeInner}>
+                {lastSpin && !isSpinning ? (
+                  // Result state
+                  <>
+                    <View style={styles.resultIconContainer}>
+                      {lastTeam?.icon ? (
+                        <lastTeam.icon width={54} height={54} />
+                      ) : (
+                        <Text style={styles.resultEmoji}>⚽</Text>
+                      )}
+                    </View>
+                    <Text style={styles.resultTeamName}>
+                      {lastTeam?.name ?? ""}
                     </Text>
-                  </View>
-                </>
-              ) : isSpinning ? (
-                // Spinning state
-                <>
-                  <Text style={styles.marqueeTitle1}>SPINNING</Text>
-                  <Text style={styles.marqueeSpinIcon}>⚽</Text>
-                </>
-              ) : (
-                // Idle state
-                <>
-                  <Text style={styles.marqueeTitle1}>FOOTBALL</Text>
-                  <Text style={styles.marqueeTitle2}>SLOTS</Text>
-                  <View style={styles.resultScoreBox}>
-                    <Text style={styles.resultScore}>00</Text>
-                  </View>
-                </>
-              )}
+                    <View style={styles.resultScoreBox}>
+                      <Text style={styles.resultScore}>
+                        {lastSpin.is_win
+                          ? `+${fromMinor(lastSpin.gross_payout, currency).toLocaleString()}`
+                          : "NO WIN"}
+                      </Text>
+                    </View>
+                  </>
+                ) : isSpinning ? (
+                  // Spinning state
+                  <>
+                    <Text style={styles.marqueeTitle1}>SPINNING</Text>
+                    <Text style={styles.marqueeSpinIcon}>⚽</Text>
+                  </>
+                ) : (
+                  // Idle state
+                  <>
+                    <Text style={styles.marqueeTitle1}>FOOTBALL</Text>
+                    <Text style={styles.marqueeTitle2}>SLOTS</Text>
+                    <View style={styles.resultScoreBox}>
+                      <Text style={styles.resultScore}>00</Text>
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
           </View>
         </View>
@@ -317,8 +326,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#60000a",
     padding: FRAME_PADDING,
     marginHorizontal: OUTER_PADDING,
-    marginVertical: 4,
-    borderRadius: 12,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 14,
     borderWidth: 3,
     borderTopColor: "#c08a48",
     borderLeftColor: "#a87238",
@@ -330,23 +340,26 @@ const styles = StyleSheet.create({
   // Outer clipping frame with a bit of inside breathing room — lets the halo
   // extend past the cell without hitting the brass frame border
   gridOuterClip: {
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: "hidden",
   },
   gridContainer: {
     position: "relative",
     backgroundColor: "#120005",
-    borderRadius: 8,
+    borderRadius: 12,
     // overflow: visible — intentionally NOT hidden so halos extend past cells
-    borderWidth: 2,
-    borderColor: "#8B5A2B",
+    borderWidth: 3,
+    borderTopColor: "#c08a48",
+    borderLeftColor: "#a87238",
+    borderBottomColor: "#3a1c07",
+    borderRightColor: "#4a240a",
   },
   cell: {
     position: "absolute",
-    padding: 3,
+    padding: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: 4,
   },
 
   // ── Layer 1 (outermost): soft glow halo wrapped around the active cell ──
@@ -370,7 +383,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "#FFFFFF",
-    borderRadius: 8,
+    borderRadius: 4,
     zIndex: 5,
   },
 
@@ -387,8 +400,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     backgroundColor: "rgba(255,255,255,0.25)",
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
   },
   cellBevelBottomRight: {
     position: "absolute",
@@ -397,8 +410,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     backgroundColor: "rgba(0,0,0,0.5)",
-    borderBottomLeftRadius: 8,
-    borderBottomRightRadius: 8,
+    borderBottomLeftRadius: 4,
+    borderBottomRightRadius: 4,
   },
   iconContainer: {
     justifyContent: "center",
@@ -416,22 +429,57 @@ const styles = StyleSheet.create({
   },
   centerArea: {
     position: "absolute",
-    borderRadius: 14,
+    borderRadius: 12,
     overflow: "hidden",
   },
+  marqueeGoldFrame: {
+    flex: 1,
+    backgroundColor: "#3a003a",
+    padding: 3,
+    borderRadius: 12,
+    borderWidth: 3,
+    borderTopColor: "#c08a48",
+    borderLeftColor: "#a87238",
+    borderBottomColor: "#3a1c07",
+    borderRightColor: "#4a240a",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 4,
+    position: "relative",
+  },
+  cornerRivet: {
+    position: "absolute",
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FFD700",
+    borderWidth: 1,
+    borderColor: "#8B6508",
+    zIndex: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 1,
+  },
+  rivetTL: { top: 5, left: 5 },
+  rivetTR: { top: 5, right: 5 },
+  rivetBL: { bottom: 5, left: 5 },
+  rivetBR: { bottom: 5, right: 5 },
   marqueeInner: {
     flex: 1,
-    backgroundColor: "#400028",
-    borderWidth: 4,
-    borderColor: "#8B5A2B",
-    borderRadius: 12,
+    backgroundColor: "#380036",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 215, 0, 0.4)",
+    borderRadius: 9,
     justifyContent: "center",
     alignItems: "center",
     padding: 10,
     shadowColor: "#FFD700",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   marqueeTitle1: {
     fontSize: 22,
