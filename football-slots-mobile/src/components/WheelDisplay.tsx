@@ -201,7 +201,7 @@ function PositionHalo({ step }: { step: SharedValue<number> }) {
       width: cellW + haloSpread * 2,
       height: cellH + haloSpread * 2,
       opacity: 0.12 + pulse.value * 0.08,
-      borderRadius: 9 + haloSpread,
+      borderRadius: 12 + haloSpread,
       borderWidth: 0.5 + pulse.value * 0.25,
       shadowRadius: 3 + pulse.value * 2,
       transform: [{ scale: 1 + pulse.value * 0.004 }],
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
     padding: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 4,
+    borderRadius: 10,
   },
 
   // ── Layer 1 (outermost): soft glow halo wrapped around the active cell ──
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "#FFFFFF",
-    borderRadius: 4,
+    borderRadius: 10,
     zIndex: 5,
   },
 
@@ -400,8 +400,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     backgroundColor: "rgba(255,255,255,0.25)",
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
   },
   cellBevelBottomRight: {
     position: "absolute",
@@ -410,8 +410,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
     backgroundColor: "rgba(0,0,0,0.5)",
-    borderBottomLeftRadius: 4,
-    borderBottomRightRadius: 4,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
   },
   iconContainer: {
     justifyContent: "center",

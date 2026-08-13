@@ -6,7 +6,7 @@ import { useWheelAnimator } from "./useWheelAnimator";
 import { useToast } from "../components/Toast";
 import { useSound } from "./useSound";
 
-export function useGame() {
+export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () => void }) {
   const currency = useGameStore((state) => state.currency);
   const currentBets = useGameStore((state) => state.currentBets);
   const balances = useGameStore((state) => state.balances);
@@ -67,6 +67,10 @@ export function useGame() {
       return;
     }
 
+    // ── Deduct stake immediately on GO press ──────────────────────────
+    updateBalance(currency, -totalStake);
+    callbacks?.onStakeDeducted?.();
+
     setSpinning(true);
     startSpin();
     const spinStartTime = Date.now();
@@ -87,10 +91,14 @@ export function useGame() {
       playSound('reel_stop');
 
       setLastSpin(result);
-      updateBalance(currency, result.net_result);
+      // Only credit the gross_payout — stake was already deducted above
+      if (result.gross_payout > 0) {
+        updateBalance(currency, result.gross_payout);
+      }
       clearBets();
 
       if (result.is_win) {
+        callbacks?.onWin?.();
         // Determine win tier for sound
         const winRatio = result.gross_payout / totalStake;
         if (winRatio >= 25) {
@@ -107,6 +115,8 @@ export function useGame() {
       console.error("Spin failed:", error);
       stopAnimation();
       stopSound('spin_start');
+      // Refund the stake since the spin never executed
+      updateBalance(currency, totalStake);
       const message =
         error.response?.data?.message || "Spin failed. Try again.";
       showError(message);
@@ -130,6 +140,7 @@ export function useGame() {
     showSuccess,
     showError,
     showWarning,
+    callbacks,
   ]);
 
   const toggleAutoSpin = useCallback(() => {

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay, cancelAnimation } from "react-native-reanimated";
+import { useEffect, useRef, useState, useCallback } from "react";
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay, cancelAnimation, withSpring } from "react-native-reanimated";
 import {
   View,
   Text,
@@ -100,6 +100,7 @@ export function GameScreen() {
   const placeBet = useGameStore((s) => s.placeBet);
   const removeBet = useGameStore((s) => s.removeBet);
   const clearAuth = useGameStore((s) => s.clearAuth);
+  const setLastSpin = useGameStore((s) => s.setLastSpin);
   const [showPaytable, setShowPaytable] = useState(false);
   // winFlashTick increments on each win to trigger rail-dot chase flash
   const [winFlashTick, setWinFlashTick] = useState(0);
@@ -108,7 +109,65 @@ export function GameScreen() {
   const menuBtnRef = useRef<any>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 60, right: 12 });
 
-  const { spin, step } = useGame();
+  // Mode Selection Dropdown state & positioning
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
+  const modeBtnRef = useRef<any>(null);
+  const [modeDropdownPos, setModeDropdownPos] = useState({ top: 120, right: 12 });
+
+  // ── Balance deduction animation (shake + red flash) ──────────────────
+  const balanceShakeX = useSharedValue(0);
+  const balanceFlashColor = useSharedValue(0); // 0=normal 1=red flash
+  // ── Win animation (gold glow pulse on balance bar) ────────────────────
+  const winGlowOpacity = useSharedValue(0);
+  const winGlowScale = useSharedValue(1);
+
+  const onStakeDeducted = useCallback(() => {
+    // Shake left-right
+    balanceShakeX.value = withSequence(
+      withTiming(-6, { duration: 60 }),
+      withTiming(6, { duration: 60 }),
+      withTiming(-4, { duration: 50 }),
+      withTiming(4, { duration: 50 }),
+      withTiming(0, { duration: 50 }),
+    );
+    // Flash red briefly
+    balanceFlashColor.value = withSequence(
+      withTiming(1, { duration: 80 }),
+      withTiming(0, { duration: 400 }),
+    );
+  }, []);
+
+  const onWin = useCallback(() => {
+    winGlowOpacity.value = withSequence(
+      withTiming(1, { duration: 120 }),
+      withRepeat(
+        withSequence(
+          withTiming(0.6, { duration: 250 }),
+          withTiming(1, { duration: 250 }),
+        ),
+        4,
+        false,
+      ),
+      withTiming(0, { duration: 400 }),
+    );
+    winGlowScale.value = withSequence(
+      withSpring(1.04, { damping: 8, stiffness: 200 }),
+      withTiming(1, { duration: 500 }),
+    );
+  }, []);
+
+  const balanceShakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: balanceShakeX.value }],
+  }));
+  const balanceFlashStyle = useAnimatedStyle(() => ({
+    color: balanceFlashColor.value > 0.5 ? '#FF4444' : undefined,
+  }));
+  const winGlowStyle = useAnimatedStyle(() => ({
+    opacity: winGlowOpacity.value,
+    transform: [{ scaleX: winGlowScale.value }, { scaleY: winGlowScale.value }],
+  }));
+
+  const { spin, step } = useGame({ onStakeDeducted, onWin });
   const { fetchBalance } = useWallet();
   const { play: playSound } = useSound();
   const navigation = useNavigation<any>();
@@ -175,19 +234,41 @@ export function GameScreen() {
             BALANCE BAR — dynamic mode differentiation
          ═══════════════════════════════════════════════════════════ */}
         <View style={[st.balBar, isReal ? st.balBarReal : st.balBarFun]}>
+          {/* Win glow overlay */}
+          <Animated.View
+            style={[
+              st.winGlowOverlay,
+              winGlowStyle,
+            ]}
+            pointerEvents="none"
+          />
           <View style={st.balLeft}>
             <Text style={st.balCoin}>{isReal ? "💰" : "🎮"}</Text>
-            <Text style={[st.balNum, isReal ? st.balNumReal : st.balNumFun]}>
-              {formatMinor(balanceMinor, currency)}
-            </Text>
+            <Animated.View style={balanceShakeStyle}>
+              <Animated.Text style={[st.balNum, isReal ? st.balNumReal : st.balNumFun, balanceFlashStyle]}>
+                {formatMinor(balanceMinor, currency)}
+              </Animated.Text>
+            </Animated.View>
             <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrFun]}>
               {currencyLabel(currency)}
             </Text>
           </View>
 
           <TouchableOpacity
+            ref={modeBtnRef}
             style={st.modeBadgePill}
-            onPress={() => setShowDropdownMenu(true)}
+            onPress={() => {
+              if (modeBtnRef.current) {
+                modeBtnRef.current.measure(
+                  (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                    setModeDropdownPos({ top: pageY + height + 6, right: 12 });
+                    setShowModeDropdown(true);
+                  }
+                );
+              } else {
+                setShowModeDropdown(!showModeDropdown);
+              }
+            }}
             activeOpacity={0.8}
           >
             <Text style={st.modeBadgeTxt}>
@@ -291,6 +372,8 @@ export function GameScreen() {
                           playSound("bet_remove");
                         } else {
                           setSelected(v);
+                          clearBets();          // reset club selections for new chip price
+                          setLastSpin(null);    // reset win/loss display
                           playSound("chip_select");
                         }
                       }}
@@ -326,6 +409,7 @@ export function GameScreen() {
                       if (selectedChip === 0) {
                         setSelected(10);
                       }
+                      setLastSpin(null); // reset win/loss display on new bet
                       placeBet(sym.key, toMinor(chipToUse, currency));
                       playSound("chip_select");
                     }
@@ -365,6 +449,79 @@ export function GameScreen() {
       />
       {/* Win celebration is handled by rail-dot flash animation (no overlay modal) */}
 
+      {/* ── Dedicated Mode Selection Dropdown Modal ── */}
+      <Modal
+        visible={showModeDropdown}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowModeDropdown(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowModeDropdown(false)}>
+          <View style={st.dropdownOverlay}>
+            <TouchableWithoutFeedback>
+              <View
+                style={[
+                  st.modeDropdownCard,
+                  { position: "absolute", top: modeDropdownPos.top, right: modeDropdownPos.right },
+                ]}
+              >
+                <Text style={st.modeDropdownTitle}>SELECT GAME MODE</Text>
+
+                {/* Option 1: FUN MODE */}
+                <TouchableOpacity
+                  style={[
+                    st.modeOptionItem,
+                    !isReal && st.modeOptionItemActiveFun,
+                  ]}
+                  onPress={() => {
+                    setCurrency("virtual");
+                    setShowModeDropdown(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={st.modeOptionLeft}>
+                    <Text style={st.modeOptionIcon}>🎮</Text>
+                    <View style={st.modeOptionTextGroup}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={st.modeOptionName}>FUN MODE</Text>
+                        {!isReal && <Text style={st.modeActiveBadgeFun}>ACTIVE</Text>}
+                      </View>
+                      <Text style={st.modeOptionDesc}>Play with free virtual credits</Text>
+                    </View>
+                  </View>
+                  {!isReal && <Text style={st.modeCheckmark}>✓</Text>}
+                </TouchableOpacity>
+
+                {/* Option 2: REAL MODE */}
+                <TouchableOpacity
+                  style={[
+                    st.modeOptionItem,
+                    isReal && st.modeOptionItemActiveReal,
+                  ]}
+                  onPress={() => {
+                    setCurrency("real");
+                    setShowModeDropdown(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={st.modeOptionLeft}>
+                    <Text style={st.modeOptionIcon}>💰</Text>
+                    <View style={st.modeOptionTextGroup}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Text style={st.modeOptionName}>REAL MODE (KES)</Text>
+                        {isReal && <Text style={st.modeActiveBadgeReal}>ACTIVE</Text>}
+                      </View>
+                      <Text style={st.modeOptionDesc}>Play with real M-Pesa balance</Text>
+                    </View>
+                  </View>
+                  {isReal && <Text style={st.modeCheckmark}>✓</Text>}
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
       {/* ── Settings Dropdown Modal ── */}
       <Modal
         visible={showDropdownMenu}
@@ -376,32 +533,6 @@ export function GameScreen() {
           <View style={st.dropdownOverlay}>
             <TouchableWithoutFeedback>
               <View style={[st.dropdownCard, { position: "absolute", top: dropdownPos.top, right: dropdownPos.right }]}>
-                {/* Active Mode Banner */}
-                <View style={[st.dropdownModeHeader, isReal ? st.dropdownModeHeaderReal : st.dropdownModeHeaderFun]}>
-                  <Text style={st.dropdownModeBadge}>
-                    {isReal ? "💰 REAL MODE ACTIVE" : "🎮 FUN MODE ACTIVE"}
-                  </Text>
-                  <Text style={st.dropdownModeSub}>
-                    {isReal ? "Playing with M-Pesa KES" : "Free Play Credits"}
-                  </Text>
-                </View>
-
-                {/* Switch Mode Action Item */}
-                <TouchableOpacity
-                  style={st.dropdownSwitchBtn}
-                  onPress={() => {
-                    setCurrency(isReal ? "virtual" : "real");
-                    setShowDropdownMenu(false);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={st.dropdownSwitchTxt}>
-                    {isReal ? "🎮  Switch to FUN Mode" : "💰  Switch to REAL Mode (KES)"}
-                  </Text>
-                </TouchableOpacity>
-
-                <View style={st.dropdownDivider} />
-
                 {/* Navigation Items */}
                 <TouchableOpacity
                   style={st.dropdownItem}
@@ -411,7 +542,7 @@ export function GameScreen() {
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>👛</Text>
-                  <Text style={st.dropdownItemTxt}>Wallet &amp; Deposit</Text>
+                  <Text style={st.dropdownItemTxt}>Wallet</Text>
                   <Text style={st.dropdownItemArrow}>›</Text>
                 </TouchableOpacity>
 
@@ -617,12 +748,23 @@ const st = StyleSheet.create({
     paddingVertical: 7,
     borderBottomWidth: 2,
     borderBottomColor: "#f0c050",
+    position: "relative",
+    overflow: "hidden",
   },
   balBarReal: {
     backgroundColor: "#901020",
   },
   balBarFun: {
     backgroundColor: "#400080",
+  },
+  winGlowOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 215, 0, 0.35)",
+    borderRadius: 0,
   },
   balLeft: {
     flexDirection: "row",
@@ -1147,7 +1289,7 @@ const st = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#3d0810",
-    borderRadius: 5,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "#280410",
     shadowColor: "transparent",
@@ -1190,8 +1332,8 @@ const st = StyleSheet.create({
     right: 0,
     height: "50%",
     backgroundColor: "rgba(255,160,100,0.07)",
-    borderTopLeftRadius: 5,
-    borderTopRightRadius: 5,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
   },
   clubTiltLo: {
     position: "absolute",
@@ -1200,8 +1342,8 @@ const st = StyleSheet.create({
     right: 0,
     height: "50%",
     backgroundColor: "rgba(0,0,0,0.30)",
-    borderBottomLeftRadius: 5,
-    borderBottomRightRadius: 5,
+    borderBottomLeftRadius: 10,
+    borderBottomRightRadius: 10,
   },
   clubTiltLightStrip: {},
   clubTiltDarkStrip: {},
@@ -1242,70 +1384,116 @@ const st = StyleSheet.create({
   },
   dropdownCard: {
     width: 250,
-    backgroundColor: "#220038",
+    backgroundColor: "#220538",
     borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "#FFD700",
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.35)",
     padding: 10,
-    shadowColor: "#FFD700",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 16,
   },
-  dropdownModeHeader: {
-    padding: 8,
-    borderRadius: 8,
+  modeDropdownCard: {
+    width: 260,
+    backgroundColor: "#1e0430",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.35)",
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.7,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  modeDropdownTitle: {
+    color: "#FFE566",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  modeOptionItem: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
     marginBottom: 8,
   },
-  dropdownModeHeaderFun: {
-    backgroundColor: "rgba(34, 197, 94, 0.15)",
-    borderColor: "#22c55e",
-    borderWidth: 1,
+  modeOptionItemActiveFun: {
+    backgroundColor: "rgba(34, 197, 94, 0.12)",
+    borderColor: "rgba(34, 197, 94, 0.5)",
   },
-  dropdownModeHeaderReal: {
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    borderColor: "#FFD700",
-    borderWidth: 1,
+  modeOptionItemActiveReal: {
+    backgroundColor: "rgba(255, 215, 0, 0.12)",
+    borderColor: "rgba(255, 215, 0, 0.5)",
   },
-  dropdownModeBadge: {
+  modeOptionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  modeOptionIcon: {
+    fontSize: 22,
+  },
+  modeOptionTextGroup: {
+    flex: 1,
+  },
+  modeOptionName: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: "900",
-    letterSpacing: 1,
   },
-  dropdownModeSub: {
-    color: "rgba(255,255,255,0.7)",
+  modeOptionDesc: {
+    color: "rgba(255, 255, 255, 0.6)",
     fontSize: 9,
     marginTop: 2,
   },
-  dropdownSwitchBtn: {
-    backgroundColor: "#400070",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#aa44ee",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  dropdownSwitchTxt: {
-    color: "#FFE566",
+  modeActiveBadgeFun: {
+    backgroundColor: "#22c55e",
+    color: "#FFFFFF",
+    fontSize: 8,
     fontWeight: "900",
-    fontSize: 11,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  modeActiveBadgeReal: {
+    backgroundColor: "#FFD700",
+    color: "#1a0033",
+    fontSize: 8,
+    fontWeight: "900",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  modeCheckmark: {
+    color: "#FFD700",
+    fontSize: 16,
+    fontWeight: "900",
+    marginLeft: 6,
   },
   dropdownDivider: {
     height: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     marginVertical: 6,
   },
   dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 9,
-    paddingHorizontal: 6,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
   },
   dropdownItemIcon: {
     fontSize: 16,
@@ -1318,11 +1506,13 @@ const st = StyleSheet.create({
     fontWeight: "700",
   },
   dropdownItemArrow: {
-    color: "rgba(255,255,255,0.4)",
+    color: "rgba(255, 255, 255, 0.35)",
     fontSize: 16,
     fontWeight: "900",
   },
   dropdownLogoutItem: {
-    backgroundColor: "rgba(220, 53, 69, 0.1)",
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.2)",
   },
 });

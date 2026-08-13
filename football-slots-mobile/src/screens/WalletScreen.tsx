@@ -13,40 +13,27 @@ import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { formatMinor } from "../types";
 import { useToast } from "../components/Toast";
-import { authStorage } from "../api/client";
 import { theme } from "../components/theme";
 
-type PlayMode = "fun" | "real";
+type WalletTab = "deposit" | "withdraw";
 
 export function WalletScreen() {
   const navigation = useNavigation<any>();
   const balances = useGameStore((state) => state.balances);
   const currency = useGameStore((state) => state.currency);
-  const setCurrency = useGameStore((state) => state.setCurrency);
-  const clearAuth = useGameStore((state) => state.clearAuth);
   const { deposit, withdraw, fetchBalance, topupVirtual } = useWallet();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const kycStatus = useGameStore((state) => state.kycStatus);
 
+  const [activeTab, setActiveTab] = useState<WalletTab>("deposit");
   const [depositAmount, setDepositAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawPhone, setWithdrawPhone] = useState("");
 
-  // Derive current play mode from the active currency
-  const playMode: PlayMode =
-    currency === "real" || currency === "bonus" ? "real" : "fun";
+  const isReal = currency === "real" || currency === "bonus";
 
-  const switchMode = (mode: PlayMode) => {
-    setCurrency(mode === "fun" ? "virtual" : "real");
-  };
 
-  const isFun = playMode === "fun";
-
-  const handleLogout = async () => {
-    await authStorage.clearToken();
-    clearAuth();
-  };
 
   const handleDeposit = async () => {
     const amount = parseInt(depositAmount);
@@ -62,6 +49,27 @@ export function WalletScreen() {
     setDepositAmount("");
     setTimeout(fetchBalance, 5000);
   };
+
+  const handleWithdraw = async () => {
+    const amount = parseInt(withdrawAmount);
+    if (!amount || amount < 100) {
+      showError("Minimum withdrawal is KES 100");
+      return;
+    }
+    if (!withdrawPhone || withdrawPhone.length < 10) {
+      showError("Enter a valid M-Pesa phone number");
+      return;
+    }
+    if (amount * 100 > balances.real) {
+      showError("Withdrawal exceeds your available balance");
+      return;
+    }
+    await withdraw(withdrawPhone, amount);
+    setWithdrawAmount("");
+  };
+
+  const quickDepositPresets = [100, 500, 1000, 2500, 5000];
+  const quickWithdrawPresets = [100, 500, 1000, 2500];
 
   return (
     <View style={styles.root}>
@@ -84,247 +92,260 @@ export function WalletScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* ─── Active Mode Banner ─────────────────────── */}
-        <View style={[styles.activeModeBadge, isFun ? styles.activeModeBadgeFun : styles.activeModeBadgeReal]}>
-          <Text style={styles.activeModeIcon}>{isFun ? "🎮" : "💰"}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.activeModeTitle}>
-              {isFun ? "FUN Mode Wallet" : "REAL Mode Wallet (KES)"}
+        {/* ─── Balance Summary Card ─────────────────────── */}
+        <View style={[styles.balanceCard, isReal ? styles.balanceCardReal : styles.balanceCardFun]}>
+          <View style={styles.balanceMain}>
+            <Text style={styles.balanceLabel}>
+              {isReal ? "REAL KES BALANCE" : "FUN VIRTUAL CREDITS"}
             </Text>
-            <Text style={styles.activeModeSub}>
-              {isFun ? "Free Play Credits" : "M-Pesa Deposits & Withdrawals"}
+            <Text style={[styles.balanceAmount, isReal ? styles.realText : styles.funText]}>
+              {isReal
+                ? `KES ${formatMinor(balances.real, "real")}`
+                : formatMinor(balances.virtual, "virtual")}
+            </Text>
+            <Text style={styles.balanceSubtext}>
+              {isReal
+                ? "Withdrawable via M-Pesa KES"
+                : "Free practice credits · Zero risk"}
             </Text>
           </View>
+
+          {balances.bonus > 0 && (
+            <View style={styles.bonusBanner}>
+              <Text style={styles.bonusText}>
+                🎁 Bonus Credits: <Text style={styles.bold}>{formatMinor(balances.bonus, "bonus")}</Text>
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* ══════════════════════════════════════════════
-            FUN MODE
-            ══════════════════════════════════════════════ */}
-        {isFun && (
-          <>
-            {/* Balance card */}
-            <View style={[styles.bigBalanceCard, styles.bigBalanceCardFun]}>
-              <View style={styles.bigBalanceBadge}>
-                <Text style={styles.bigBalanceBadgeFunText}>FREE PLAY</Text>
-              </View>
-              <Text style={styles.bigBalanceLabel}>FUN Credits</Text>
-              <Text style={[styles.bigBalanceAmount, styles.funText]}>
-                {formatMinor(balances.virtual, "virtual")}
-              </Text>
-              <Text style={styles.bigBalanceNote}>
-                No real value · Can't be withdrawn
-              </Text>
-            </View>
+        {/* ─── Segmented Tabs (Deposit / Withdraw) ─────── */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === "deposit" && styles.tabBtnActiveDeposit]}
+            onPress={() => setActiveTab("deposit")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.tabBtnText,
+                activeTab === "deposit" && styles.tabBtnTextActiveDeposit,
+              ]}
+            >
+              💳 Deposit
+            </Text>
+          </TouchableOpacity>
 
-            {/* Bonus sub-row */}
-            {balances.bonus > 0 && (
-              <View style={[styles.sectionGroup, styles.sectionGroupFun]}>
-                <View style={styles.row}>
-                  <View style={[styles.rowIcon, styles.rowIconFun]}>
-                    <Text style={styles.rowIconEmoji}>🎁</Text>
-                  </View>
-                  <Text style={styles.rowLabel}>Bonus Credits</Text>
-                  <Text style={[styles.rowValue, styles.funText]}>
-                    {formatMinor(balances.bonus, "bonus")}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Free Refill action */}
-            <View style={styles.actionCard}>
-              <Text style={[styles.actionTitle, styles.funText]}>
-                🎁  Free FUN Refill
-              </Text>
-              <Text style={styles.actionHint}>
-                Running low? Get 1,000 free FUN credits instantly — no strings
-                attached!
-              </Text>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnFun]}
-                onPress={topupVirtual}
-              >
-                <Text style={styles.btnTextDark}>Refill 1,000 FUN</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Info block */}
-            <View style={[styles.sectionGroup, styles.sectionGroupFun]}>
-              <View style={[styles.row, styles.rowBorder]}>
-                <Text style={styles.rowLabel}>
-                  <Text style={[styles.bold, styles.funText]}>FUN</Text>
-                  {" — "}Free play money, zero risk
-                </Text>
-              </View>
-              <View style={[styles.row, styles.rowBorder]}>
-                <Text style={styles.rowLabel}>
-                  <Text style={[styles.bold, styles.funText]}>BONUS</Text>
-                  {" — "}Promo credits, cannot withdraw
-                </Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>
-                  Switch to{" "}
-                  <Text style={[styles.bold, styles.realText]}>REAL Mode</Text>{" "}
-                  to play with M-Pesa money
-                </Text>
-              </View>
-            </View>
-          </>
-        )}
-
-        {/* ══════════════════════════════════════════════
-            REAL MODE
-            ══════════════════════════════════════════════ */}
-        {!isFun && (
-          <>
-            {/* Balance card */}
-            <View style={[styles.bigBalanceCard, styles.bigBalanceCardReal]}>
-              <View style={styles.bigBalanceBadge}>
-                <Text style={styles.bigBalanceBadgeRealText}>REAL MONEY</Text>
-              </View>
-              <Text style={styles.bigBalanceLabel}>KES Balance</Text>
-              <Text style={[styles.bigBalanceAmount, styles.realText]}>
-                KES {formatMinor(balances.real, "real")}
-              </Text>
-              <Text style={styles.bigBalanceNote}>
-                Deposited via M-Pesa · Winnings withdrawable
-              </Text>
-            </View>
-
-            {/* Bonus sub-row */}
-            {balances.bonus > 0 && (
-              <View style={[styles.sectionGroup, styles.sectionGroupReal]}>
-                <View style={styles.row}>
-                  <View style={[styles.rowIcon, styles.rowIconReal]}>
-                    <Text style={styles.rowIconEmoji}>🎁</Text>
-                  </View>
-                  <Text style={styles.rowLabel}>Bonus Credits</Text>
-                  <Text style={[styles.rowValue, styles.realText]}>
-                    {formatMinor(balances.bonus, "bonus")}
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Deposit */}
-            <View style={styles.actionCard}>
-              <Text style={[styles.actionTitle, styles.realText]}>
-                💳  Deposit via M-Pesa
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="M-Pesa Phone Number"
-                value={depositPhone}
-                onChangeText={setDepositPhone}
-                keyboardType="phone-pad"
-                placeholderTextColor={colors.textDim}
-              />
-              <TextInput
-                style={styles.input}
-                placeholder="Amount (KES)"
-                value={depositAmount}
-                onChangeText={setDepositAmount}
-                keyboardType="numeric"
-                placeholderTextColor={colors.textDim}
-              />
-              <TouchableOpacity
-                style={[styles.btn, styles.btnReal]}
-                onPress={handleDeposit}
-              >
-                <Text style={styles.btnTextDark}>Deposit</Text>
-              </TouchableOpacity>
-              <Text style={styles.actionHint}>
-                STK Push sent to your M-Pesa number
-              </Text>
-            </View>
-
-            {/* Withdraw */}
-            <View style={styles.actionCard}>
-              <Text style={[styles.actionTitle, styles.realText]}>
-                💸  Withdraw to M-Pesa
-              </Text>
-              {kycStatus !== "verified" ? (
-                <Text style={styles.actionHint}>
-                  ⚠️ Withdrawals require a verified account. Complete KYC
-                  verification to enable this feature.
-                </Text>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="M-Pesa Phone Number"
-                    value={withdrawPhone}
-                    onChangeText={setWithdrawPhone}
-                    keyboardType="phone-pad"
-                    placeholderTextColor={colors.textDim}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Amount (KES)"
-                    value={withdrawAmount}
-                    onChangeText={setWithdrawAmount}
-                    keyboardType="numeric"
-                    placeholderTextColor={colors.textDim}
-                  />
-                  <TouchableOpacity
-                    style={[styles.btn, styles.btnDanger]}
-                    onPress={async () => {
-                      const amount = parseInt(withdrawAmount);
-                      if (!amount || amount < 100) {
-                        showError("Minimum withdrawal is KES 100");
-                        return;
-                      }
-                      if (!withdrawPhone || withdrawPhone.length < 10) {
-                        showError("Enter a valid M-Pesa phone number");
-                        return;
-                      }
-                      if (amount * 100 > balances.real) {
-                        showError("Withdrawal exceeds your available balance");
-                        return;
-                      }
-                      await withdraw(withdrawPhone, amount);
-                      setWithdrawAmount("");
-                    }}
-                  >
-                    <Text style={styles.btnText}>Withdraw</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.actionHint}>
-                    Funds held immediately; sent within minutes.
-                  </Text>
-                </>
-              )}
-            </View>
-
-            {/* Info block */}
-            <View style={[styles.sectionGroup, styles.sectionGroupReal]}>
-              <View style={[styles.row, styles.rowBorder]}>
-                <Text style={styles.rowLabel}>
-                  <Text style={[styles.bold, styles.realText]}>KES</Text>
-                  {" — "}Real M-Pesa money, fully withdrawable
-                </Text>
-              </View>
-              <View style={styles.row}>
-                <Text style={styles.rowLabel}>
-                  Switch to{" "}
-                  <Text style={[styles.bold, styles.funText]}>FUN Mode</Text>{" "}
-                  to play for free with zero risk
-                </Text>
-              </View>
-            </View>
-          </>
-        )}
-
-        {/* ─── Logout ──────────────────────────────────── */}
-        <View style={styles.sectionGroup}>
-          <TouchableOpacity style={styles.row} onPress={handleLogout}>
-            <View style={[styles.rowIcon, styles.rowIconDanger]}>
-              <Text style={styles.rowIconEmoji}>🚪</Text>
-            </View>
-            <Text style={[styles.rowLabel, styles.dangerText]}>Log Out</Text>
-            <Text style={[styles.chevron, styles.dangerText]}>›</Text>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === "withdraw" && styles.tabBtnActiveWithdraw]}
+            onPress={() => setActiveTab("withdraw")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.tabBtnText,
+                activeTab === "withdraw" && styles.tabBtnTextActiveWithdraw,
+              ]}
+            >
+              💸 Withdraw
+            </Text>
           </TouchableOpacity>
         </View>
+
+        {/* ══════════════════════════════════════════════
+            DEPOSIT TAB CONTENT
+            ══════════════════════════════════════════════ */}
+        {activeTab === "deposit" && (
+          <View style={styles.tabCard}>
+            {!isReal ? (
+              /* FUN Mode Deposit / Refill View */
+              <View style={styles.funRefillContainer}>
+                <Text style={styles.cardHeaderTitle}>🎮 FUN Credits Refill</Text>
+                <Text style={styles.cardDescription}>
+                  Need more practice credits? Get 1,000 free FUN credits instantly.
+                </Text>
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnFun]}
+                  onPress={() => {
+                    topupVirtual();
+                    showSuccess("Refilled 1,000 FUN credits!");
+                  }}
+                >
+                  <Text style={styles.btnTextDark}>🎁 Refill 1,000 FUN Credits</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* REAL Mode Deposit View */
+              <View>
+                <Text style={styles.cardHeaderTitle}>💳 Deposit via M-Pesa</Text>
+                <Text style={styles.cardDescription}>
+                  Instant deposit to your wallet via M-Pesa STK Push.
+                </Text>
+
+                <Text style={styles.inputLabel}>M-Pesa Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 0712345678"
+                  value={depositPhone}
+                  onChangeText={setDepositPhone}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={colors.textDim}
+                />
+
+                <Text style={styles.inputLabel}>Amount (KES)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter amount (min KES 10)"
+                  value={depositAmount}
+                  onChangeText={setDepositAmount}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textDim}
+                />
+
+                {/* Quick Presets */}
+                <Text style={styles.presetLabel}>Quick Select Amount:</Text>
+                <View style={styles.presetRow}>
+                  {quickDepositPresets.map((val) => (
+                    <TouchableOpacity
+                      key={val}
+                      style={[
+                        styles.presetChip,
+                        depositAmount === val.toString() && styles.presetChipSelected,
+                      ]}
+                      onPress={() => setDepositAmount(val.toString())}
+                    >
+                      <Text
+                        style={[
+                          styles.presetChipText,
+                          depositAmount === val.toString() && styles.presetChipTextSelected,
+                        ]}
+                      >
+                        +{val}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnReal]}
+                  onPress={handleDeposit}
+                >
+                  <Text style={styles.btnTextDark}>Deposit via M-Pesa</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.actionHint}>
+                  🔒 Secure M-Pesa STK push prompt will pop up on your phone.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ══════════════════════════════════════════════
+            WITHDRAW TAB CONTENT
+            ══════════════════════════════════════════════ */}
+        {activeTab === "withdraw" && (
+          <View style={styles.tabCard}>
+            {!isReal ? (
+              /* FUN Mode Withdraw Notice */
+              <View style={styles.funRefillContainer}>
+                <Text style={styles.cardHeaderTitle}>⚠️ FUN Credits Cannot Be Withdrawn</Text>
+                <Text style={styles.cardDescription}>
+                  You are currently playing in FUN mode. Practice credits have no real monetary value.
+                </Text>
+              </View>
+            ) : kycStatus !== "verified" ? (
+              /* Unverified KYC Notice */
+              <View style={styles.kycNoticeCard}>
+                <Text style={styles.kycNoticeIcon}>🔒</Text>
+                <Text style={styles.kycNoticeTitle}>Identity Verification Required</Text>
+                <Text style={styles.kycNoticeText}>
+                  Withdrawals require a verified account for security and regulatory compliance.
+                </Text>
+              </View>
+            ) : (
+              /* REAL Mode Withdraw View */
+              <View>
+                <Text style={styles.cardHeaderTitle}>💸 Withdraw to M-Pesa</Text>
+                <Text style={styles.cardDescription}>
+                  Transfer your winnings directly to your M-Pesa mobile line.
+                </Text>
+
+                <View style={styles.withdrawLimitBox}>
+                  <Text style={styles.withdrawLimitLabel}>Withdrawable Balance:</Text>
+                  <Text style={styles.withdrawLimitVal}>
+                    KES {formatMinor(balances.real, "real")}
+                  </Text>
+                </View>
+
+                <Text style={styles.inputLabel}>M-Pesa Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 0712345678"
+                  value={withdrawPhone}
+                  onChangeText={setWithdrawPhone}
+                  keyboardType="phone-pad"
+                  placeholderTextColor={colors.textDim}
+                />
+
+                <Text style={styles.inputLabel}>Amount (KES)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter amount (min KES 100)"
+                  value={withdrawAmount}
+                  onChangeText={setWithdrawAmount}
+                  keyboardType="numeric"
+                  placeholderTextColor={colors.textDim}
+                />
+
+                {/* Quick Presets */}
+                <Text style={styles.presetLabel}>Quick Select Amount:</Text>
+                <View style={styles.presetRow}>
+                  {quickWithdrawPresets.map((val) => (
+                    <TouchableOpacity
+                      key={val}
+                      style={[
+                        styles.presetChip,
+                        withdrawAmount === val.toString() && styles.presetChipSelectedWithdraw,
+                      ]}
+                      onPress={() => setWithdrawAmount(val.toString())}
+                    >
+                      <Text
+                        style={[
+                          styles.presetChipText,
+                          withdrawAmount === val.toString() && styles.presetChipTextSelectedWithdraw,
+                        ]}
+                      >
+                        {val}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.presetChip,
+                      withdrawAmount === Math.floor(balances.real / 100).toString() && styles.presetChipSelectedWithdraw,
+                    ]}
+                    onPress={() => setWithdrawAmount(Math.floor(balances.real / 100).toString())}
+                  >
+                    <Text style={styles.presetChipText}>MAX</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.btn, styles.btnDanger]}
+                  onPress={handleWithdraw}
+                >
+                  <Text style={styles.btnText}>Withdraw Funds</Text>
+                </TouchableOpacity>
+
+                <Text style={styles.actionHint}>
+                  ⚡ Processed instantly to your M-Pesa registered line.
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
       </ScrollView>
     </View>
   );
@@ -360,138 +381,102 @@ const styles = StyleSheet.create({
   backArrow: { color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
   headerTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
 
-  /* Mode toggle */
-  modeToggleWrap: {
-    flexDirection: "row",
+  /* Balance Card */
+  balanceCard: {
     marginHorizontal: spacing.md,
     marginTop: spacing.md,
     marginBottom: spacing.sm,
-    gap: spacing.sm,
-  },
-  modeTab: {
-    flex: 1,
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.lg,
-    borderWidth: 1.5,
-    borderColor: colors.borderMuted,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    gap: 3,
-    ...shadows.sm,
-  },
-  modeTabFunActive: {
-    borderColor: colors.fun,
-    backgroundColor: colors.funLight,
-  },
-  modeTabRealActive: {
-    borderColor: colors.real,
-    backgroundColor: colors.realLight,
-  },
-  modeTabIcon: { fontSize: 24 },
-  modeTabLabel: { color: colors.textMuted, fontWeight: "800", fontSize: 14 },
-  modeTabLabelFunActive: { color: colors.fun },
-  modeTabLabelRealActive: { color: colors.real },
-  modeTabSub: { color: colors.textDim, fontSize: 10, textAlign: "center" },
-  modeTabSubFun: { color: colors.fun },
-  modeTabSubReal: { color: colors.real },
-
-  /* Big balance card */
-  bigBalanceCard: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
     borderRadius: radius.lg,
     borderWidth: 1,
-    padding: spacing.lg,
-    alignItems: "center",
+    padding: spacing.md,
     ...shadows.md,
   },
-  bigBalanceCardFun: {
-    backgroundColor: colors.funLight,
-    borderColor: colors.fun,
+  balanceCardFun: {
+    backgroundColor: "rgba(34, 197, 94, 0.08)",
+    borderColor: "rgba(34, 197, 94, 0.35)",
   },
-  bigBalanceCardReal: {
-    backgroundColor: colors.realLight,
-    borderColor: colors.real,
+  balanceCardReal: {
+    backgroundColor: "rgba(255, 215, 0, 0.08)",
+    borderColor: "rgba(255, 215, 0, 0.35)",
   },
-  bigBalanceBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: radius.full,
-    backgroundColor: colors.glassLight,
-    marginBottom: 10,
+  balanceMain: {
+    alignItems: "center",
+    paddingVertical: 6,
   },
-  bigBalanceBadgeFunText: {
-    color: colors.fun,
-    fontSize: 10,
+  balanceLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
     fontWeight: "800",
     letterSpacing: 1,
+    marginBottom: 2,
   },
-  bigBalanceBadgeRealText: {
-    color: colors.real,
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 1,
+  balanceAmount: {
+    fontSize: 32,
+    fontWeight: "900",
+    marginBottom: 4,
   },
-  bigBalanceLabel: { color: colors.textMuted, fontSize: 13, marginBottom: 4 },
-  bigBalanceAmount: { fontSize: 40, fontWeight: "900", marginBottom: 6 },
-  bigBalanceNote: {
+  balanceSubtext: {
     color: colors.textDim,
     fontSize: 11,
-    textAlign: "center",
+  },
+  bonusBanner: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    alignItems: "center",
+  },
+  bonusText: {
+    color: colors.real,
+    fontSize: 12,
+  },
+  bold: {
+    fontWeight: "800",
   },
 
-  /* Shared group card */
-  sectionGroup: {
+  /* Segmented Tabs */
+  tabContainer: {
+    flexDirection: "row",
     marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginVertical: spacing.sm,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
+    padding: 4,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    overflow: "hidden",
-    ...shadows.sm,
   },
-  sectionGroupFun: {
-    borderColor: colors.fun,
-    backgroundColor: colors.funLight,
-  },
-  sectionGroupReal: {
-    borderColor: colors.real,
-    backgroundColor: colors.realLight,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.md,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  rowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.glassLight,
-  },
-  rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: colors.glassMedium,
-    justifyContent: "center",
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: radius.md,
     alignItems: "center",
   },
-  rowIconFun: { backgroundColor: colors.funLight },
-  rowIconReal: { backgroundColor: colors.realLight },
-  rowIconDanger: { backgroundColor: colors.negativeLight },
-  rowIconEmoji: { fontSize: 18 },
-  rowLabel: { flex: 1, color: colors.textPrimary, fontSize: 13, lineHeight: 18 },
-  rowValue: { fontWeight: "700", fontSize: 14 },
-  chevron: { color: colors.textMuted, fontSize: 22, fontWeight: "300" },
-  bold: { fontWeight: "700" },
+  tabBtnActiveDeposit: {
+    backgroundColor: "rgba(255, 215, 0, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.5)",
+  },
+  tabBtnActiveWithdraw: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.5)",
+  },
+  tabBtnText: {
+    color: colors.textMuted,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  tabBtnTextActiveDeposit: {
+    color: colors.real,
+  },
+  tabBtnTextActiveWithdraw: {
+    color: "#ff6666",
+  },
 
-  /* Action cards */
-  actionCard: {
+  /* Tab Card Content */
+  tabCard: {
     marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -499,63 +484,148 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.sm,
   },
-  actionTitle: {
-    fontWeight: "700",
-    fontSize: 15,
-    marginBottom: spacing.md,
+  cardHeaderTitle: {
+    color: colors.textPrimary,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 4,
   },
-  actionHint: {
+  cardDescription: {
+    color: colors.textMuted,
+    fontSize: 12,
+    marginBottom: 14,
+    lineHeight: 16,
+  },
+  inputLabel: {
     color: colors.textMuted,
     fontSize: 11,
-    marginTop: 8,
-    textAlign: "center",
-    lineHeight: 16,
+    fontWeight: "700",
+    marginBottom: 4,
+    marginTop: 4,
   },
   input: {
     backgroundColor: colors.glassLight,
-    padding: 14,
+    padding: 12,
     borderRadius: radius.md,
     color: colors.textPrimary,
     fontSize: 15,
-    marginBottom: 10,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: colors.borderMuted,
   },
+  presetLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  presetRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  presetChip: {
+    backgroundColor: colors.glassLight,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+  },
+  presetChipSelected: {
+    backgroundColor: "rgba(255, 215, 0, 0.2)",
+    borderColor: colors.real,
+  },
+  presetChipSelectedWithdraw: {
+    backgroundColor: "rgba(239, 68, 68, 0.2)",
+    borderColor: "#ff6666",
+  },
+  presetChipText: {
+    color: colors.textPrimary,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  presetChipTextSelected: {
+    color: colors.real,
+  },
+  presetChipTextSelectedWithdraw: {
+    color: "#ff6666",
+  },
+
+  /* Buttons */
   btn: {
-    padding: 15,
+    padding: 14,
     borderRadius: radius.md,
     alignItems: "center",
     marginTop: 4,
     ...shadows.sm,
   },
   btnFun: { backgroundColor: colors.fun },
-  btnReal: { backgroundColor: "#7c3aed" }, // Keep original brand purple for Real deposit button? Actually let's use colors.accent/gold or keep purple.
+  btnReal: { backgroundColor: colors.real },
   btnDanger: { backgroundColor: colors.negative },
-  btnText: { color: "#fff", fontWeight: "700", fontSize: 15 },
-  btnTextDark: { color: "#0f1a0f", fontWeight: "800", fontSize: 15 },
+  btnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  btnTextDark: { color: "#1a0033", fontWeight: "900", fontSize: 15 },
+  actionHint: {
+    color: colors.textMuted,
+    fontSize: 11,
+    marginTop: 10,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+
+  /* Fun Refill container */
+  funRefillContainer: {
+    paddingVertical: 4,
+  },
+
+  /* Withdraw limit */
+  withdrawLimitBox: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    padding: 10,
+    borderRadius: radius.md,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
+  },
+  withdrawLimitLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+  },
+  withdrawLimitVal: {
+    color: colors.real,
+    fontWeight: "800",
+    fontSize: 14,
+  },
+
+  /* KYC Notice */
+  kycNoticeCard: {
+    alignItems: "center",
+    padding: 16,
+  },
+  kycNoticeIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  kycNoticeTitle: {
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  kycNoticeText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+
+
 
   funText: { color: colors.fun },
   realText: { color: colors.real },
-  dangerText: { color: colors.danger },
-  activeModeBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    marginBottom: spacing.md,
-    gap: 12,
-  },
-  activeModeBadgeFun: {
-    backgroundColor: "rgba(34, 197, 94, 0.1)",
-    borderColor: "rgba(34, 197, 94, 0.4)",
-  },
-  activeModeBadgeReal: {
-    backgroundColor: "rgba(255, 215, 0, 0.1)",
-    borderColor: "rgba(255, 215, 0, 0.4)",
-  },
-  activeModeIcon: { fontSize: 24 },
-  activeModeTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 14 },
-  activeModeSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
 });
-

@@ -6,7 +6,6 @@ import {
   Modal,
   StyleSheet,
   ScrollView,
-  TouchableWithoutFeedback,
 } from 'react-native';
 import { SYMBOLS } from '../types';
 import { gameApi } from '../api/client';
@@ -29,90 +28,103 @@ export function PaytableModal({ visible, onClose }: Props) {
   }, [visible]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide">
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.modal}>
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.title}>⚽ HOW TO PLAY</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                  <Text style={styles.closeText}>✕</Text>
-                </TouchableOpacity>
-              </View>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.overlay}>
+        {/* Backdrop touch dismiss */}
+        <TouchableOpacity
+          style={styles.backdropTouchable}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View style={styles.modal}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>⚽ HOW TO PLAY</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
 
-              <ScrollView showsVerticalScrollIndicator={false} style={styles.scroll}>
-                {/* Rules */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>📋 RULES</Text>
-                  <Text style={styles.rule}>
-                    1. Tap clubs below the wheel to place bets
-                  </Text>
-                  <Text style={styles.rule}>
-                    2. Press GO to spin the wheel
-                  </Text>
-                  <Text style={styles.rule}>
-                    3. If the wheel lands on a club you bet on, you win your bet × multiplier
-                  </Text>
-                </View>
-
-                {/* Symbol Table */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>🏆 SYMBOLS & PAYOUTS</Text>
-                  {SYMBOLS.map((sym) => {
-                    const row = rows.find((r) => r.symbol === sym.key);
-                    if (!row) return null;
-                    return (
-                      <View key={sym.key} style={styles.symbolRow}>
-                        <View style={styles.symbolIconWrap}>
-                          {sym.icon && <sym.icon width={28} height={28} />}
-                        </View>
-                        <View style={styles.symbolInfo}>
-                          <Text style={styles.symbolName}>{sym.name}</Text>
-                          <Text style={styles.symbolTier}>
-                            {(row.probability * 100).toFixed(2)}% chance
-                          </Text>
-                        </View>
-                        <View style={[styles.multiplierBadge, { backgroundColor: sym.color }]}>
-                          <Text style={styles.multiplierText}>×{row.multiplier}</Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-
-                {/* Betting Info */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>💡 BETTING TIPS</Text>
-                  <Text style={styles.tip}>
-                    • Bet on multiple clubs to increase your chances
-                  </Text>
-                  <Text style={styles.tip}>
-                    • Common clubs (×5) hit more often but pay less
-                  </Text>
-                  <Text style={styles.tip}>
-                    • The UCL Trophy (×100) is rare but pays big
-                  </Text>
-                  <Text style={styles.tip}>
-                    • Long-press a club to remove a bet
-                  </Text>
-                </View>
-
-                {/* Fairness */}
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>🔒 PROVABLY FAIR</Text>
-                  <Text style={styles.tip}>
-                    Every spin uses HMAC-SHA256 with a server seed and your client seed. Results can be independently verified.
-                  </Text>
-                </View>
-
-                <View style={{ height: 20 }} />
-              </ScrollView>
+          <ScrollView
+            showsVerticalScrollIndicator={true}
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            bounces={true}
+          >
+            {/* Rules */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>📋 RULES</Text>
+              <Text style={styles.rule}>
+                1. Tap clubs below the wheel to place bets
+              </Text>
+              <Text style={styles.rule}>
+                2. Press GO to spin the wheel
+              </Text>
+              <Text style={styles.rule}>
+                3. If the wheel lands on a club you bet on, you win your bet × multiplier
+              </Text>
             </View>
-          </TouchableWithoutFeedback>
+
+            {/* Symbol Table */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🏆 SYMBOLS & PAYOUTS</Text>
+              {SYMBOLS.map((sym) => {
+                const row = rows.find((r) => r.symbol === sym.key);
+                const multiplier = row ? row.multiplier : sym.multiplier;
+                const probability = row ? (row.probability * 100).toFixed(2) : null;
+                return (
+                  <View key={sym.key} style={styles.symbolRow}>
+                    <View style={styles.symbolIconWrap}>
+                      {sym.icon && <sym.icon width={28} height={28} />}
+                    </View>
+                    <View style={styles.symbolInfo}>
+                      <Text style={styles.symbolName}>{sym.name}</Text>
+                      {probability && (
+                        <Text style={styles.symbolTier}>
+                          {probability}% chance
+                        </Text>
+                      )}
+                    </View>
+                    <View style={[styles.multiplierBadge, { backgroundColor: sym.color }]}>
+                      <Text style={styles.multiplierText}>×{multiplier}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Betting Info */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>💡 BETTING TIPS</Text>
+              <Text style={styles.tip}>
+                • Bet on multiple clubs to increase your chances
+              </Text>
+              <Text style={styles.tip}>
+                • Common clubs (×5) hit more often but pay less
+              </Text>
+              <Text style={styles.tip}>
+                • The UCL Trophy (×100) is rare but pays big
+              </Text>
+              <Text style={styles.tip}>
+                • Long-press a club to remove a bet
+              </Text>
+            </View>
+
+            {/* Fairness */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🔒 PROVABLY FAIR</Text>
+              <Text style={styles.tip}>
+                Every spin uses HMAC-SHA256 with a server seed and your client seed. Results can be independently verified.
+              </Text>
+            </View>
+          </ScrollView>
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
@@ -125,15 +137,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.85)',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 40,
+  },
+  backdropTouchable: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   modal: {
     backgroundColor: colors.surface,
     width: '92%',
-    maxHeight: '80%',
+    maxHeight: '85%',
     borderRadius: radius.xl,
     padding: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.35)',
     ...shadows.md,
   },
   header: {
@@ -143,7 +163,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
     color: colors.accent,
   },
@@ -157,18 +177,22 @@ const styles = StyleSheet.create({
   },
   closeText: {
     color: colors.textPrimary,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   scroll: {
-    maxHeight: 500,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingBottom: spacing.md,
   },
   section: {
     marginBottom: spacing.md,
   },
   sectionTitle: {
     color: colors.accent,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
     marginBottom: spacing.sm,
   },
