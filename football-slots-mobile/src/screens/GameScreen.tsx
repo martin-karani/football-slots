@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withSequence, withTiming, withDelay, cancelAnimation, withSpring } from "react-native-reanimated";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  withDelay,
+  cancelAnimation,
+  withSpring,
+} from "react-native-reanimated";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Modal,
   TouchableWithoutFeedback,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { theme } from "../components/theme";
 import { useGameStore } from "../store/GameProvider";
 import { useGame } from "../hooks/useGame";
 import { useWallet } from "../hooks/useWallet";
+import { useBonus } from "../hooks/useBonus";
 import { WheelDisplay } from "../components/WheelDisplay";
 import { PaytableModal } from "../components/PaytableModal";
 // WinCelebration modal removed — replaced with rail-dot flash animation
@@ -22,6 +33,7 @@ import { authStorage } from "../api/client";
 import {
   SYMBOLS,
   CHIP_VALUES,
+  BONUS_CHIP_VALUES,
   CurrencyType,
   toMinor,
   fromMinor,
@@ -101,6 +113,24 @@ export function GameScreen() {
   const removeBet = useGameStore((s) => s.removeBet);
   const clearAuth = useGameStore((s) => s.clearAuth);
   const setLastSpin = useGameStore((s) => s.setLastSpin);
+
+  // Bonus meter state
+  const bonusMeterEnabled = useGameStore((s) => s.bonusMeterEnabled);
+  const bonusProgressCurrent = useGameStore((s) => s.bonusProgressCurrent);
+  const bonusProgressTarget = useGameStore((s) => s.bonusProgressTarget);
+  const bonusRewardMinor = useGameStore((s) => s.bonusRewardMinor);
+  const bonusGrantActive = useGameStore((s) => s.bonusGrantActive);
+  const bonusWageredMinor = useGameStore((s) => s.bonusWageredMinor);
+  const bonusWagerRequiredMinor = useGameStore(
+    (s) => s.bonusWagerRequiredMinor
+  );
+  const { refreshBonus } = useBonus();
+
+  // Fetch authoritative bonus state on mount
+  useEffect(() => {
+    refreshBonus();
+  }, []);
+
   const [showPaytable, setShowPaytable] = useState(false);
   // winFlashTick increments on each win to trigger rail-dot chase flash
   const [winFlashTick, setWinFlashTick] = useState(0);
@@ -112,7 +142,10 @@ export function GameScreen() {
   // Mode Selection Dropdown state & positioning
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const modeBtnRef = useRef<any>(null);
-  const [modeDropdownPos, setModeDropdownPos] = useState({ top: 120, right: 12 });
+  const [modeDropdownPos, setModeDropdownPos] = useState({
+    top: 120,
+    right: 12,
+  });
 
   // ── Balance deduction animation (shake + red flash) ──────────────────
   const balanceShakeX = useSharedValue(0);
@@ -128,12 +161,12 @@ export function GameScreen() {
       withTiming(6, { duration: 60 }),
       withTiming(-4, { duration: 50 }),
       withTiming(4, { duration: 50 }),
-      withTiming(0, { duration: 50 }),
+      withTiming(0, { duration: 50 })
     );
     // Flash red briefly
     balanceFlashColor.value = withSequence(
       withTiming(1, { duration: 80 }),
-      withTiming(0, { duration: 400 }),
+      withTiming(0, { duration: 400 })
     );
   }, []);
 
@@ -143,16 +176,16 @@ export function GameScreen() {
       withRepeat(
         withSequence(
           withTiming(0.6, { duration: 250 }),
-          withTiming(1, { duration: 250 }),
+          withTiming(1, { duration: 250 })
         ),
         4,
-        false,
+        false
       ),
-      withTiming(0, { duration: 400 }),
+      withTiming(0, { duration: 400 })
     );
     winGlowScale.value = withSequence(
       withSpring(1.04, { damping: 8, stiffness: 200 }),
-      withTiming(1, { duration: 500 }),
+      withTiming(1, { duration: 500 })
     );
   }, []);
 
@@ -160,7 +193,7 @@ export function GameScreen() {
     transform: [{ translateX: balanceShakeX.value }],
   }));
   const balanceFlashStyle = useAnimatedStyle(() => ({
-    color: balanceFlashColor.value > 0.5 ? '#FF4444' : undefined,
+    color: balanceFlashColor.value > 0.5 ? "#FF4444" : undefined,
   }));
   const winGlowStyle = useAnimatedStyle(() => ({
     opacity: winGlowOpacity.value,
@@ -215,7 +248,14 @@ export function GameScreen() {
               onPress={() => {
                 if (menuBtnRef.current) {
                   menuBtnRef.current.measure(
-                    (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                    (
+                      _x: number,
+                      _y: number,
+                      width: number,
+                      height: number,
+                      pageX: number,
+                      pageY: number
+                    ) => {
                       setDropdownPos({ top: pageY + height + 6, right: 12 });
                       setShowDropdownMenu(true);
                     }
@@ -236,16 +276,19 @@ export function GameScreen() {
         <View style={[st.balBar, isReal ? st.balBarReal : st.balBarFun]}>
           {/* Win glow overlay */}
           <Animated.View
-            style={[
-              st.winGlowOverlay,
-              winGlowStyle,
-            ]}
+            style={[st.winGlowOverlay, winGlowStyle]}
             pointerEvents="none"
           />
           <View style={st.balLeft}>
             <Text style={st.balCoin}>{isReal ? "💰" : "🎮"}</Text>
             <Animated.View style={balanceShakeStyle}>
-              <Animated.Text style={[st.balNum, isReal ? st.balNumReal : st.balNumFun, balanceFlashStyle]}>
+              <Animated.Text
+                style={[
+                  st.balNum,
+                  isReal ? st.balNumReal : st.balNumFun,
+                  balanceFlashStyle,
+                ]}
+              >
                 {formatMinor(balanceMinor, currency)}
               </Animated.Text>
             </Animated.View>
@@ -260,7 +303,14 @@ export function GameScreen() {
             onPress={() => {
               if (modeBtnRef.current) {
                 modeBtnRef.current.measure(
-                  (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+                  (
+                    _x: number,
+                    _y: number,
+                    width: number,
+                    height: number,
+                    pageX: number,
+                    pageY: number
+                  ) => {
                     setModeDropdownPos({ top: pageY + height + 6, right: 12 });
                     setShowModeDropdown(true);
                   }
@@ -278,18 +328,84 @@ export function GameScreen() {
         </View>
 
         {/* ═══════════════════════════════════════════════════════════
+            BONUS METER / WAGERING BAR
+         ═══════════════════════════════════════════════════════════ */}
+        {/* Bonus Meter — only in real mode, no active grant */}
+        {bonusMeterEnabled && currency === "real" && !bonusGrantActive && (
+          <View style={st.bonusMeterBar}>
+            <View style={st.bonusMeterHeader}>
+              <Text style={st.bonusMeterLabel}>⚽ MATCH BONUS</Text>
+              <Text style={st.bonusMeterReward}>
+                KES {formatMinor(bonusRewardMinor, "bonus")}
+              </Text>
+            </View>
+            <View style={st.bonusMeterTrack}>
+              <View
+                style={[
+                  st.bonusMeterFill,
+                  {
+                    width: `${Math.min(
+                      100,
+                      (bonusProgressCurrent / Math.max(bonusProgressTarget, 1)) * 100
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={st.bonusMeterCount}>
+              {bonusProgressCurrent}/{bonusProgressTarget} spins
+            </Text>
+          </View>
+        )}
+
+        {/* Wagering Progress — when grant active */}
+        {bonusGrantActive && (
+          <View style={st.bonusWagerBar}>
+            <Text style={st.bonusWagerLabel}>
+              🎁 Wagering: KES {formatMinor(bonusWageredMinor, "bonus")} / KES{" "}
+              {formatMinor(bonusWagerRequiredMinor, "bonus")}
+            </Text>
+            <View style={st.bonusMeterTrack}>
+              <View
+                style={[
+                  st.bonusMeterFillBonus,
+                  {
+                    width: `${Math.min(
+                      100,
+                      (bonusWageredMinor /
+                        Math.max(bonusWagerRequiredMinor, 1)) *
+                        100
+                    )}%`,
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════
             SLOT WHEEL BOARD
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.wheelWrapper}>
           {/* Side brass light-rail pillars — chase flash on win */}
           <View style={st.railL} pointerEvents="none">
             {[...Array(8)].map((_, i) => (
-              <FlashingRailDot key={i} style={st.railDot} dotIndex={i} flashTick={winFlashTick} />
+              <FlashingRailDot
+                key={i}
+                style={st.railDot}
+                dotIndex={i}
+                flashTick={winFlashTick}
+              />
             ))}
           </View>
           <View style={st.railR} pointerEvents="none">
             {[...Array(8)].map((_, i) => (
-              <FlashingRailDot key={i} style={st.railDot} dotIndex={i} flashTick={winFlashTick} />
+              <FlashingRailDot
+                key={i}
+                style={st.railDot}
+                dotIndex={i}
+                flashTick={winFlashTick}
+              />
             ))}
           </View>
           <WheelDisplay step={step} isSpinning={isSpinning} isReal={isReal} />
@@ -325,7 +441,10 @@ export function GameScreen() {
           <View style={st.goShelf}>
             <TouchableOpacity
               style={st.clearBtn}
-              onPress={() => { playSound('button_press'); clearBets(); }}
+              onPress={() => {
+                playSound("button_press");
+                clearBets();
+              }}
               activeOpacity={0.7}
             >
               <Text style={st.clearTxt}>CLEAR</Text>
@@ -339,7 +458,10 @@ export function GameScreen() {
                   isReal ? st.goBtnReal : st.goBtnFun,
                   (isSpinning || totalStake === 0) && st.goBtnOff,
                 ]}
-                onPress={() => { playSound('spin_click'); spin(); }}
+                onPress={() => {
+                  playSound("spin_click");
+                  spin();
+                }}
                 disabled={isSpinning || totalStake === 0}
                 activeOpacity={0.8}
               >
@@ -357,7 +479,8 @@ export function GameScreen() {
           {/* -- ROW 3: CHIP SELECTORS SHELF -- */}
           <View style={st.chipShelf}>
             <View style={st.chipRow}>
-              {CHIP_VALUES.slice()
+              {(currency === "bonus" ? BONUS_CHIP_VALUES : CHIP_VALUES)
+                .slice()
                 .reverse()
                 .map((v, idx) => {
                   const isOn = selectedChip === v;
@@ -372,15 +495,19 @@ export function GameScreen() {
                           playSound("bet_remove");
                         } else {
                           setSelected(v);
-                          clearBets();          // reset club selections for new chip price
-                          setLastSpin(null);    // reset win/loss display
+                          clearBets(); // reset club selections for new chip price
+                          setLastSpin(null); // reset win/loss display
                           playSound("chip_select");
                         }
                       }}
                       activeOpacity={1}
                     >
-                      <View style={[st.chipInnerRing, isOn && st.chipInnerRingOn]} />
-                      <Text style={[st.chipTxt, isOn && st.chipTxtOn]}>{v}</Text>
+                      <View
+                        style={[st.chipInnerRing, isOn && st.chipInnerRingOn]}
+                      />
+                      <Text style={[st.chipTxt, isOn && st.chipTxtOn]}>
+                        {v}
+                      </Text>
                       {isOn && <View style={st.chipDot} />}
                     </TouchableOpacity>
                   );
@@ -462,7 +589,11 @@ export function GameScreen() {
               <View
                 style={[
                   st.modeDropdownCard,
-                  { position: "absolute", top: modeDropdownPos.top, right: modeDropdownPos.right },
+                  {
+                    position: "absolute",
+                    top: modeDropdownPos.top,
+                    right: modeDropdownPos.right,
+                  },
                 ]}
               >
                 <Text style={st.modeDropdownTitle}>SELECT GAME MODE</Text>
@@ -482,11 +613,21 @@ export function GameScreen() {
                   <View style={st.modeOptionLeft}>
                     <Text style={st.modeOptionIcon}>🎮</Text>
                     <View style={st.modeOptionTextGroup}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
                         <Text style={st.modeOptionName}>FUN MODE</Text>
-                        {!isReal && <Text style={st.modeActiveBadgeFun}>ACTIVE</Text>}
+                        {!isReal && (
+                          <Text style={st.modeActiveBadgeFun}>ACTIVE</Text>
+                        )}
                       </View>
-                      <Text style={st.modeOptionDesc}>Play with free virtual credits</Text>
+                      <Text style={st.modeOptionDesc}>
+                        Play with free virtual credits
+                      </Text>
                     </View>
                   </View>
                   {!isReal && <Text style={st.modeCheckmark}>✓</Text>}
@@ -507,15 +648,65 @@ export function GameScreen() {
                   <View style={st.modeOptionLeft}>
                     <Text style={st.modeOptionIcon}>💰</Text>
                     <View style={st.modeOptionTextGroup}>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
                         <Text style={st.modeOptionName}>REAL MODE (KES)</Text>
-                        {isReal && <Text style={st.modeActiveBadgeReal}>ACTIVE</Text>}
+                        {isReal && (
+                          <Text style={st.modeActiveBadgeReal}>ACTIVE</Text>
+                        )}
                       </View>
-                      <Text style={st.modeOptionDesc}>Play with real M-Pesa balance</Text>
+                      <Text style={st.modeOptionDesc}>
+                        Play with real M-Pesa balance
+                      </Text>
                     </View>
                   </View>
                   {isReal && <Text style={st.modeCheckmark}>✓</Text>}
                 </TouchableOpacity>
+
+                {/* Option 3: BONUS MODE */}
+                {(balances.bonus > 0 || bonusGrantActive) && (
+                  <TouchableOpacity
+                    style={[
+                      st.modeOptionItem,
+                      currency === "bonus" && st.modeOptionItemActiveBonus,
+                    ]}
+                    onPress={() => {
+                      setCurrency("bonus");
+                      setSelected(5); // bonus max stake is KES 5 — keep chip in range
+                      setShowModeDropdown(false);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={st.modeOptionLeft}>
+                      <Text style={st.modeOptionIcon}>🎁</Text>
+                      <View style={st.modeOptionTextGroup}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <Text style={st.modeOptionName}>BONUS MODE</Text>
+                          {currency === "bonus" && (
+                            <Text style={st.modeActiveBadgeBonus}>ACTIVE</Text>
+                          )}
+                        </View>
+                        <Text style={st.modeOptionDesc}>
+                          Complete wagering to unlock withdrawal
+                        </Text>
+                      </View>
+                    </View>
+                    {currency === "bonus" && (
+                      <Text style={st.modeCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -532,7 +723,16 @@ export function GameScreen() {
         <TouchableWithoutFeedback onPress={() => setShowDropdownMenu(false)}>
           <View style={st.dropdownOverlay}>
             <TouchableWithoutFeedback>
-              <View style={[st.dropdownCard, { position: "absolute", top: dropdownPos.top, right: dropdownPos.right }]}>
+              <View
+                style={[
+                  st.dropdownCard,
+                  {
+                    position: "absolute",
+                    top: dropdownPos.top,
+                    right: dropdownPos.right,
+                  },
+                ]}
+              >
                 {/* Navigation Items */}
                 <TouchableOpacity
                   style={st.dropdownItem}
@@ -588,21 +788,27 @@ export function GameScreen() {
                   style={[st.dropdownItem, st.dropdownLogoutItem]}
                   onPress={() => {
                     setShowDropdownMenu(false);
-                    Alert.alert("Log Out", "Are you sure you want to log out?", [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Log Out",
-                        style: "destructive",
-                        onPress: async () => {
-                          await authStorage.clearToken();
-                          clearAuth();
+                    Alert.alert(
+                      "Log Out",
+                      "Are you sure you want to log out?",
+                      [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                          text: "Log Out",
+                          style: "destructive",
+                          onPress: async () => {
+                            await authStorage.clearToken();
+                            clearAuth();
+                          },
                         },
-                      },
-                    ]);
+                      ]
+                    );
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>🚪</Text>
-                  <Text style={[st.dropdownItemTxt, { color: "#ff6666" }]}>Log Out</Text>
+                  <Text style={[st.dropdownItemTxt, { color: "#ff6666" }]}>
+                    Log Out
+                  </Text>
                 </TouchableOpacity>
               </View>
             </TouchableWithoutFeedback>
@@ -710,6 +916,7 @@ const st = StyleSheet.create({
   },
   headerTxt: {
     flex: 1,
+    fontFamily: theme.fonts.marquee,
     color: "#fff",
     fontWeight: "900",
     fontSize: 16,
@@ -733,6 +940,7 @@ const st = StyleSheet.create({
     borderRightColor: "#440066",
   },
   menuBtnTxt: {
+    fontFamily: theme.fonts.button,
     color: "#fff",
     fontSize: 20,
     fontWeight: "900",
@@ -773,6 +981,7 @@ const st = StyleSheet.create({
   },
   balCoin: { fontSize: 16 },
   balNum: {
+    fontFamily: theme.fonts.digitalRegular,
     fontWeight: "900",
     fontSize: 20,
     letterSpacing: 0.5,
@@ -788,6 +997,7 @@ const st = StyleSheet.create({
     textShadowColor: "#8800ff",
   },
   balCurr: {
+    fontFamily: theme.fonts.bodyBold,
     fontWeight: "700",
     fontSize: 11,
     letterSpacing: 1,
@@ -832,6 +1042,7 @@ const st = StyleSheet.create({
     elevation: 4,
   },
   modeTxt: {
+    fontFamily: theme.fonts.button,
     color: "#ffaa88",
     fontWeight: "800",
     fontSize: 11,
@@ -878,6 +1089,7 @@ const st = StyleSheet.create({
     opacity: 0.1,
   },
   watermarkTxt: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 42,
     fontWeight: "900",
     transform: [{ rotate: "-10deg" }],
@@ -932,6 +1144,7 @@ const st = StyleSheet.create({
     elevation: 3,
   },
   winBadgeTxt: {
+    fontFamily: theme.fonts.button,
     color: "#fff",
     fontSize: 10,
     fontWeight: "900",
@@ -940,12 +1153,14 @@ const st = StyleSheet.create({
     textShadowOffset: { width: 0.5, height: 0.5 },
   },
   infoLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#ffe8b0",
     fontWeight: "700",
     fontSize: 11,
     letterSpacing: 0.5,
   },
   infoVal: {
+    fontFamily: theme.fonts.digitalRegular,
     color: "#fff",
     fontWeight: "900",
     fontSize: 14,
@@ -969,11 +1184,13 @@ const st = StyleSheet.create({
     borderRightColor: "rgba(0,0,0,0.4)",
   },
   giftTxt: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#ffd678",
     fontWeight: "800",
     fontSize: 10,
   },
   giftVal: {
+    fontFamily: theme.fonts.digitalRegular,
     color: "#ffe866",
     fontWeight: "800",
     fontSize: 10,
@@ -1017,6 +1234,7 @@ const st = StyleSheet.create({
     elevation: 8,
   },
   clearTxt: {
+    fontFamily: theme.fonts.button,
     color: "#fff",
     fontWeight: "900",
     fontSize: 13,
@@ -1072,6 +1290,7 @@ const st = StyleSheet.create({
   },
   goBtnOff: { opacity: 0.4 },
   goLabel: {
+    fontFamily: theme.fonts.button,
     color: "#fff",
     fontWeight: "900",
     fontSize: 22,
@@ -1081,6 +1300,7 @@ const st = StyleSheet.create({
     textShadowRadius: 3,
   },
   goSub: {
+    fontFamily: theme.fonts.body,
     color: "rgba(255,255,255,0.95)",
     fontSize: 8,
     fontWeight: "700",
@@ -1170,6 +1390,7 @@ const st = StyleSheet.create({
     paddingBottom: 6,
   },
   chipShelfLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: "rgba(255,200,100,0.4)",
     fontSize: 8,
     fontWeight: "700",
@@ -1244,6 +1465,7 @@ const st = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   chipTxt: {
+    fontFamily: theme.fonts.digitalRegular,
     color: "#FFFFFF",
     fontWeight: "900",
     fontSize: 12,
@@ -1253,6 +1475,7 @@ const st = StyleSheet.create({
     textShadowRadius: 2,
   },
   chipTxtOn: {
+    fontFamily: theme.fonts.digitalRegular,
     color: "#FFFFFF",
     fontWeight: "900",
     fontSize: 13,
@@ -1348,6 +1571,7 @@ const st = StyleSheet.create({
   clubTiltLightStrip: {},
   clubTiltDarkStrip: {},
   clubBet: {
+    fontFamily: theme.fonts.digitalRegular,
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "normal",
@@ -1373,6 +1597,7 @@ const st = StyleSheet.create({
     borderColor: "rgba(255, 215, 0, 0.4)",
   },
   modeBadgeTxt: {
+    fontFamily: theme.fonts.button,
     color: "#FFE566",
     fontSize: 10,
     fontWeight: "900",
@@ -1409,6 +1634,7 @@ const st = StyleSheet.create({
     elevation: 16,
   },
   modeDropdownTitle: {
+    fontFamily: theme.fonts.marquee,
     color: "#FFE566",
     fontSize: 10,
     fontWeight: "900",
@@ -1442,22 +1668,26 @@ const st = StyleSheet.create({
     flex: 1,
   },
   modeOptionIcon: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 22,
   },
   modeOptionTextGroup: {
     flex: 1,
   },
   modeOptionName: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "900",
   },
   modeOptionDesc: {
+    fontFamily: theme.fonts.body,
     color: "rgba(255, 255, 255, 0.6)",
     fontSize: 9,
     marginTop: 2,
   },
   modeActiveBadgeFun: {
+    fontFamily: theme.fonts.button,
     backgroundColor: "#22c55e",
     color: "#FFFFFF",
     fontSize: 8,
@@ -1468,6 +1698,7 @@ const st = StyleSheet.create({
     overflow: "hidden",
   },
   modeActiveBadgeReal: {
+    fontFamily: theme.fonts.button,
     backgroundColor: "#FFD700",
     color: "#1a0033",
     fontSize: 8,
@@ -1478,6 +1709,7 @@ const st = StyleSheet.create({
     overflow: "hidden",
   },
   modeCheckmark: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#FFD700",
     fontSize: 16,
     fontWeight: "900",
@@ -1496,16 +1728,19 @@ const st = StyleSheet.create({
     borderRadius: 8,
   },
   dropdownItemIcon: {
+    fontFamily: theme.fonts.bodyBold,
     fontSize: 16,
     marginRight: 10,
   },
   dropdownItemTxt: {
+    fontFamily: theme.fonts.bodyBold,
     flex: 1,
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
   },
   dropdownItemArrow: {
+    fontFamily: theme.fonts.bodyBold,
     color: "rgba(255, 255, 255, 0.35)",
     fontSize: 16,
     fontWeight: "900",
@@ -1514,5 +1749,85 @@ const st = StyleSheet.create({
     backgroundColor: "rgba(239, 68, 68, 0.08)",
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+
+  // ── Bonus Meter Styles ─────────────────────────────────────────────
+  bonusMeterBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: "#2a0048",
+    borderBottomWidth: 1,
+    borderBottomColor: "#4a2070",
+  },
+  bonusMeterHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 3,
+  },
+  bonusMeterLabel: {
+    fontFamily: theme.fonts.marquee,
+    color: "#FFE566",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  bonusMeterReward: {
+    fontFamily: theme.fonts.digitalRegular,
+    color: "#aaa",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  bonusMeterTrack: {
+    height: 6,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  bonusMeterFill: {
+    height: "100%",
+    backgroundColor: "#FFD700",
+    borderRadius: 3,
+  },
+  bonusMeterFillBonus: {
+    height: "100%",
+    backgroundColor: "#a855f7",
+    borderRadius: 3,
+  },
+  bonusMeterCount: {
+    fontFamily: theme.fonts.body,
+    color: "#888",
+    fontSize: 9,
+    marginTop: 2,
+    textAlign: "right",
+  },
+  bonusWagerBar: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: "#1a0033",
+    borderBottomWidth: 1,
+    borderBottomColor: "#3a1060",
+  },
+  bonusWagerLabel: {
+    fontFamily: theme.fonts.bodyBold,
+    color: "#c084fc",
+    fontSize: 10,
+    fontWeight: "700",
+    marginBottom: 3,
+  },
+
+  // ── Bonus Mode Dropdown Styles ─────────────────────────────────────
+  modeOptionItemActiveBonus: {
+    backgroundColor: "rgba(168, 85, 247, 0.12)",
+    borderColor: "rgba(168, 85, 247, 0.5)",
+  },
+  modeActiveBadgeBonus: {
+    fontFamily: theme.fonts.button,
+    backgroundColor: "#a855f7",
+    color: "#FFFFFF",
+    fontSize: 8,
+    fontWeight: "900",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+    overflow: "hidden",
   },
 });

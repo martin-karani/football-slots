@@ -61,12 +61,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   backArrow: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
     lineHeight: 20,
   },
   title: {
+    fontFamily: theme.fonts.marquee,
     color: "#fff",
     fontSize: 17,
     fontWeight: "700",

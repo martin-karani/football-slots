@@ -253,6 +253,9 @@ pub fn calculate_payout(bets: &HashMap<String, i64>, position: u8) -> SpinResult
 
     let total_stake: i64 = bets.values().sum();
     let bet_on_symbol = bets.get(symbol.name()).copied().unwrap_or(0);
+    // Payout cap is enforced at bet-validation time; this legacy helper
+    // keeps the clamp for backward compatibility with callers that
+    // predate validate_bets.
     let mut gross_payout = bet_on_symbol * multiplier as i64;
     if gross_payout > MAX_PAYOUT_MINOR {
         gross_payout = MAX_PAYOUT_MINOR;

@@ -21,6 +21,21 @@ export interface SpinResult {
   bonus_claimed?: boolean;
   bonus_progress_current?: number;
   bonus_progress_target?: number;
+  bonus_grant_completed?: boolean;
+  bonus_grant_lost?: boolean;
+  bonus_converted_minor?: number;
+}
+
+export interface BonusStatusResponse {
+  meter_enabled: boolean;
+  meter_current: number;
+  meter_target: number;
+  reward_minor: number;
+  grant_active: boolean;
+  grant_wagered: number;
+  grant_wager_required: number;
+  grant_amount: number;
+  bonus_balance_minor: number;
 }
 
 export interface PaytableRow {
@@ -300,6 +315,9 @@ export function currencyLabel(currency: CurrencyType): string {
  * *before* storing anything in the bet map / sending to the API.
  */
 export const CHIP_VALUES = [2, 5, 10, 15, 20, 30, 40, 120];
+
+// Reduced chip set for bonus mode (KES 1, 2, 5)
+export const BONUS_CHIP_VALUES = [1, 2, 5];
 
 // ============================================================
 // API

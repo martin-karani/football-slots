@@ -11,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { WHEEL_POSITIONS, SYMBOLS, getGridCoords, fromMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
+import { theme } from "./theme";
 
 interface Props {
   step: SharedValue<number>;
@@ -418,6 +419,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cellMultiplier: {
+    fontFamily: theme.fonts.digital,
     position: "absolute",
     bottom: 2,
     left: 3,
@@ -482,6 +484,7 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   marqueeTitle1: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 22,
     fontWeight: "900",
     color: "#FFEA00",
@@ -492,6 +495,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   marqueeTitle2: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 32,
     fontWeight: "900",
     color: "#FFD700",
@@ -514,6 +518,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   resultTeamName: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 16,
     fontWeight: "900",
     color: "#FFD700",
@@ -533,10 +538,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   resultScore: {
+    fontFamily: theme.fonts.digital,
     color: "#FFD700",
     fontWeight: "900",
     fontSize: 24,
-    fontFamily: "monospace",
     letterSpacing: 4,
+    fontVariant: ["tabular-nums"],
   },
 });

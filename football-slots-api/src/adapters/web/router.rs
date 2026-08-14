@@ -5,12 +5,12 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::adapters::web::handlers::{auth, game, health, mpesa, not_found, wallet};
+use crate::adapters::web::handlers::{auth, bonus, game, health, mpesa, not_found, wallet};
 use crate::adapters::web::middleware::auth_middleware;
 use crate::config::Config;
 use crate::domain::services::{
-    game_engine::GameEngineImpl, mpesa_service::MpesaServiceImpl, rng::ProvablyFairRng,
-    wallet_service::WalletServiceImpl,
+    bonus_service::BonusServiceImpl, game_engine::GameEngineImpl, mpesa_service::MpesaServiceImpl,
+    rng::ProvablyFairRng, wallet_service::WalletServiceImpl,
 };
 use crate::ports::repositories::{
     GameRepository, MpesaRepository, UserRepository, WalletRepository,
@@ -25,6 +25,7 @@ pub struct AppState {
     pub game_engine: Arc<GameEngineImpl>,
     pub wallet_service: Arc<WalletServiceImpl>,
     pub mpesa_service: Arc<MpesaServiceImpl>,
+    pub bonus_service: Arc<BonusServiceImpl>,
     /// Kept for the seed-hashing helpers still used elsewhere; the weighted
     /// draw itself (spin + verify) now calls `WeightedRng` directly rather
     /// than going through this trait object.
@@ -40,6 +41,7 @@ pub fn create_router(
     game_engine: Arc<GameEngineImpl>,
     wallet_service: Arc<WalletServiceImpl>,
     mpesa_service: Arc<MpesaServiceImpl>,
+    bonus_service: Arc<BonusServiceImpl>,
     rng: Arc<ProvablyFairRng>,
     config: &Config,
 ) -> Router {
@@ -51,6 +53,7 @@ pub fn create_router(
         game_engine,
         wallet_service,
         mpesa_service,
+        bonus_service,
         rng,
         config: config.clone(),
     });
@@ -108,11 +111,18 @@ pub fn create_router(
         .route("/ready", get(health::ready))
         .route("/alive", get(health::alive));
 
+    // Bonus routes (authenticated)
+    let bonus_routes = Router::new()
+        .route("/status", get(bonus::status))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
+        .with_state(state.clone());
+
     Router::new()
         .merge(health_routes)
         .nest("/api/v1/auth", auth_routes.merge(auth_protected_routes))
         .nest("/api/v1/game", game_routes.merge(game_public_routes))
         .nest("/api/v1/wallet", wallet_routes)
         .nest("/api/v1/mpesa", mpesa_routes)
+        .nest("/api/v1/bonus", bonus_routes)
         .fallback(not_found)
 }

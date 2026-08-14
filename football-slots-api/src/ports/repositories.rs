@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::models::{
+    bonus::BonusGrant,
     errors::DomainResult,
     game::{BonusProgress, GameRound},
     mpesa::{MpesaTransaction, TransactionStatus},
@@ -138,4 +139,22 @@ pub trait MpesaRepository: Send + Sync {
     ) -> DomainResult<MpesaTransaction>;
 
     async fn find_pending_by_user(&self, user_id: Uuid) -> DomainResult<Vec<MpesaTransaction>>;
+}
+
+/// Bonus grant repository trait.
+#[async_trait]
+pub trait BonusRepository: Send + Sync {
+    async fn find_active_grant(&self, user_id: Uuid) -> DomainResult<Option<BonusGrant>>;
+    async fn create_grant(
+        &self,
+        user_id: Uuid,
+        amount_minor: i64,
+        wager_multiplier: i32,
+        expiry_hours: i64,
+    ) -> DomainResult<BonusGrant>;
+    async fn increment_wagered(&self, grant_id: Uuid, stake_minor: i64) -> DomainResult<BonusGrant>;
+    async fn mark_completed(&self, grant_id: Uuid) -> DomainResult<()>;
+    async fn mark_lost(&self, grant_id: Uuid) -> DomainResult<()>;
+    async fn mark_expired(&self, grant_id: Uuid) -> DomainResult<()>;
+    async fn count_today_grants(&self, user_id: Uuid) -> DomainResult<i64>;
 }

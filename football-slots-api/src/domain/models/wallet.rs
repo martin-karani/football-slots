@@ -16,6 +16,12 @@ impl CurrencyType {
     pub fn is_real_money(&self) -> bool {
         matches!(self, CurrencyType::Real)
     }
+
+    /// Bonus can eventually convert to real, so it requires the same
+    /// KYC/self-exclusion checks as real money.
+    pub fn requires_kyc(&self) -> bool {
+        matches!(self, CurrencyType::Real | CurrencyType::Bonus)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +32,8 @@ pub enum LedgerEntryType {
     Withdrawal,
     WithdrawalReversal, // funds given back after a failed/timed-out payout
     BonusCredit,
+    BonusConversion, // bonus -> real conversion after wagering complete
+    BonusExpiry, // remaining bonus forfeited when a grant expires
 }
 
 impl std::fmt::Display for LedgerEntryType {
@@ -37,6 +45,8 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::Withdrawal => write!(f, "withdrawal"),
             LedgerEntryType::WithdrawalReversal => write!(f, "withdrawal_reversal"),
             LedgerEntryType::BonusCredit => write!(f, "bonus_credit"),
+            LedgerEntryType::BonusConversion => write!(f, "bonus_conversion"),
+            LedgerEntryType::BonusExpiry => write!(f, "bonus_expiry"),
         }
     }
 }

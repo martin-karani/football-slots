@@ -85,5 +85,21 @@ export const theme = {
       shadowRadius: 10,
       elevation: 6,
     }
-  }
+  },
+  fonts: {
+    /** Marquee & headers — chunky, athletic, industrial/arcade feel */
+    marquee: 'RussoOne-Regular',
+
+    /** Digital scoreboard & odds — modern stadium display look */
+    digital: 'ChakraPetch-BoldItalic',
+    /** Less aggressive digital (non-italic numbers) */
+    digitalRegular: 'ChakraPetch-Bold',
+    /** Regular digital for body-like usage */
+    digitalBody: 'ChakraPetch-Regular',
+
+    /** General UI, menus, paytable — geometric sports/tech sans */
+    body: 'Exo2-Regular',
+    bodyBold: 'Exo2-SemiBold',
+    button: 'Exo2-Bold',
+  },
 };

@@ -122,6 +122,29 @@ export function PaytableModal({ visible, onClose }: Props) {
                 Every spin uses HMAC-SHA256 with a server seed and your client seed. Results can be independently verified.
               </Text>
             </View>
+
+            {/* Bonus Meter */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>🎁 BONUS METER</Text>
+              <Text style={styles.tip}>
+                • Real KES spins fill the Match Bonus meter
+              </Text>
+              <Text style={styles.tip}>
+                • When full, you receive bonus credits
+              </Text>
+              <Text style={styles.tip}>
+                • Bonus credits require 5× wagering before conversion
+              </Text>
+              <Text style={styles.tip}>
+                • Use Bonus Mode to complete wagering
+              </Text>
+              <Text style={styles.tip}>
+                • Remaining bonus converts to real KES after wagering
+              </Text>
+              <Text style={styles.tip}>
+                • If bonus reaches zero before wagering completes, it is lost
+              </Text>
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -163,6 +186,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   title: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 20,
     fontWeight: 'bold',
     color: colors.accent,
@@ -176,6 +200,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   closeText: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 16,
     fontWeight: 'bold',
@@ -191,12 +216,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   sectionTitle: {
+    fontFamily: theme.fonts.marquee,
     color: colors.accent,
     fontSize: 14,
     fontWeight: 'bold',
     marginBottom: spacing.sm,
   },
   rule: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
@@ -223,11 +250,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   symbolName: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
   symbolTier: {
+    fontFamily: theme.fonts.body,
     color: colors.textDim,
     fontSize: 11,
     marginTop: 2,
@@ -238,11 +267,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   multiplierText: {
+    fontFamily: theme.fonts.digitalRegular,
     color: colors.surface,
     fontSize: 14,
     fontWeight: 'bold',
   },
   tip: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,

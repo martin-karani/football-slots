@@ -5,23 +5,26 @@ use uuid::Uuid;
 
 use crate::domain::models::{
     errors::{DomainError, DomainResult},
-    game::{Symbol, Wheel, CURRENT_PAYTABLE_VERSION, MAX_PAYOUT_MINOR},
+    game::{Symbol, Wheel, CURRENT_PAYTABLE_VERSION},
     wallet::{CurrencyType, LedgerEntryType, PlaceBetRequest},
 };
+use crate::domain::services::bonus_service::BonusServiceImpl;
 use crate::domain::services::weighted_rng::WeightedRng;
 use crate::ports::repositories::{GameRepository, WalletRepository};
 
 pub struct GameEngineImpl {
     game_repo: Arc<dyn GameRepository>,
     wallet_repo: Arc<dyn WalletRepository>,
+    bonus_service: Arc<BonusServiceImpl>,
 }
 
 impl GameEngineImpl {
-    pub fn new(game_repo: Arc<dyn GameRepository>, wallet_repo: Arc<dyn WalletRepository>) -> Self {
-        Self {
-            game_repo,
-            wallet_repo,
-        }
+    pub fn new(
+        game_repo: Arc<dyn GameRepository>,
+        wallet_repo: Arc<dyn WalletRepository>,
+        bonus_service: Arc<BonusServiceImpl>,
+    ) -> Self {
+        Self { game_repo, wallet_repo, bonus_service }
     }
 
     pub async fn spin(
@@ -39,10 +42,10 @@ impl GameEngineImpl {
         }
 
         // Enforce stake limits based on currency
-        let (min_stake, max_stake) = if req.currency.is_real_money() {
-            (config.real_min_stake, config.real_max_stake)
-        } else {
-            (config.virtual_min_stake, config.virtual_max_stake)
+        let (min_stake, max_stake) = match req.currency {
+            CurrencyType::Real => (config.real_min_stake, config.real_max_stake),
+            CurrencyType::Virtual => (config.virtual_min_stake, config.virtual_max_stake),
+            CurrencyType::Bonus => (config.bonus_min_stake, config.bonus_max_stake),
         };
 
         if total_stake < min_stake {
@@ -69,17 +72,6 @@ impl GameEngineImpl {
             let (server_seed, server_seed_hash, nonce) =
                 self.game_repo.get_active_server_seed(user_id).await?;
 
-            // The winning SYMBOL (and its multiplier) is now decided by the
-            // weighted, provably-fair draw -- not by a uniform 1-of-24
-            // position. `position` below is derived FROM the symbol purely
-            // to tell the frontend which wheel cell to animate to.
-            //
-            // The 24-position wheel has exactly 3 copies of each symbol.
-            // `draw.position_variant` (deterministic, derived from a second
-            // disjoint slice of the same HMAC digest used for the symbol
-            // draw, in range 0..3) tells us which copy to land on, so the
-            // animation cycles naturally through all 3 occurrences instead
-            // of always pinning to the first one.
             let draw = WeightedRng::generate_symbol(
                 &server_seed,
                 &client_seed,
@@ -93,10 +85,9 @@ impl GameEngineImpl {
                 .expect("every symbol has at least one wheel position");
 
             let bet_on_symbol = bets.get(draw.symbol.name()).copied().unwrap_or(0);
-            let mut gross_payout = bet_on_symbol * draw.multiplier as i64;
-            if gross_payout > MAX_PAYOUT_MINOR {
-                gross_payout = MAX_PAYOUT_MINOR;
-            }
+            // Payout cap is now enforced at bet-validation time (validate_bets).
+            // If we reach here, the payout is guaranteed to be within bounds.
+            let gross_payout = bet_on_symbol * draw.multiplier as i64;
             let net_result = gross_payout - total_stake;
             let is_win = gross_payout > 0;
 
@@ -144,28 +135,23 @@ impl GameEngineImpl {
             )
             .await?;
 
-        let mut progress = self.game_repo.increment_bonus_progress(user_id, 1).await?;
-        let mut bonus_claimed = false;
-
-        if progress.current_value >= progress.target_value {
-            let bonus_wallet = self
-                .wallet_repo
-                .get_or_create(user_id, CurrencyType::Bonus)
+        // Bonus meter logic — only for real-money spins
+        let (bonus_claimed, bonus_current, bonus_target, bonus_grant_completed, bonus_grant_lost, bonus_converted_minor) = if req.currency == CurrencyType::Real {
+            let (claimed, cur, tgt) = self.bonus_service.after_real_spin(user_id, config).await?;
+            (claimed, cur, tgt, false, false, 0)
+        } else if req.currency == CurrencyType::Bonus {
+            // Track wagering for bonus spins
+            let (completed, lost, converted) = self.bonus_service
+                .after_bonus_spin(user_id, total_stake, config)
                 .await?;
-            self.wallet_repo
-                .credit(
-                    bonus_wallet.id,
-                    5000,
-                    LedgerEntryType::BonusCredit,
-                    Some("bonus_meter".to_string()),
-                    None,
-                    None,
-                )
-                .await?;
-
-            progress = self.game_repo.reset_bonus_progress(user_id).await?;
-            bonus_claimed = true;
-        }
+            // Return current progress (unchanged for bonus spins)
+            let progress = self.game_repo.get_or_create_bonus_progress(user_id).await?;
+            (false, progress.current_value, progress.target_value, completed, lost, converted)
+        } else {
+            // Virtual spins: don't touch meter
+            let progress = self.game_repo.get_or_create_bonus_progress(user_id).await?;
+            (false, progress.current_value, progress.target_value, false, false, 0)
+        };
 
         let response_position = saved_round.result_position as u8;
         let response_multiplier = saved_round.result_multiplier as u16;
@@ -187,12 +173,20 @@ impl GameEngineImpl {
             nonce: saved_round.nonce,
             paytable_version: saved_round.paytable_version,
             bonus_claimed,
-            bonus_progress_current: progress.current_value,
-            bonus_progress_target: progress.target_value,
+            bonus_progress_current: bonus_current,
+            bonus_progress_target: bonus_target,
+            bonus_grant_completed,
+            bonus_grant_lost,
+            bonus_converted_minor,
         })
     }
 
     fn validate_bets(raw_bets: &HashMap<String, i64>) -> DomainResult<HashMap<String, i64>> {
+        use crate::domain::models::game::{
+            multiplier_in, paytable_for_version, Symbol, MAX_PAYOUT_MINOR, CURRENT_PAYTABLE_VERSION,
+        };
+
+        let paytable = paytable_for_version(CURRENT_PAYTABLE_VERSION);
         let mut bets = HashMap::new();
 
         for (symbol_name, amount) in raw_bets {
@@ -203,14 +197,33 @@ impl GameEngineImpl {
                 )));
             }
 
-            let valid = crate::domain::models::game::Symbol::all()
-                .iter()
-                .any(|s| s.name() == symbol_name);
+            let symbol = Symbol::from_name(symbol_name).ok_or_else(|| {
+                DomainError::InvalidStake(format!("Unknown symbol: {}", symbol_name))
+            })?;
 
-            if !valid {
+            let multiplier = multiplier_in(&paytable, symbol);
+
+            if multiplier == 0 {
                 return Err(DomainError::InvalidStake(format!(
-                    "Unknown symbol: {}",
+                    "Symbol {} has no active multiplier",
                     symbol_name
+                )));
+            }
+
+            // Reject any bet whose potential payout would exceed the hard cap.
+            // This prevents the silent-clamp bug where a player wins but gets
+            // paid less than the advertised multiplier implies.
+            let potential_payout = amount
+                .checked_mul(multiplier as i64)
+                .ok_or_else(|| {
+                    DomainError::InvalidStake(format!("Bet on {} is too large", symbol_name))
+                })?;
+
+            if potential_payout > MAX_PAYOUT_MINOR {
+                let max_allowed = MAX_PAYOUT_MINOR / multiplier as i64;
+                return Err(DomainError::InvalidStake(format!(
+                    "Bet on {} exceeds maximum. Max allowed: {} minor units (payout cap)",
+                    symbol_name, max_allowed
                 )));
             }
 
@@ -218,6 +231,39 @@ impl GameEngineImpl {
         }
 
         Ok(bets)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_bet_exceeding_payout_cap() {
+        let mut bets = HashMap::new();
+        bets.insert("ucl_trophy".to_string(), 100_001);
+        assert!(GameEngineImpl::validate_bets(&bets).is_err());
+    }
+
+    #[test]
+    fn accepts_bet_at_exact_payout_cap() {
+        let mut bets = HashMap::new();
+        bets.insert("ucl_trophy".to_string(), 100_000);
+        assert!(GameEngineImpl::validate_bets(&bets).is_ok());
+    }
+
+    #[test]
+    fn rejects_bayern_bet_exceeding_cap() {
+        let mut bets = HashMap::new();
+        bets.insert("bayern".to_string(), 400_001);
+        assert!(GameEngineImpl::validate_bets(&bets).is_err());
+    }
+
+    #[test]
+    fn accepts_common_symbol_at_total_stake_limit() {
+        let mut bets = HashMap::new();
+        bets.insert("barcelona".to_string(), 500_000);
+        assert!(GameEngineImpl::validate_bets(&bets).is_ok());
     }
 }
 
@@ -243,4 +289,10 @@ pub struct SpinResponse {
     pub bonus_progress_current: i32,
     #[serde(default)]
     pub bonus_progress_target: i32,
+    #[serde(default)]
+    pub bonus_grant_completed: bool,
+    #[serde(default)]
+    pub bonus_grant_lost: bool,
+    #[serde(default)]
+    pub bonus_converted_minor: i64,
 }

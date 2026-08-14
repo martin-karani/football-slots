@@ -6,6 +6,7 @@ import React, {
   useRef,
 } from "react";
 import { View, Text, Animated, StyleSheet, Dimensions } from "react-native";
+import { theme } from "./theme";
 
 // ============================================================
 // Types
@@ -227,12 +228,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   toastTitle: {
+    fontFamily: theme.fonts.bodyBold,
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
     marginBottom: 2,
   },
   toastMessage: {
+    fontFamily: theme.fonts.body,
     color: "#ddd",
     fontSize: 12,
     lineHeight: 16,

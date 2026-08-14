@@ -395,8 +395,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  backArrow: { color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
-  headerTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  backArrow: { fontFamily: theme.fonts.bodyBold, color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
+  headerTitle: { fontFamily: theme.fonts.marquee, color: "#fff", fontSize: 17, fontWeight: "700" },
 
   /* Profile card */
   profileCard: {
@@ -426,8 +426,8 @@ const styles = StyleSheet.create({
   },
   avatarEmoji: { fontSize: 30 },
   profileInfo: { flex: 1 },
-  profilePhone: { color: colors.accent, fontWeight: "800", fontSize: 16 },
-  profileSub: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+  profilePhone: { fontFamily: theme.fonts.digitalRegular, color: colors.accent, fontWeight: "800", fontSize: 16 },
+  profileSub: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 12, marginTop: 2 },
 
   /* Mode toggle */
   modeToggleWrap: {
@@ -458,13 +458,14 @@ const styles = StyleSheet.create({
   },
   modeTabIcon: { fontSize: 24, marginBottom: 2 },
   modeTabLabel: {
+    fontFamily: theme.fonts.button,
     color: colors.textMuted,
     fontWeight: "800",
     fontSize: 14,
   },
   modeTabLabelFunActive: { color: colors.fun },
   modeTabLabelRealActive: { color: colors.real },
-  modeTabSub: { color: colors.textDim, fontSize: 10, textAlign: "center" },
+  modeTabSub: { fontFamily: theme.fonts.body, color: colors.textDim, fontSize: 10, textAlign: "center" },
   modeTabSubActive: { color: colors.textMuted },
 
   /* Balance panel */
@@ -490,11 +491,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   balancePanelLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textMuted,
     fontSize: 11,
     marginBottom: 4,
   },
-  balancePanelAmount: { fontSize: 28, fontWeight: "900" },
+  balancePanelAmount: { fontFamily: theme.fonts.digitalRegular, fontSize: 28, fontWeight: "900" },
   funAmount: { color: colors.fun },
   realAmount: { color: colors.real },
 
@@ -506,7 +508,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.funLight,
   },
-  funBadgeText: { color: colors.fun, fontSize: 10, fontWeight: "800" },
+  funBadgeText: { fontFamily: theme.fonts.button, color: colors.fun, fontSize: 10, fontWeight: "800" },
 
   realBadge: {
     backgroundColor: colors.glassMedium,
@@ -516,7 +518,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.realLight,
   },
-  realBadgeText: { color: colors.real, fontSize: 10, fontWeight: "800" },
+  realBadgeText: { fontFamily: theme.fonts.button, color: colors.real, fontSize: 10, fontWeight: "800" },
 
   bonusRow: {
     flexDirection: "row",
@@ -528,8 +530,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bonusIcon: { fontSize: 14 },
-  bonusLabel: { color: colors.textMuted, fontSize: 12, flex: 1 },
-  bonusValue: { color: colors.textPrimary, fontWeight: "700", fontSize: 12 },
+  bonusLabel: { fontFamily: theme.fonts.bodyBold, color: colors.textMuted, fontSize: 12, flex: 1 },
+  bonusValue: { fontFamily: theme.fonts.digitalRegular, color: colors.textPrimary, fontWeight: "700", fontSize: 12 },
 
   /* Menu group */
   menuGroup: {
@@ -566,12 +568,13 @@ const styles = StyleSheet.create({
   menuRowIconDanger: { backgroundColor: colors.negativeLight },
   menuRowIconText: { fontSize: 18 },
   menuRowContent: { flex: 1 },
-  menuRowLabel: { color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
-  menuRowSub: { color: colors.textMuted, fontSize: 11, marginTop: 1 },
+  menuRowLabel: { fontFamily: theme.fonts.bodyBold, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
+  menuRowSub: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 11, marginTop: 1 },
   chevron: { color: colors.textMuted, fontSize: 22, fontWeight: "300" },
   dangerText: { color: colors.danger },
 
   version: {
+    fontFamily: theme.fonts.body,
     textAlign: "center",
     color: colors.textDim,
     fontSize: 10,
@@ -595,8 +598,8 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255, 215, 0, 0.4)",
   },
   activeModeIcon: { fontSize: 24 },
-  activeModeTitle: { color: colors.textPrimary, fontWeight: "800", fontSize: 14 },
-  activeModeSub: { color: colors.textMuted, fontSize: 11, marginTop: 2 },
+  activeModeTitle: { fontFamily: theme.fonts.bodyBold, color: colors.textPrimary, fontWeight: "800", fontSize: 14 },
+  activeModeSub: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 11, marginTop: 2 },
 
   /* Toggle switch */
   toggleTrack: {

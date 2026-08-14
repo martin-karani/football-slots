@@ -189,12 +189,14 @@ const styles = StyleSheet.create({
   },
   symbolWrap: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   symbolText: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "700",
     textTransform: "capitalize",
   },
   multiplierText: {
+    fontFamily: theme.fonts.digitalRegular,
     color: colors.accent,
     fontSize: 13,
     fontWeight: "700",
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
   },
   badgeWin: { backgroundColor: colors.positiveLight },
   badgeLoss: { backgroundColor: colors.negativeLight },
-  badgeText: { fontSize: 11, fontWeight: "700" },
+  badgeText: { fontFamily: theme.fonts.button, fontSize: 11, fontWeight: "700" },
   badgeTextWin: { color: colors.positive },
   badgeTextLoss: { color: colors.negative },
 
@@ -218,12 +220,13 @@ const styles = StyleSheet.create({
   },
   statItem: { flex: 1, alignItems: "center", paddingVertical: 10 },
   statDivider: { width: 1, backgroundColor: colors.glassMedium },
-  statLabel: { color: colors.textMuted, fontSize: 10, marginBottom: 3 },
-  statValue: { color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
+  statLabel: { fontFamily: theme.fonts.bodyBold, color: colors.textMuted, fontSize: 10, marginBottom: 3 },
+  statValue: { fontFamily: theme.fonts.digitalRegular, color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
   winValue: { color: colors.positive },
   lossValue: { color: colors.negative },
 
   dateText: {
+    fontFamily: theme.fonts.body,
     color: colors.textDim,
     fontSize: 10,
     marginTop: 10,
@@ -233,11 +236,12 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", paddingVertical: 80 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },
   emptyTitle: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "700",
   },
-  emptyHint: { color: colors.textMuted, fontSize: 13, marginTop: 6 },
+  emptyHint: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 13, marginTop: 6 },
 
   modeBanner: {
     flexDirection: "row",
@@ -250,6 +254,6 @@ const styles = StyleSheet.create({
   modeBannerFun: { backgroundColor: colors.funLight, borderWidth: 1, borderColor: colors.fun },
   modeBannerReal: { backgroundColor: colors.realLight, borderWidth: 1, borderColor: colors.real },
   modeBannerIcon: { fontSize: 24 },
-  modeBannerTitle: { color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
-  modeBannerSub: { color: colors.textMuted, fontSize: 12 },
+  modeBannerTitle: { fontFamily: theme.fonts.bodyBold, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
+  modeBannerSub: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 12 },
 });

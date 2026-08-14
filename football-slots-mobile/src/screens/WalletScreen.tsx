@@ -119,6 +119,19 @@ export function WalletScreen() {
           )}
         </View>
 
+        {/* ─── Bonus Info Card ──────────────────────────── */}
+        {balances.bonus > 0 && (
+          <View style={styles.bonusInfoCard}>
+            <Text style={styles.bonusInfoTitle}>🎁 Bonus Credits</Text>
+            <Text style={styles.bonusInfoAmount}>
+              KES {formatMinor(balances.bonus, "bonus")}
+            </Text>
+            <Text style={styles.bonusInfoNote}>
+              Not withdrawable. Complete wagering in Bonus Mode to convert to real KES.
+            </Text>
+          </View>
+        )}
+
         {/* ─── Segmented Tabs (Deposit / Withdraw) ─────── */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -378,8 +391,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  backArrow: { color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
-  headerTitle: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  backArrow: { fontFamily: theme.fonts.bodyBold, color: "#fff", fontSize: 18, fontWeight: "600", lineHeight: 20 },
+  headerTitle: { fontFamily: theme.fonts.marquee, color: "#fff", fontSize: 17, fontWeight: "700" },
 
   /* Balance Card */
   balanceCard: {
@@ -404,6 +417,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   balanceLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "800",
@@ -411,11 +425,13 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   balanceAmount: {
+    fontFamily: theme.fonts.digitalRegular,
     fontSize: 32,
     fontWeight: "900",
     marginBottom: 4,
   },
   balanceSubtext: {
+    fontFamily: theme.fonts.body,
     color: colors.textDim,
     fontSize: 11,
   },
@@ -427,6 +443,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   bonusText: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.real,
     fontSize: 12,
   },
@@ -462,6 +479,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.5)",
   },
   tabBtnText: {
+    fontFamily: theme.fonts.button,
     color: colors.textMuted,
     fontSize: 14,
     fontWeight: "800",
@@ -485,18 +503,21 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
   cardHeaderTitle: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 16,
     fontWeight: "800",
     marginBottom: 4,
   },
   cardDescription: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 12,
     marginBottom: 14,
     lineHeight: 16,
   },
   inputLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
@@ -514,6 +535,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderMuted,
   },
   presetLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textMuted,
     fontSize: 11,
     fontWeight: "700",
@@ -543,6 +565,7 @@ const styles = StyleSheet.create({
     borderColor: "#ff6666",
   },
   presetChipText: {
+    fontFamily: theme.fonts.digitalRegular,
     color: colors.textPrimary,
     fontSize: 12,
     fontWeight: "800",
@@ -565,9 +588,10 @@ const styles = StyleSheet.create({
   btnFun: { backgroundColor: colors.fun },
   btnReal: { backgroundColor: colors.real },
   btnDanger: { backgroundColor: colors.negative },
-  btnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
-  btnTextDark: { color: "#1a0033", fontWeight: "900", fontSize: 15 },
+  btnText: { fontFamily: theme.fonts.button, color: "#fff", fontWeight: "800", fontSize: 15 },
+  btnTextDark: { fontFamily: theme.fonts.button, color: "#1a0033", fontWeight: "900", fontSize: 15 },
   actionHint: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 11,
     marginTop: 10,
@@ -593,10 +617,12 @@ const styles = StyleSheet.create({
     borderColor: colors.borderMuted,
   },
   withdrawLimitLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textMuted,
     fontSize: 12,
   },
   withdrawLimitVal: {
+    fontFamily: theme.fonts.digitalRegular,
     color: colors.real,
     fontWeight: "800",
     fontSize: 14,
@@ -612,12 +638,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   kycNoticeTitle: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 15,
     fontWeight: "800",
     marginBottom: 4,
   },
   kycNoticeText: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 12,
     textAlign: "center",
@@ -628,4 +656,34 @@ const styles = StyleSheet.create({
 
   funText: { color: colors.fun },
   realText: { color: colors.real },
+
+  // ── Bonus Info Card ──────────────────────────────────────────────
+  bonusInfoCard: {
+    backgroundColor: "rgba(168, 85, 247, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.3)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  bonusInfoTitle: {
+    fontFamily: theme.fonts.marquee,
+    color: "#c084fc",
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  bonusInfoAmount: {
+    fontFamily: theme.fonts.digitalRegular,
+    color: "#e9d5ff",
+    fontSize: 18,
+    fontWeight: "900",
+    marginBottom: 4,
+  },
+  bonusInfoNote: {
+    fontFamily: theme.fonts.body,
+    color: "#a78bfa",
+    fontSize: 11,
+    lineHeight: 16,
+  },
 });

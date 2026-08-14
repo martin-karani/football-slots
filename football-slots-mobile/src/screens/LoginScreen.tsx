@@ -175,12 +175,13 @@ const styles = StyleSheet.create({
   },
   logoEmoji: { fontSize: 44 },
   appName: {
+    fontFamily: theme.fonts.marquee,
     fontSize: 32,
     fontWeight: "900",
     color: colors.accent,
     letterSpacing: 0.5,
   },
-  tagline: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+  tagline: { fontFamily: theme.fonts.body, fontSize: 14, color: colors.textMuted, marginTop: 4 },
 
   /* Form card */
   card: {
@@ -192,18 +193,21 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   cardTitle: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 18,
     fontWeight: "800",
     marginBottom: 6,
   },
   cardSub: {
+    fontFamily: theme.fonts.body,
     color: colors.textMuted,
     fontSize: 13,
     marginBottom: spacing.md,
     lineHeight: 18,
   },
   fieldLabel: {
+    fontFamily: theme.fonts.bodyBold,
     color: colors.textPrimary,
     fontSize: 13,
     fontWeight: "600",
@@ -220,6 +224,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderMuted,
   },
   otpInput: {
+    fontFamily: theme.fonts.digitalRegular,
     textAlign: "center",
     letterSpacing: 10,
     fontWeight: "800",
@@ -233,14 +238,16 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnText: {
+    fontFamily: theme.fonts.button,
     color: colors.background,
     fontWeight: "800",
     fontSize: 16,
   },
   backLink: { marginTop: spacing.md, alignItems: "center" },
-  backLinkText: { color: colors.accent, fontSize: 14 },
+  backLinkText: { fontFamily: theme.fonts.bodyBold, color: colors.accent, fontSize: 14 },
 
   footer: {
+    fontFamily: theme.fonts.body,
     textAlign: "center",
     color: colors.textDim,
     fontSize: 11,
