@@ -15,8 +15,8 @@ export const theme = {
     
     /** Primary accents */
     accent: "#FFD700",
-    fun: "#22c55e",       // Green for Fun Mode
-    funLight: "rgba(34,197,94,0.15)", // Translucent Fun
+    demo: "#22c55e",       // Green for Demo Mode
+    demoLight: "rgba(34,197,94,0.15)", // Translucent Demo
     real: "#FFD700",      // Gold for Real Mode
     realLight: "rgba(255,215,0,0.15)", // Translucent Real
     
@@ -71,7 +71,7 @@ export const theme = {
       shadowRadius: 8,
       elevation: 5,
     },
-    glowFun: {
+    glowDemo: {
       shadowColor: "#22c55e",
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.4,

@@ -93,12 +93,12 @@ export function WalletScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ─── Balance Summary Card ─────────────────────── */}
-        <View style={[styles.balanceCard, isReal ? styles.balanceCardReal : styles.balanceCardFun]}>
+        <View style={[styles.balanceCard, isReal ? styles.balanceCardReal : styles.balanceCardDemo]}>
           <View style={styles.balanceMain}>
             <Text style={styles.balanceLabel}>
-              {isReal ? "REAL KES BALANCE" : "FUN VIRTUAL CREDITS"}
+              {isReal ? "REAL KES BALANCE" : "DEMO VIRTUAL CREDITS"}
             </Text>
-            <Text style={[styles.balanceAmount, isReal ? styles.realText : styles.funText]}>
+            <Text style={[styles.balanceAmount, isReal ? styles.realText : styles.demoText]}>
               {isReal
                 ? `KES ${formatMinor(balances.real, "real")}`
                 : formatMinor(balances.virtual, "virtual")}
@@ -171,20 +171,20 @@ export function WalletScreen() {
         {activeTab === "deposit" && (
           <View style={styles.tabCard}>
             {!isReal ? (
-              /* FUN Mode Deposit / Refill View */
-              <View style={styles.funRefillContainer}>
-                <Text style={styles.cardHeaderTitle}>🎮 FUN Credits Refill</Text>
+              /* DEMO Mode Deposit / Refill View */
+              <View style={styles.demoRefillContainer}>
+                <Text style={styles.cardHeaderTitle}>🎮 DEMO Credits Refill</Text>
                 <Text style={styles.cardDescription}>
-                  Need more practice credits? Get 1,000 free FUN credits instantly.
+                  Need more practice credits? Get 1,000 free DEMO credits instantly.
                 </Text>
                 <TouchableOpacity
-                  style={[styles.btn, styles.btnFun]}
+                  style={[styles.btn, styles.btnDemo]}
                   onPress={() => {
                     topupVirtual();
-                    showSuccess("Refilled 1,000 FUN credits!");
+                    showSuccess("Refilled 1,000 DEMO credits!");
                   }}
                 >
-                  <Text style={styles.btnTextDark}>🎁 Refill 1,000 FUN Credits</Text>
+                  <Text style={styles.btnTextDark}>🎁 Refill 1,000 DEMO Credits</Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -260,11 +260,11 @@ export function WalletScreen() {
         {activeTab === "withdraw" && (
           <View style={styles.tabCard}>
             {!isReal ? (
-              /* FUN Mode Withdraw Notice */
-              <View style={styles.funRefillContainer}>
-                <Text style={styles.cardHeaderTitle}>⚠️ FUN Credits Cannot Be Withdrawn</Text>
+              /* DEMO Mode Withdraw Notice */
+              <View style={styles.demoRefillContainer}>
+                <Text style={styles.cardHeaderTitle}>⚠️ DEMO Credits Cannot Be Withdrawn</Text>
                 <Text style={styles.cardDescription}>
-                  You are currently playing in FUN mode. Practice credits have no real monetary value.
+                  You are currently playing in DEMO mode. Practice credits have no real monetary value.
                 </Text>
               </View>
             ) : kycStatus !== "verified" ? (
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.md,
   },
-  balanceCardFun: {
+  balanceCardDemo: {
     backgroundColor: "rgba(34, 197, 94, 0.08)",
     borderColor: "rgba(34, 197, 94, 0.35)",
   },
@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     ...shadows.sm,
   },
-  btnFun: { backgroundColor: colors.fun },
+  btnDemo: { backgroundColor: colors.demo },
   btnReal: { backgroundColor: colors.real },
   btnDanger: { backgroundColor: colors.negative },
   btnText: { fontFamily: theme.fonts.button, color: "#fff", fontWeight: "800", fontSize: 15 },
@@ -599,8 +599,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  /* Fun Refill container */
-  funRefillContainer: {
+  /* Demo Refill container */
+  demoRefillContainer: {
     paddingVertical: 4,
   },
 
@@ -654,7 +654,7 @@ const styles = StyleSheet.create({
 
 
 
-  funText: { color: colors.fun },
+  demoText: { color: colors.demo },
   realText: { color: colors.real },
 
   // ── Bonus Info Card ──────────────────────────────────────────────

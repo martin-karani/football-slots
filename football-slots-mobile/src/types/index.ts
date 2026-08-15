@@ -250,15 +250,15 @@ export interface BetMap {
  * All wallet/stake/bet values flowing through the backend are stored in
  * MINOR units. The ratio between the integer minor unit and what the
  * user sees on screen (DISPLAY units) is the SAME for every currency —
- * switching between FUN, KES, and BONUS behaves identically:
+   * switching between DEMO, KES, and BONUS behaves identically:
  *
- *   Virtual / FUN  ->  1 minor  =  0.01 DISPLAY FUN  (1 FUN = 100 minor)
+   *   Virtual / DEMO  ->  1 minor  =  0.01 DISPLAY DEMO  (1 DEMO = 100 minor)
  *   Real    / KES  ->  1 minor  =  0.01 DISPLAY KES  (1 KES = 100 minor)
  *   Bonus   / BON  ->  1 minor  =  0.01 DISPLAY BON  (1 BON = 100 minor)
  *
  * This matches the backend's own convention (see config.rs comment
  * "Virtual currency defaults (in minor units = cents)") so the free
- * refill of 100 000 minor credits the user with 1 000.00 FUN display.
+   * refill of 100 000 minor credits the user with 1 000.00 DEMO display.
  *
  * These helpers are the single place that ratio lives. Never hard-code a
  * `* 100` or `/ 100` in a component.
@@ -302,7 +302,7 @@ export function currencyLabel(currency: CurrencyType): string {
     case "real":
       return "KES";
     case "virtual":
-      return "FUN";
+      return "DEMO";
     case "bonus":
       return "BONUS";
   }
@@ -310,8 +310,8 @@ export function currencyLabel(currency: CurrencyType): string {
 
 /**
  * Chip values are always in DISPLAY units on the UI — so pressing the
- * chip labelled "100" in KES mode bets KES 100, and pressing it in FUN
- * mode bets 100 FUN. Components convert to minor (using `toMinor`)
+   * chip labelled "100" in KES mode bets KES 100, and pressing it in DEMO
+   * mode bets 100 DEMO. Components convert to minor (using `toMinor`)
  * *before* storing anything in the bet map / sending to the API.
  */
 export const CHIP_VALUES = [2, 5, 10, 15, 20, 30, 40, 120];

@@ -8,7 +8,7 @@ export function WalletHeader() {
   const setCurrency = useGameStore((state) => state.setCurrency);
 
   const currencies: { key: CurrencyType; label: string; icon: string }[] = [
-    { key: 'virtual', label: 'FUN', icon: '🎮' },
+    { key: 'virtual', label: 'DEMO', icon: '🎮' },
     { key: 'real', label: 'KES', icon: '💰' },
     { key: 'bonus', label: 'BONUS', icon: '🎁' },
   ];

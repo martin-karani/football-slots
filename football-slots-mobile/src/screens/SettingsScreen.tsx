@@ -17,8 +17,8 @@ import { useState, useRef, useEffect } from "react";
 import { formatMinor } from "../types";
 import { theme } from "../components/theme";
 
-/** Top-level play modes – separates free fun from real-money play */
-type PlayMode = "fun" | "real";
+/** Top-level play modes – separates free demo from real-money play */
+type PlayMode = "demo" | "real";
 
 /** Animated toggle switch component */
 function ToggleSwitch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
@@ -67,10 +67,10 @@ export function SettingsScreen() {
 
   // Derive current play mode from the active currency
   const playMode: PlayMode =
-    currency === "real" || currency === "bonus" ? "real" : "fun";
+    currency === "real" || currency === "bonus" ? "real" : "demo";
 
   const switchMode = (mode: PlayMode) => {
-    setCurrency(mode === "fun" ? "virtual" : "real");
+    setCurrency(mode === "demo" ? "virtual" : "real");
   };
 
   const handleLogout = () => {
@@ -110,7 +110,7 @@ export function SettingsScreen() {
     },
   ];
 
-  const isFun = playMode === "fun";
+  const isDemo = playMode === "demo";
 
   return (
     <View style={styles.root}>
@@ -145,31 +145,31 @@ export function SettingsScreen() {
         </View>
 
         {/* ─── Active Mode Banner ─────────────────────── */}
-        <View style={[styles.activeModeBadge, isFun ? styles.activeModeBadgeFun : styles.activeModeBadgeReal]}>
-          <Text style={styles.activeModeIcon}>{isFun ? "🎮" : "💰"}</Text>
+                  <View style={[styles.activeModeBadge, isDemo ? styles.activeModeBadgeDemo : styles.activeModeBadgeReal]}>
+          <Text style={styles.activeModeIcon}>{isDemo ? "🎮" : "💰"}</Text>
           <View style={{ flex: 1 }}>
             <Text style={styles.activeModeTitle}>
-              {isFun ? "FUN Mode Active" : "REAL Mode Active (KES)"}
+              {isDemo ? "DEMO Mode Active" : "REAL Mode Active (KES)"}
             </Text>
             <Text style={styles.activeModeSub}>
-              {isFun ? "Free Play · Virtual Credits" : "M-Pesa · Real Money Play"}
+              {isDemo ? "Demo Play · Virtual Credits" : "M-Pesa · Real Money Play"}
             </Text>
           </View>
         </View>
 
-        {/* ─── Balance Panel (FUN mode) ─────────────────── */}
-        {isFun && (
+        {/* ─── Balance Panel (DEMO mode) ─────────────────── */}
+        {isDemo && (
           <>
-            <View style={[styles.balancePanel, styles.balancePanelFun]}>
+            <View style={[styles.balancePanel, styles.balancePanelDemo]}>
               <View style={styles.balancePanelRow}>
                 <View>
-                  <Text style={styles.balancePanelLabel}>FUN Credits</Text>
-                  <Text style={[styles.balancePanelAmount, styles.funAmount]}>
+                  <Text style={styles.balancePanelLabel}>DEMO Credits</Text>
+                  <Text style={[styles.balancePanelAmount, styles.demoAmount]}>
                     {formatMinor(balances.virtual, "virtual")}
                   </Text>
                 </View>
-                <View style={styles.funBadge}>
-                  <Text style={styles.funBadgeText}>FREE PLAY</Text>
+                <View style={styles.demoBadge}>
+                  <Text style={styles.demoBadgeText}>DEMO PLAY</Text>
                 </View>
               </View>
               {balances.bonus > 0 && (
@@ -183,20 +183,20 @@ export function SettingsScreen() {
               )}
             </View>
 
-            {/* FUN actions */}
+            {/* DEMO actions */}
             <View style={styles.menuGroup}>
               <TouchableOpacity
                 style={styles.menuRow}
                 onPress={topupVirtual}
                 activeOpacity={0.7}
               >
-                <View style={[styles.menuRowIcon, styles.iconFun]}>
+                <View style={[styles.menuRowIcon, styles.iconDemo]}>
                   <Text style={styles.menuRowIconText}>🎁</Text>
                 </View>
                 <View style={styles.menuRowContent}>
-                  <Text style={styles.menuRowLabel}>Free FUN Refill</Text>
+                  <Text style={styles.menuRowLabel}>Free DEMO Refill</Text>
                   <Text style={styles.menuRowSub}>
-                    Get 1,000 free FUN credits instantly
+                    Get 1,000 free DEMO credits instantly
                   </Text>
                 </View>
                 <Text style={styles.chevron}>›</Text>
@@ -206,7 +206,7 @@ export function SettingsScreen() {
         )}
 
         {/* ─── Balance Panel (REAL mode) ────────────────── */}
-        {!isFun && (
+        {!isDemo && (
           <>
             <View style={[styles.balancePanel, styles.balancePanelReal]}>
               <View style={styles.balancePanelRow}>
@@ -448,9 +448,9 @@ const styles = StyleSheet.create({
     gap: 4,
     ...shadows.sm,
   },
-  modeTabFunActive: {
-    borderColor: colors.fun,
-    backgroundColor: colors.funLight,
+  modeTabDemoActive: {
+    borderColor: colors.demo,
+    backgroundColor: colors.demoLight,
   },
   modeTabRealActive: {
     borderColor: colors.real,
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 14,
   },
-  modeTabLabelFunActive: { color: colors.fun },
+  modeTabLabelDemoActive: { color: colors.demo },
   modeTabLabelRealActive: { color: colors.real },
   modeTabSub: { fontFamily: theme.fonts.body, color: colors.textDim, fontSize: 10, textAlign: "center" },
   modeTabSubActive: { color: colors.textMuted },
@@ -477,9 +477,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadows.md,
   },
-  balancePanelFun: {
-    backgroundColor: colors.funLight,
-    borderColor: colors.fun,
+  balancePanelDemo: {
+    backgroundColor: colors.demoLight,
+    borderColor: colors.demo,
   },
   balancePanelReal: {
     backgroundColor: colors.realLight,
@@ -497,18 +497,18 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   balancePanelAmount: { fontFamily: theme.fonts.digitalRegular, fontSize: 28, fontWeight: "900" },
-  funAmount: { color: colors.fun },
+  demoAmount: { color: colors.demo },
   realAmount: { color: colors.real },
 
-  funBadge: {
+  demoBadge: {
     backgroundColor: colors.glassMedium,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radius.full,
     borderWidth: 1,
-    borderColor: colors.funLight,
+    borderColor: colors.demoLight,
   },
-  funBadgeText: { fontFamily: theme.fonts.button, color: colors.fun, fontSize: 10, fontWeight: "800" },
+  demoBadgeText: { fontFamily: theme.fonts.button, color: colors.demo, fontSize: 10, fontWeight: "800" },
 
   realBadge: {
     backgroundColor: colors.glassMedium,
@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  iconFun: { backgroundColor: colors.funLight },
+  iconDemo: { backgroundColor: colors.demoLight },
   iconReal: { backgroundColor: colors.realLight },
   menuRowIconDanger: { backgroundColor: colors.negativeLight },
   menuRowIconText: { fontSize: 18 },
@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     gap: 12,
   },
-  activeModeBadgeFun: {
+  activeModeBadgeDemo: {
     backgroundColor: "rgba(34, 197, 94, 0.1)",
     borderColor: "rgba(34, 197, 94, 0.4)",
   },

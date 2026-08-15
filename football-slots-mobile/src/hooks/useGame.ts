@@ -47,17 +47,17 @@ export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () =
     if (balances[currency] < totalStake) {
       if (currency === "virtual") {
         Alert.alert(
-          "Low FUN Balance 🎮",
-          "You ran out of FUN play credits! Would you like a free refill of 1,000 FUN?",
+          "Low DEMO Balance 🎮",
+          "You ran out of DEMO play credits! Would you like a free refill of 1,000 DEMO?",
           [
             { text: "Cancel", style: "cancel" },
             {
-              text: "🎁 Refill 1,000 FUN",
+              text: "🎁 Refill 1,000 DEMO",
               onPress: async () => {
                 try {
                   const res = await walletApi.topupVirtual();
                   setBalance("virtual", res.data.balance_minor);
-                  showSuccess("1,000 FUN credits added! You can spin now.", "🎉 Refilled!");
+                  showSuccess("1,000 DEMO credits added! You can spin now.", "🎉 Refilled!");
                 } catch {
                   showError("Failed to refill credits. Try again.");
                 }

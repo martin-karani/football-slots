@@ -273,7 +273,7 @@ export function GameScreen() {
         {/* ═══════════════════════════════════════════════════════════
             BALANCE BAR — dynamic mode differentiation
          ═══════════════════════════════════════════════════════════ */}
-        <View style={[st.balBar, isReal ? st.balBarReal : st.balBarFun]}>
+        <View style={[st.balBar, isReal ? st.balBarReal : st.balBarDemo]}>
           {/* Win glow overlay */}
           <Animated.View
             style={[st.winGlowOverlay, winGlowStyle]}
@@ -285,14 +285,14 @@ export function GameScreen() {
               <Animated.Text
                 style={[
                   st.balNum,
-                  isReal ? st.balNumReal : st.balNumFun,
+                  isReal ? st.balNumReal : st.balNumDemo,
                   balanceFlashStyle,
                 ]}
               >
                 {formatMinor(balanceMinor, currency)}
               </Animated.Text>
             </Animated.View>
-            <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrFun]}>
+            <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrDemo]}>
               {currencyLabel(currency)}
             </Text>
           </View>
@@ -322,7 +322,7 @@ export function GameScreen() {
             activeOpacity={0.8}
           >
             <Text style={st.modeBadgeTxt}>
-              {isReal ? "💰 REAL MODE ▾" : "🎮 FUN MODE ▾"}
+              {isReal ? "💰 REAL MODE ▾" : "🎮 DEMO MODE ▾"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -455,7 +455,7 @@ export function GameScreen() {
               <TouchableOpacity
                 style={[
                   st.goBtnBase,
-                  isReal ? st.goBtnReal : st.goBtnFun,
+                  isReal ? st.goBtnReal : st.goBtnDemo,
                   (isSpinning || totalStake === 0) && st.goBtnOff,
                 ]}
                 onPress={() => {
@@ -598,11 +598,11 @@ export function GameScreen() {
               >
                 <Text style={st.modeDropdownTitle}>SELECT GAME MODE</Text>
 
-                {/* Option 1: FUN MODE */}
+                {/* Option 1: DEMO MODE */}
                 <TouchableOpacity
                   style={[
                     st.modeOptionItem,
-                    !isReal && st.modeOptionItemActiveFun,
+                    !isReal && st.modeOptionItemActiveDemo,
                   ]}
                   onPress={() => {
                     setCurrency("virtual");
@@ -620,9 +620,9 @@ export function GameScreen() {
                           gap: 6,
                         }}
                       >
-                        <Text style={st.modeOptionName}>FUN MODE</Text>
+                        <Text style={st.modeOptionName}>DEMO MODE</Text>
                         {!isReal && (
-                          <Text style={st.modeActiveBadgeFun}>ACTIVE</Text>
+                          <Text style={st.modeActiveBadgeDemo}>ACTIVE</Text>
                         )}
                       </View>
                       <Text style={st.modeOptionDesc}>
@@ -962,7 +962,7 @@ const st = StyleSheet.create({
   balBarReal: {
     backgroundColor: "#901020",
   },
-  balBarFun: {
+  balBarDemo: {
     backgroundColor: "#400080",
   },
   winGlowOverlay: {
@@ -992,7 +992,7 @@ const st = StyleSheet.create({
     color: "#ffd700",
     textShadowColor: "#000",
   },
-  balNumFun: {
+  balNumDemo: {
     color: "#ffffff",
     textShadowColor: "#8800ff",
   },
@@ -1005,7 +1005,7 @@ const st = StyleSheet.create({
   balCurrReal: {
     color: "#ffcc80",
   },
-  balCurrFun: {
+  balCurrDemo: {
     color: "#d0b0ff",
   },
   modePill: {
@@ -1033,7 +1033,7 @@ const st = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  modeBtnOnFun: {
+  modeBtnOnDemo: {
     backgroundColor: "#00ffff",
     shadowColor: "#00ffff",
     shadowOffset: { width: 0, height: 0 },
@@ -1051,7 +1051,7 @@ const st = StyleSheet.create({
     color: "#4a0008",
     fontWeight: "900",
   },
-  modeTxtOnFun: {
+  modeTxtOnDemo: {
     color: "#002244",
     fontWeight: "900",
   },
@@ -1097,7 +1097,7 @@ const st = StyleSheet.create({
   watermarkTxtReal: {
     color: "#fff",
   },
-  watermarkTxtFun: {
+  watermarkTxtDemo: {
     color: "#00ffff",
   },
 
@@ -1272,7 +1272,7 @@ const st = StyleSheet.create({
     shadowRadius: 10,
     elevation: 12,
   },
-  goBtnFun: {
+  goBtnDemo: {
     backgroundColor: "#e82020",
     borderTopColor: "#ff8888",
     borderLeftColor: "#ff6666",
@@ -1653,7 +1653,7 @@ const st = StyleSheet.create({
     borderColor: "rgba(255, 255, 255, 0.08)",
     marginBottom: 8,
   },
-  modeOptionItemActiveFun: {
+  modeOptionItemActiveDemo: {
     backgroundColor: "rgba(34, 197, 94, 0.12)",
     borderColor: "rgba(34, 197, 94, 0.5)",
   },
@@ -1686,7 +1686,7 @@ const st = StyleSheet.create({
     fontSize: 9,
     marginTop: 2,
   },
-  modeActiveBadgeFun: {
+  modeActiveBadgeDemo: {
     fontFamily: theme.fonts.button,
     backgroundColor: "#22c55e",
     color: "#FFFFFF",

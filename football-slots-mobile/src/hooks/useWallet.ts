@@ -70,12 +70,12 @@ export function useWallet(currency?: CurrencyType) {
       const res = await walletApi.topupVirtual();
       setBalance("virtual", res.data.balance_minor);
       showSuccess(
-        "Your FUN wallet has been credited with 1,000 FUN credits.",
+        "Your DEMO wallet has been credited with 1,000 DEMO credits.",
         "🎉 Refilled!",
       );
     } catch (error) {
-      console.error("Failed to refill FUN wallet:", error);
-      showError("Failed to refill FUN credits. Try again.");
+      console.error("Failed to refill DEMO wallet:", error);
+      showError("Failed to refill DEMO credits. Try again.");
     }
   }, [setBalance, showSuccess, showError]);
 

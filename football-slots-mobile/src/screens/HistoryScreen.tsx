@@ -129,14 +129,14 @@ export function HistoryScreen() {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={[styles.modeBanner, !isRealMode ? styles.modeBannerFun : styles.modeBannerReal]}>
+          <View style={[styles.modeBanner, !isRealMode ? styles.modeBannerDemo : styles.modeBannerReal]}>
             <Text style={styles.modeBannerIcon}>{!isRealMode ? "🎮" : "💰"}</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.modeBannerTitle}>
-                {!isRealMode ? "FUN Mode Bet History" : "REAL Mode Bet History"}
+                {!isRealMode ? "DEMO Mode Bet History" : "REAL Mode Bet History"}
               </Text>
               <Text style={styles.modeBannerSub}>
-                {!isRealMode ? "Showing Free Play Spins" : "Showing M-Pesa Real Money Spins"}
+                {!isRealMode ? "Showing Demo Play Spins" : "Showing M-Pesa Real Money Spins"}
               </Text>
             </View>
           </View>
@@ -154,9 +154,9 @@ export function HistoryScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>⚽</Text>
-            <Text style={styles.emptyTitle}>No {!isRealMode ? "FUN" : "REAL"} spins yet</Text>
+            <Text style={styles.emptyTitle}>No {!isRealMode ? "DEMO" : "REAL"} spins yet</Text>
             <Text style={styles.emptyHint}>
-              Spin in {!isRealMode ? "FUN" : "REAL"} mode to see your history here
+              Spin in {!isRealMode ? "DEMO" : "REAL"} mode to see your history here
             </Text>
           </View>
         }
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 12,
   },
-  modeBannerFun: { backgroundColor: colors.funLight, borderWidth: 1, borderColor: colors.fun },
+  modeBannerDemo: { backgroundColor: colors.demoLight, borderWidth: 1, borderColor: colors.demo },
   modeBannerReal: { backgroundColor: colors.realLight, borderWidth: 1, borderColor: colors.real },
   modeBannerIcon: { fontSize: 24 },
   modeBannerTitle: { fontFamily: theme.fonts.bodyBold, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
