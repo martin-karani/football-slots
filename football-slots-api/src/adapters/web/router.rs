@@ -5,8 +5,8 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::adapters::web::handlers::{auth, bonus, game, health, mpesa, not_found, wallet};
-use crate::adapters::web::middleware::auth_middleware;
+use crate::adapters::web::handlers::{admin, auth, bonus, game, health, mpesa, not_found, wallet};
+use crate::adapters::web::middleware::{auth_middleware, ip_whitelist_middleware, RateLimiter};
 use crate::config::Config;
 use crate::domain::services::{
     bonus_service::BonusServiceImpl, game_engine::GameEngineImpl, mpesa_service::MpesaServiceImpl,
@@ -30,6 +30,8 @@ pub struct AppState {
     /// draw itself (spin + verify) now calls `WeightedRng` directly rather
     /// than going through this trait object.
     pub rng: Arc<ProvablyFairRng>,
+    /// In-memory rate limiter for M-Pesa STK push requests.
+    pub rate_limiter: Arc<RateLimiter>,
     pub config: Config,
 }
 
@@ -55,6 +57,7 @@ pub fn create_router(
         mpesa_service,
         bonus_service,
         rng,
+        rate_limiter: Arc::new(RateLimiter::new()),
         config: config.clone(),
     });
 
@@ -96,14 +99,35 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // M-Pesa routes (deposit/withdraw are authenticated, callbacks are public webhooks)
-    let mpesa_routes = Router::new()
+    // M-Pesa routes (authenticated): deposit & withdrawal initiation.
+    // These require JWT auth — users call these from the app.
+    let mpesa_auth_routes = Router::new()
         .route("/deposit", post(mpesa::initiate_deposit))
         .route("/withdraw", post(mpesa::initiate_withdrawal))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
-        .route("/callback", post(mpesa::handle_callback)) // public webhook – no auth
-        .route("/b2c/result", post(mpesa::handle_b2c_result)) // public webhook – no auth
-        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout)) // public webhook – no auth
+        .with_state(state.clone());
+
+    // M-Pesa callback routes (public webhooks): Safaricom posts to these.
+    // Protected by IP whitelist middleware — only Safaricom IPs allowed in prod.
+    let mpesa_callback_routes = Router::new()
+        .route("/callback", post(mpesa::handle_callback))
+        .route("/b2c/result", post(mpesa::handle_b2c_result))
+        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout))
+        .route_layer(axum_mw::from_fn_with_state(
+            state.clone(),
+            ip_whitelist_middleware,
+        ))
+        .with_state(state.clone());
+
+    let mpesa_routes = mpesa_auth_routes.merge(mpesa_callback_routes);
+
+    // Admin routes (authenticated) – wallet investigation & reconciliation
+    let admin_routes = Router::new()
+        .route("/wallets/reconcile", post(admin::reconcile_wallets))
+        .route("/wallets/:user_id/ledger", get(admin::get_user_ledger))
+        .route("/wallets/:wallet_id/freeze", post(admin::freeze_wallet))
+        .route("/wallets/:wallet_id/unfreeze", post(admin::unfreeze_wallet))
+        .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
     // Health checks
@@ -124,5 +148,6 @@ pub fn create_router(
         .nest("/api/v1/wallet", wallet_routes)
         .nest("/api/v1/mpesa", mpesa_routes)
         .nest("/api/v1/bonus", bonus_routes)
+        .nest("/api/v1/admin", admin_routes)
         .fallback(not_found)
 }

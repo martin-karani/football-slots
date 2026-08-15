@@ -287,7 +287,7 @@ export function fromMinor(minorAmount: number, currency: CurrencyType): number {
  */
 export function formatMinor(
   minorAmount: number,
-  _currency: CurrencyType,
+  _currency: CurrencyType
 ): string {
   const display = fromMinor(minorAmount, _currency);
   return display.toLocaleString("en-US", {

@@ -76,6 +76,16 @@ pub trait WalletRepository: Send + Sync {
     /// Net amount withdrawn today (holds minus any same-currency reversals).
     /// A withdrawal that fails and gets reversed doesn't burn the daily quota.
     async fn get_today_withdrawals(&self, user_id: Uuid) -> DomainResult<i64>;
+
+    /// Expose the underlying DB pool for raw reconciliation queries.
+    /// Only used by the admin reconciliation endpoint.
+    fn pool(&self) -> sqlx::PgPool;
+
+    /// Freeze a wallet: blocks all debits (bets, withdrawals) but allows credits.
+    async fn freeze_wallet(&self, wallet_id: Uuid) -> DomainResult<Wallet>;
+
+    /// Unfreeze a wallet: restores normal operation.
+    async fn unfreeze_wallet(&self, wallet_id: Uuid) -> DomainResult<Wallet>;
 }
 
 /// Game repository trait.

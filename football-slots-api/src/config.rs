@@ -63,6 +63,18 @@ pub struct Config {
     pub bonus_max_stake: i64,
     pub bonus_grant_expiry_hours: i64,
     pub bonus_max_daily_grants_per_user: i64,
+
+    // Security: IP whitelisting for M-Pesa callbacks.
+    // Comma-separated CIDR ranges. Empty string = allow all (dev only).
+    // Production MUST set this to Safaricom's callback IPs.
+    pub mpesa_callback_allowed_ips: Vec<String>,
+
+    // Security: rate limiting for M-Pesa STK push.
+    // Seconds between allowed deposit requests per user. 0 = disabled (dev only).
+    pub deposit_rate_limit_seconds: u64,
+
+    // Daily deposit limit (minor units). NULL in DB falls back to this.
+    pub daily_deposit_limit_minor: i64,
 }
 
 impl Config {
@@ -150,6 +162,27 @@ impl Config {
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(168),
             bonus_max_daily_grants_per_user: std::env::var("BONUS_MAX_DAILY_GRANTS_PER_USER")
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(1),
+
+            // Security: IP whitelist for M-Pesa callbacks.
+            // Safaricom production IPs (update if Safaricom changes these).
+            // Empty = allow all (dev mode only — production MUST restrict).
+            mpesa_callback_allowed_ips: std::env::var("MPESA_CALLBACK_ALLOWED_IPS")
+                .ok()
+                .filter(|s| !s.is_empty())
+                .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_default(),
+
+            // Security: rate limit deposits to 30 seconds apart per user.
+            deposit_rate_limit_seconds: std::env::var("DEPOSIT_RATE_LIMIT_SECONDS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
+
+            // Daily deposit limit: KES 500,000 default.
+            daily_deposit_limit_minor: std::env::var("DAILY_DEPOSIT_LIMIT_MINOR")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(50_000_000),
         })
     }
 }

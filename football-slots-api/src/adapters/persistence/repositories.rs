@@ -167,7 +167,7 @@ impl WalletRepository for PgWalletRepository {
         let wallet: Wallet = sqlx::query_as(
             r#"INSERT INTO wallets (user_id, currency, balance_minor) VALUES ($1, $2::currency_type, $3)
                ON CONFLICT (user_id, currency) DO UPDATE SET updated_at = now()
-               RETURNING id, user_id, currency, balance_minor, created_at, updated_at"#,
+               RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
         )
         .bind(user_id)
         .bind(currency)
@@ -193,7 +193,7 @@ impl WalletRepository for PgWalletRepository {
 
     async fn find_by_id(&self, id: Uuid) -> DomainResult<Option<Wallet>> {
         let w: Option<Wallet> = sqlx::query_as(
-            r#"SELECT id, user_id, currency, balance_minor, created_at, updated_at
+            r#"SELECT id, user_id, currency, balance_minor, is_frozen, created_at, updated_at
                FROM wallets WHERE id = $1"#,
         )
         .bind(id)
@@ -220,8 +220,8 @@ impl WalletRepository for PgWalletRepository {
 
         let wallet: Wallet = sqlx::query_as(
             r#"UPDATE wallets SET balance_minor = balance_minor - $1, updated_at = now()
-               WHERE id = $2 AND balance_minor >= $1
-               RETURNING id, user_id, currency, balance_minor, created_at, updated_at"#,
+               WHERE id = $2 AND balance_minor >= $1 AND NOT is_frozen
+               RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
         )
         .bind(amount_minor)
         .bind(wallet_id)
@@ -259,7 +259,7 @@ impl WalletRepository for PgWalletRepository {
         let wallet: Wallet = sqlx::query_as(
             r#"UPDATE wallets SET balance_minor = balance_minor + $1, updated_at = now()
                WHERE id = $2
-               RETURNING id, user_id, currency, balance_minor, created_at, updated_at"#,
+               RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
         )
         .bind(amount_minor)
         .bind(wallet_id)
@@ -300,8 +300,8 @@ impl WalletRepository for PgWalletRepository {
         if let Some((amount_minor, entry_type)) = debit {
             wallet = sqlx::query_as(
                 r#"UPDATE wallets SET balance_minor = balance_minor - $1, updated_at = now()
-                   WHERE id = $2 AND balance_minor >= $1
-                   RETURNING id, user_id, currency, balance_minor, created_at, updated_at"#,
+                   WHERE id = $2 AND balance_minor >= $1 AND NOT is_frozen
+                   RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
             )
             .bind(amount_minor)
             .bind(wallet_id)
@@ -326,7 +326,7 @@ impl WalletRepository for PgWalletRepository {
             wallet = sqlx::query_as(
                 r#"UPDATE wallets SET balance_minor = balance_minor + $1, updated_at = now()
                    WHERE id = $2
-                   RETURNING id, user_id, currency, balance_minor, created_at, updated_at"#,
+                   RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
             )
             .bind(amount_minor)
             .bind(wallet_id)
@@ -404,6 +404,36 @@ impl WalletRepository for PgWalletRepository {
 
         let total: i64 = row.try_get("total")?;
         Ok(total)
+    }
+
+    fn pool(&self) -> sqlx::PgPool {
+        self.pool.clone()
+    }
+
+    async fn freeze_wallet(&self, wallet_id: Uuid) -> DomainResult<Wallet> {
+        let wallet: Wallet = sqlx::query_as(
+            r#"UPDATE wallets SET is_frozen = TRUE, updated_at = now()
+               WHERE id = $1
+               RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
+        )
+        .bind(wallet_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|_| DomainError::WalletNotFound)?;
+        Ok(wallet)
+    }
+
+    async fn unfreeze_wallet(&self, wallet_id: Uuid) -> DomainResult<Wallet> {
+        let wallet: Wallet = sqlx::query_as(
+            r#"UPDATE wallets SET is_frozen = FALSE, updated_at = now()
+               WHERE id = $1
+               RETURNING id, user_id, currency, balance_minor, is_frozen, created_at, updated_at"#,
+        )
+        .bind(wallet_id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|_| DomainError::WalletNotFound)?;
+        Ok(wallet)
     }
 }
 

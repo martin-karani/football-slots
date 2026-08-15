@@ -57,6 +57,7 @@ pub struct Wallet {
     pub user_id: Uuid,
     pub currency: CurrencyType,
     pub balance_minor: i64,
+    pub is_frozen: bool,
     pub created_at: DateTime<chrono::Utc>,
     pub updated_at: DateTime<chrono::Utc>,
 }

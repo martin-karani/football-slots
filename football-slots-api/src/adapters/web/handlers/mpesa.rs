@@ -77,6 +77,39 @@ pub async fn initiate_deposit(
 
     user.can_deposit(chrono::Utc::now()).map_err(error_response)?;
 
+    // Rate limiting: prevent rapid-fire STK push requests (each costs the business)
+    if !state
+        .rate_limiter
+        .check(&format!("deposit:{}", claims.sub), state.config.deposit_rate_limit_seconds)
+        .await
+    {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(ErrorResponse {
+                error: "rate_limited".into(),
+                message: "Too many deposit requests. Please wait before trying again.".into(),
+            }),
+        ));
+    }
+
+    // Daily deposit limit enforcement
+    let daily_limit = user
+        .daily_deposit_limit_minor
+        .unwrap_or(state.config.daily_deposit_limit_minor);
+    let already_deposited_today = state.wallet_repo.get_today_deposits(claims.sub).await.unwrap_or(0);
+    if already_deposited_today + body.amount_minor > daily_limit {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "deposit_limit_exceeded".into(),
+                message: format!(
+                    "Deposit exceeds your daily limit of KES {:.2}",
+                    daily_limit as f64 / 100.0
+                ),
+            }),
+        ));
+    }
+
     let tx = state
         .mpesa_service
         .initiate_stk_push(claims.sub, &body.phone_number, body.amount_minor)
@@ -151,6 +184,25 @@ pub async fn initiate_withdrawal(
             serde_json::from_slice(&bytes)
                 .map_err(|_| (StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Invalid JSON".into() })))
         })?;
+
+    // Phone verification: withdrawal must go to the registered phone number.
+    // This prevents account takeover from draining funds to a different phone.
+    let user = state
+        .user_repo
+        .find_by_id(claims.sub)
+        .await
+        .map_err(error_response)?
+        .ok_or((StatusCode::NOT_FOUND, Json(ErrorResponse { error: "not_found".into(), message: "User not found".into() })))?;
+
+    if user.phone_number != body.phone_number {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ErrorResponse {
+                error: "withdrawal_phone_mismatch".into(),
+                message: "Withdrawal phone must match your registered phone number.".into(),
+            }),
+        ));
+    }
 
     let tx = state
         .mpesa_service

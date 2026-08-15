@@ -61,6 +61,18 @@ pub enum DomainError {
 
     #[error("bonus already claimed")]
     BonusAlreadyClaimed,
+
+    #[error("withdrawal phone must match your registered phone number")]
+    WithdrawalPhoneMismatch,
+
+    #[error("too many requests. Please wait before trying again")]
+    RateLimited,
+
+    #[error("unauthorized IP {0}. M-Pesa callbacks must come from Safaricom")]
+    UnauthorizedCallbackIp(String),
+
+    #[error("wallet reconciliation failed: balance {balance_minor} does not match ledger sum {ledger_sum}")]
+    WalletReconciliationMismatch { balance_minor: i64, ledger_sum: i64 },
 }
 
 pub type DomainResult<T> = Result<T, DomainError>;
