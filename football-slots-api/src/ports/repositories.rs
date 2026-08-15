@@ -6,7 +6,7 @@ use crate::domain::models::{
     bonus::BonusGrant,
     errors::DomainResult,
     game::{BonusProgress, GameRound},
-    mpesa::{MpesaTransaction, TransactionStatus},
+    mpesa::{MpesaAccountBalanceQuery, MpesaTransaction, TransactionStatus, UnmatchedC2bDeposit},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
 };
@@ -137,10 +137,6 @@ pub trait MpesaRepository: Send + Sync {
         raw_callback: Option<serde_json::Value>,
     ) -> DomainResult<MpesaTransaction>;
 
-    /// Replaces `update_with_merchant_request_id`. Also writes
-    /// `checkout_request_id` (previously never set to Safaricom's real
-    /// CheckoutRequestID for deposits -- see the fix in mpesa_service).
-    /// Either field may be `None` to leave it untouched.
     async fn update_provider_ids(
         &self,
         id: Uuid,
@@ -149,6 +145,66 @@ pub trait MpesaRepository: Send + Sync {
     ) -> DomainResult<MpesaTransaction>;
 
     async fn find_pending_by_user(&self, user_id: Uuid) -> DomainResult<Vec<MpesaTransaction>>;
+
+    /// Atomically returns the existing OriginatorConversationID for this
+    /// withdrawal if one was already minted, or generates and persists a new
+    /// one if not. Safe to call concurrently for the same tx_id.
+    async fn get_or_create_originator_conversation_id(&self, tx_id: Uuid) -> DomainResult<String>;
+
+    /// Marks a withdrawal as accepted by Safaricom (ResponseCode 0).
+    /// Guarded by originator_conversation_id so a stale caller can't flip a
+    /// different attempt's status.
+    async fn mark_transaction_submitted(
+        &self,
+        tx_id: Uuid,
+        originator_conversation_id: &str,
+    ) -> DomainResult<()>;
+
+    /// Find a transaction by its OriginatorConversationID (B2C v3 idempotency).
+    async fn find_by_originator_conversation_id(
+        &self,
+        originator_id: &str,
+    ) -> DomainResult<Option<MpesaTransaction>>;
+
+    // --- Account Balance API ---
+
+    async fn create_account_balance_query(&self, originator_id: &str) -> DomainResult<MpesaAccountBalanceQuery>;
+
+    async fn update_account_balance_result(
+        &self,
+        originator_id: &str,
+        status: &str,
+        working: Option<i64>,
+        utility: Option<i64>,
+        merchant: Option<i64>,
+        charges: Option<i64>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<MpesaAccountBalanceQuery>;
+
+    async fn get_latest_account_balance(&self) -> DomainResult<Option<MpesaAccountBalanceQuery>>;
+
+    // --- Unmatched C2B Deposits ---
+
+    /// Records a C2B payment that couldn't be matched to a user account.
+    /// Returns `true` if this created a new row, `false` if already quarantined.
+    async fn record_unmatched_c2b_deposit(
+        &self,
+        mpesa_receipt_number: &str,
+        bill_ref_number: &str,
+        masked_msisdn: &str,
+        amount_minor: i64,
+        raw_callback: serde_json::Value,
+    ) -> DomainResult<bool>;
+
+    /// List unresolved unmatched deposits.
+    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedC2bDeposit>>;
+
+    /// Resolve an unmatched deposit by crediting a user's wallet.
+    async fn resolve_unmatched_deposit(
+        &self,
+        deposit_id: Uuid,
+        user_id: Uuid,
+    ) -> DomainResult<UnmatchedC2bDeposit>;
 }
 
 /// Bonus grant repository trait.

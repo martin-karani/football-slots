@@ -34,6 +34,7 @@ pub enum LedgerEntryType {
     BonusCredit,
     BonusConversion, // bonus -> real conversion after wagering complete
     BonusExpiry, // remaining bonus forfeited when a grant expires
+    C2bManual, // C2B manual Paybill deposit (non-STK-Push)
 }
 
 impl std::fmt::Display for LedgerEntryType {
@@ -47,6 +48,7 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::BonusCredit => write!(f, "bonus_credit"),
             LedgerEntryType::BonusConversion => write!(f, "bonus_conversion"),
             LedgerEntryType::BonusExpiry => write!(f, "bonus_expiry"),
+            LedgerEntryType::C2bManual => write!(f, "c2b_manual"),
         }
     }
 }
@@ -81,5 +83,3 @@ pub struct PlaceBetRequest {
     pub bets: std::collections::HashMap<String, i64>,
     pub client_seed: String,
 }
-
-

@@ -6,7 +6,7 @@ use crate::adapters::persistence::postgres::PgPool;
 use crate::domain::models::{
     errors::{DomainError, DomainResult},
     game::{BonusProgress, GameRound},
-    mpesa::{MpesaTransaction, TransactionStatus},
+    mpesa::{MpesaAccountBalanceQuery, MpesaTransaction, TransactionStatus, UnmatchedC2bDeposit},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
 };
@@ -374,7 +374,7 @@ impl WalletRepository for PgWalletRepository {
         let row = sqlx::query(
             r#"SELECT COALESCE(SUM(l.amount_minor), 0) as total FROM wallet_ledger l
                JOIN wallets w ON l.wallet_id = w.id
-               WHERE w.user_id = $1 AND l.entry_type = 'deposit'
+               WHERE w.user_id = $1 AND l.entry_type IN ('deposit', 'c2b_manual')
                AND l.created_at >= CURRENT_DATE"#,
         )
         .bind(user_id)
@@ -386,12 +386,6 @@ impl WalletRepository for PgWalletRepository {
     }
 
     async fn get_today_withdrawals(&self, user_id: Uuid) -> DomainResult<i64> {
-        // Debits are stored negative, reversal credits positive, so
-        // -SUM(...) over both types nets out anything that was reversed
-        // the same day. (Edge case: a reversal that lands after midnight
-        // for a withdrawal initiated the day before will make that later
-        // day's total look artificially low by that amount -- acceptable
-        // since it only ever makes the limit *more* permissive, never less.)
         let row = sqlx::query(
             r#"SELECT COALESCE(-SUM(l.amount_minor), 0) as total FROM wallet_ledger l
                JOIN wallets w ON l.wallet_id = w.id
@@ -682,11 +676,13 @@ impl MpesaRepository for PgMpesaRepository {
     async fn create_transaction(&self, tx: &MpesaTransaction) -> DomainResult<MpesaTransaction> {
         let result = sqlx::query_as(
             r#"INSERT INTO mpesa_transactions (id, user_id, direction, checkout_request_id,
-               merchant_request_id, amount_minor, phone_number, status)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               merchant_request_id, amount_minor, phone_number, status, c2b_bill_ref_number,
+               originator_conversation_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                RETURNING id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
-               result_desc, raw_callback, created_at, updated_at"#,
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at"#,
         )
         .bind(tx.id)
         .bind(tx.user_id)
@@ -696,14 +692,13 @@ impl MpesaRepository for PgMpesaRepository {
         .bind(tx.amount_minor)
         .bind(&tx.phone_number)
         .bind(tx.status.to_string())
+        .bind(tx.c2b_bill_ref_number.clone())
+        .bind(tx.originator_conversation_id.clone())
         .fetch_one(&self.pool)
         .await;
 
         match result {
             Ok(t) => Ok(t),
-            // A concurrent request already holds this user's one allowed
-            // pending withdrawal -- surface that distinctly rather than a
-            // generic 500.
             Err(sqlx::Error::Database(db_err))
                 if db_err.kind() == sqlx::error::ErrorKind::UniqueViolation
                     && db_err.constraint() == Some("idx_one_pending_withdrawal_per_user") =>
@@ -721,7 +716,8 @@ impl MpesaRepository for PgMpesaRepository {
         let t: Option<MpesaTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
-               result_desc, raw_callback, created_at, updated_at
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at
                FROM mpesa_transactions WHERE checkout_request_id = $1"#,
         )
         .bind(checkout_id)
@@ -745,7 +741,8 @@ impl MpesaRepository for PgMpesaRepository {
                WHERE id = $6
                RETURNING id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
-               result_desc, raw_callback, created_at, updated_at"#,
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at"#,
         )
         .bind(status.to_string())
         .bind(receipt)
@@ -772,7 +769,8 @@ impl MpesaRepository for PgMpesaRepository {
                WHERE id = $3
                RETURNING id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
-               result_desc, raw_callback, created_at, updated_at"#,
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at"#,
         )
         .bind(checkout_request_id)
         .bind(merchant_request_id)
@@ -786,13 +784,199 @@ impl MpesaRepository for PgMpesaRepository {
         let rows: Vec<MpesaTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, direction, checkout_request_id, merchant_request_id,
                amount_minor, phone_number, status, mpesa_receipt_number, result_code,
-               result_desc, raw_callback, created_at, updated_at
-               FROM mpesa_transactions WHERE user_id = $1 AND status = 'pending'
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at
+               FROM mpesa_transactions WHERE user_id = $1 AND status IN ('pending', 'submitted')
                ORDER BY created_at DESC"#,
         )
         .bind(user_id)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows)
+    }
+
+    // --- B2C v3 Idempotency ---
+
+    async fn get_or_create_originator_conversation_id(&self, tx_id: Uuid) -> DomainResult<String> {
+        let candidate_id = Uuid::new_v4().to_string();
+
+        let (id,): (String,) = sqlx::query_as(
+            r#"
+            UPDATE mpesa_transactions
+            SET originator_conversation_id = COALESCE(originator_conversation_id, $2)
+            WHERE id = $1
+            RETURNING originator_conversation_id
+            "#,
+        )
+        .bind(tx_id)
+        .bind(&candidate_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(id)
+    }
+
+    async fn mark_transaction_submitted(
+        &self,
+        tx_id: Uuid,
+        originator_conversation_id: &str,
+    ) -> DomainResult<()> {
+        sqlx::query(
+            r#"
+            UPDATE mpesa_transactions
+            SET status = 'submitted', updated_at = now()
+            WHERE id = $1 AND originator_conversation_id = $2
+            "#,
+        )
+        .bind(tx_id)
+        .bind(originator_conversation_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn find_by_originator_conversation_id(
+        &self,
+        originator_id: &str,
+    ) -> DomainResult<Option<MpesaTransaction>> {
+        let t: Option<MpesaTransaction> = sqlx::query_as(
+            r#"SELECT id, user_id, direction, checkout_request_id, merchant_request_id,
+               amount_minor, phone_number, status, mpesa_receipt_number, result_code,
+               result_desc, originator_conversation_id, c2b_bill_ref_number, raw_callback,
+               created_at, updated_at
+               FROM mpesa_transactions WHERE originator_conversation_id = $1"#,
+        )
+        .bind(originator_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(t)
+    }
+
+    // --- Account Balance API ---
+
+    async fn create_account_balance_query(&self, originator_id: &str) -> DomainResult<MpesaAccountBalanceQuery> {
+        let q: MpesaAccountBalanceQuery = sqlx::query_as(
+            r#"INSERT INTO mpesa_account_balance_queries (originator_conversation_id)
+               VALUES ($1)
+               RETURNING id, originator_conversation_id, status, working_account_minor,
+                         utility_account_minor, merchant_account_minor, charges_paid_account_minor,
+                         raw_callback, created_at, updated_at"#,
+        )
+        .bind(originator_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(q)
+    }
+
+    async fn update_account_balance_result(
+        &self,
+        originator_id: &str,
+        status: &str,
+        working: Option<i64>,
+        utility: Option<i64>,
+        merchant: Option<i64>,
+        charges: Option<i64>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<MpesaAccountBalanceQuery> {
+        let q: MpesaAccountBalanceQuery = sqlx::query_as(
+            r#"UPDATE mpesa_account_balance_queries
+               SET status = $2, working_account_minor = $3, utility_account_minor = $4,
+                   merchant_account_minor = $5, charges_paid_account_minor = $6,
+                   raw_callback = $7, updated_at = now()
+               WHERE originator_conversation_id = $1
+               RETURNING id, originator_conversation_id, status, working_account_minor,
+                         utility_account_minor, merchant_account_minor, charges_paid_account_minor,
+                         raw_callback, created_at, updated_at"#,
+        )
+        .bind(originator_id)
+        .bind(status)
+        .bind(working)
+        .bind(utility)
+        .bind(merchant)
+        .bind(charges)
+        .bind(raw_callback)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(q)
+    }
+
+    async fn get_latest_account_balance(&self) -> DomainResult<Option<MpesaAccountBalanceQuery>> {
+        let q: Option<MpesaAccountBalanceQuery> = sqlx::query_as(
+            r#"SELECT id, originator_conversation_id, status, working_account_minor,
+                      utility_account_minor, merchant_account_minor, charges_paid_account_minor,
+                      raw_callback, created_at, updated_at
+               FROM mpesa_account_balance_queries
+               WHERE status = 'success'
+               ORDER BY created_at DESC LIMIT 1"#,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(q)
+    }
+
+    // --- Unmatched C2B Deposits ---
+
+    async fn record_unmatched_c2b_deposit(
+        &self,
+        mpesa_receipt_number: &str,
+        bill_ref_number: &str,
+        masked_msisdn: &str,
+        amount_minor: i64,
+        raw_callback: serde_json::Value,
+    ) -> DomainResult<bool> {
+        let inserted: Option<(Uuid,)> = sqlx::query_as(
+            r#"
+            INSERT INTO mpesa_unmatched_c2b_deposits
+                (id, mpesa_receipt_number, bill_ref_number, masked_msisdn, amount_minor, raw_callback)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (mpesa_receipt_number) DO NOTHING
+            RETURNING id
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(mpesa_receipt_number)
+        .bind(bill_ref_number)
+        .bind(masked_msisdn)
+        .bind(amount_minor)
+        .bind(raw_callback)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(inserted.is_some())
+    }
+
+    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedC2bDeposit>> {
+        let rows: Vec<UnmatchedC2bDeposit> = sqlx::query_as(
+            r#"SELECT id, mpesa_receipt_number, bill_ref_number, masked_msisdn,
+                      amount_minor, raw_callback, status, resolved_user_id, resolved_at, created_at
+               FROM mpesa_unmatched_c2b_deposits
+               WHERE status = 'unresolved'
+               ORDER BY created_at DESC
+               LIMIT $1 OFFSET $2"#,
+        )
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    async fn resolve_unmatched_deposit(
+        &self,
+        deposit_id: Uuid,
+        user_id: Uuid,
+    ) -> DomainResult<UnmatchedC2bDeposit> {
+        let row: UnmatchedC2bDeposit = sqlx::query_as(
+            r#"UPDATE mpesa_unmatched_c2b_deposits
+               SET status = 'resolved', resolved_user_id = $1, resolved_at = now()
+               WHERE id = $2 AND status = 'unresolved'
+               RETURNING id, mpesa_receipt_number, bill_ref_number, masked_msisdn,
+                         amount_minor, raw_callback, status, resolved_user_id, resolved_at, created_at"#,
+        )
+        .bind(user_id)
+        .bind(deposit_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row)
     }
 }

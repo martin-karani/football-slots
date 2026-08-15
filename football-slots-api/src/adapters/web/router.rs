@@ -26,11 +26,7 @@ pub struct AppState {
     pub wallet_service: Arc<WalletServiceImpl>,
     pub mpesa_service: Arc<MpesaServiceImpl>,
     pub bonus_service: Arc<BonusServiceImpl>,
-    /// Kept for the seed-hashing helpers still used elsewhere; the weighted
-    /// draw itself (spin + verify) now calls `WeightedRng` directly rather
-    /// than going through this trait object.
     pub rng: Arc<ProvablyFairRng>,
-    /// In-memory rate limiter for M-Pesa STK push requests.
     pub rate_limiter: Arc<RateLimiter>,
     pub config: Config,
 }
@@ -67,13 +63,13 @@ pub fn create_router(
         .route("/verify-otp", post(auth::verify_otp))
         .with_state(state.clone());
 
-    // Auth routes (authenticated) – e.g. /auth/me
+    // Auth routes (authenticated)
     let auth_protected_routes = Router::new()
         .route("/me", get(auth::me))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // Game routes (authenticated) – actions tied to a specific player
+    // Game routes (authenticated)
     let game_routes = Router::new()
         .route("/spin", post(game::spin))
         .route("/history", get(game::history))
@@ -81,11 +77,7 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // Game routes (PUBLIC, no auth) – provably-fair auditing must not
-    // require an account. /verify lets anyone (including a player who
-    // logged out, or a third-party auditor) recompute a spin from its
-    // revealed seeds; /paytable publicly discloses the live multipliers
-    // and win probabilities behind that computation.
+    // Game routes (PUBLIC) — provably-fair auditing
     let game_public_routes = Router::new()
         .route("/verify", post(game::verify))
         .route("/paytable", get(game::paytable))
@@ -100,7 +92,6 @@ pub fn create_router(
         .with_state(state.clone());
 
     // M-Pesa routes (authenticated): deposit & withdrawal initiation.
-    // These require JWT auth — users call these from the app.
     let mpesa_auth_routes = Router::new()
         .route("/deposit", post(mpesa::initiate_deposit))
         .route("/withdraw", post(mpesa::initiate_withdrawal))
@@ -110,9 +101,15 @@ pub fn create_router(
     // M-Pesa callback routes (public webhooks): Safaricom posts to these.
     // Protected by IP whitelist middleware — only Safaricom IPs allowed in prod.
     let mpesa_callback_routes = Router::new()
-        .route("/callback", post(mpesa::handle_callback))
-        .route("/b2c/result", post(mpesa::handle_b2c_result))
-        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout))
+        .route("/callback", post(mpesa::handle_callback))                        // STK Push
+        .route("/b2c/result", post(mpesa::handle_b2c_result))                    // B2C withdrawal result
+        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout))                  // B2C withdrawal timeout
+        .route("/c2b/confirmation", post(mpesa::handle_c2b_confirmation))        // C2B manual deposit
+        .route("/c2b/validation", post(mpesa::handle_c2b_validation))            // C2B validation
+        .route("/accountbalance/result", post(mpesa::handle_account_balance_result))  // Account balance result
+        .route("/accountbalance/timeout", post(mpesa::handle_account_balance_timeout)) // Account balance timeout
+        .route("/b2b/result", post(mpesa::handle_b2b_result))                    // B2B payment result
+        .route("/b2b/timeout", post(mpesa::handle_b2b_timeout))                  // B2B payment timeout
         .route_layer(axum_mw::from_fn_with_state(
             state.clone(),
             ip_whitelist_middleware,
@@ -121,12 +118,20 @@ pub fn create_router(
 
     let mpesa_routes = mpesa_auth_routes.merge(mpesa_callback_routes);
 
-    // Admin routes (authenticated) – wallet investigation & reconciliation
+    // Admin routes (authenticated) — wallet investigation, reconciliation, M-Pesa ops
     let admin_routes = Router::new()
         .route("/wallets/reconcile", post(admin::reconcile_wallets))
         .route("/wallets/:user_id/ledger", get(admin::get_user_ledger))
         .route("/wallets/:wallet_id/freeze", post(admin::freeze_wallet))
         .route("/wallets/:wallet_id/unfreeze", post(admin::unfreeze_wallet))
+        // M-Pesa Admin operations
+        .route("/mpesa/account-balance/check", post(mpesa::trigger_account_balance_check))
+        .route("/mpesa/account-balance/latest", get(mpesa::get_latest_account_balance))
+        .route("/mpesa/reconcile", post(mpesa::trigger_reconciliation))
+        .route("/mpesa/unmatched-deposits", get(mpesa::list_unmatched_deposits))
+        .route("/mpesa/c2b/register", post(mpesa::register_c2b_urls))
+        .route("/mpesa/pull/register", post(mpesa::register_pull_transactions))
+        .route("/mpesa/b2b/pay", post(mpesa::initiate_business_pay_bill))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 

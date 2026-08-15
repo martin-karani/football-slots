@@ -73,6 +73,12 @@ pub enum DomainError {
 
     #[error("wallet reconciliation failed: balance {balance_minor} does not match ledger sum {ledger_sum}")]
     WalletReconciliationMismatch { balance_minor: i64, ledger_sum: i64 },
+
+    #[error("conflict: {0}")]
+    Conflict(String),
+
+    #[error("validation error: {0}")]
+    Validation(String),
 }
 
 pub type DomainResult<T> = Result<T, DomainError>;
