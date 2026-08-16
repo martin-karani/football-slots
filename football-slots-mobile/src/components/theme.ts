@@ -1,61 +1,155 @@
 /**
- * Shared design tokens — keeps all screens visually consistent.
- * Colors derived from existing Wallet / Settings palette.
+ * Shared design tokens — premium dark sports/fintech aesthetic.
+ * Colors and typography derived from the Football Slots Redesign reference.
  */
+
+// ─── Colors ───────────────────────────────────────────────
+const background = "#070A12";
+const surface = "#0C1426";
+const surfaceElevated = "#101830";
+const card = "#131C33";
+const cardDark = "#101A32";
+const border = "#1A2744";
+const borderMuted = "rgba(148, 163, 208, 0.12)";
+const borderLight = "rgba(148, 163, 208, 0.22)";
+
+const textPrimary = "#F5F8FF";
+const textSecondary = "#C7D2EA";
+const textMuted = "#93A0BE";
+const textDim = "#6B7793";
+const textDisabled = "#4B5468";
+
+const gold = "#E7C877";
+const goldLight = "#F3D98B";
+const goldDark = "#C9A24B";
+
+const blue = "#4C8DFF";
+const blueDark = "#2A5CFF";
+const blueLight = "#7FB0FF";
+
+const success = "#2FD48A";
+const successLight = "#34E39B";
+const error = "#FF5468";
+const warning = "#F3D98B";
+
+// ─── Wallet mode colors ──────────────────────────────────
+const realAccent = gold;
+const realLight = "rgba(231, 200, 119, 0.14)";
+const realBorder = "rgba(231, 200, 119, 0.35)";
+
+const demoAccent = success;
+const demoLight = "rgba(47, 212, 138, 0.14)";
+const demoBorder = "rgba(47, 212, 138, 0.35)";
+
+const bonusAccent = "#C4A2FF";
+const bonusLight = "rgba(196, 162, 255, 0.14)";
+const bonusBorder = "rgba(196, 162, 255, 0.35)";
+
+// ─── Glass / translucent ─────────────────────────────────
+const glassLight = "rgba(255, 255, 255, 0.04)";
+const glassMedium = "rgba(148, 163, 208, 0.08)";
+const glassDark = "rgba(0, 0, 0, 0.5)";
+
+// ─── Status backgrounds ──────────────────────────────────
+const successBg = "rgba(47, 212, 138, 0.14)";
+const errorBg = "rgba(255, 84, 104, 0.14)";
+const warningBg = "rgba(231, 200, 119, 0.16)";
+const infoBg = "rgba(76, 141, 255, 0.14)";
+
 export const theme = {
   colors: {
-    /** Page background */
-    background: "#1a0d3d",
-    /** Card / surface background */
-    surface: "#250d50",
-    /** Slightly lighter card surface */
-    surfaceAlt: "#2d1b4e",
-    /** Section-group background (translucent) */
-    group: "rgba(255,255,255,0.05)",
-    
-    /** Primary accents */
-    accent: "#FFD700",
-    demo: "#22c55e",       // Green for Demo Mode
-    demoLight: "rgba(34,197,94,0.15)", // Translucent Demo
-    real: "#FFD700",      // Gold for Real Mode
-    realLight: "rgba(255,215,0,0.15)", // Translucent Real
-    
-    /** Border colours */
-    border: "#3d1a6e",
-    borderMuted: "#3d2b5e",
-    borderHighlight: "rgba(255,255,255,0.15)",
-    
-    /** Translucent elements for glassmorphism */
-    glassLight: "rgba(255,255,255,0.06)",
-    glassMedium: "rgba(255,255,255,0.1)",
-    glassDark: "rgba(0,0,0,0.25)",
-    
-    /** Text */
-    textPrimary: "#fff",
-    textMuted: "#aaa",
-    textDim: "#666",
-    
-    /** Status */
-    positive: "#4CAF50",
-    positiveLight: "rgba(76,175,80,0.15)",
-    negative: "#dc3545",
-    negativeLight: "rgba(220,53,69,0.15)",
-    danger: "#ff4d4d",
+    // Backgrounds
+    background,
+    surface,
+    surfaceElevated,
+    card,
+    cardDark,
+
+    // Borders
+    border,
+    borderMuted,
+    borderLight,
+    borderHighlight: "rgba(255, 255, 255, 0.1)",
+
+    // Text
+    textPrimary,
+    textSecondary,
+    textMuted,
+    textDim,
+    textDisabled,
+
+    // Primary accents
+    gold,
+    goldLight,
+    goldDark,
+    blue,
+    blueDark,
+    blueLight,
+
+    // Status
+    success,
+    successLight,
+    error,
+    warning,
+
+    // Status backgrounds
+    successBg,
+    errorBg,
+    warningBg,
+    infoBg,
+
+    // Wallet modes
+    realAccent,
+    realLight,
+    realBorder,
+    demoAccent,
+    demoLight,
+    demoBorder,
+    bonusAccent,
+    bonusLight,
+    bonusBorder,
+
+    // Glass
+    glassLight,
+    glassMedium,
+    glassDark,
+
+    // Legacy aliases
+    accent: gold,
+    demo: success,
+    demoLight: demoLight,
+    real: gold,
+    realLight: realLight,
+    positive: success,
+    positiveLight: successBg,
+    negative: error,
+    negativeLight: errorBg,
+    danger: error,
   },
+
+  // ─── Radius scale ──────────────────────────────────────
   radius: {
+    xs: 6,
     sm: 8,
     md: 12,
     lg: 16,
     xl: 20,
+    xl2: 28,
     full: 999,
   },
+
+  // ─── Spacing scale ─────────────────────────────────────
   spacing: {
     xs: 4,
     sm: 8,
     md: 16,
     lg: 24,
     xl: 32,
+    xl2: 40,
+    xl3: 48,
   },
+
+  // ─── Shadows ───────────────────────────────────────────
   shadows: {
     sm: {
       shadowColor: "#000",
@@ -66,40 +160,74 @@ export const theme = {
     },
     md: {
       shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
+      shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3,
-      shadowRadius: 8,
+      shadowRadius: 10,
       elevation: 5,
     },
-    glowDemo: {
-      shadowColor: "#22c55e",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.4,
-      shadowRadius: 10,
-      elevation: 6,
+    lg: {
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.45,
+      shadowRadius: 20,
+      elevation: 8,
     },
-    glowReal: {
-      shadowColor: "#FFD700",
-      shadowOffset: { width: 0, height: 0 },
+    glowGold: {
+      shadowColor: gold,
+      shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.4,
-      shadowRadius: 10,
-      elevation: 6,
-    }
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    glowBlue: {
+      shadowColor: blue,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    glowSuccess: {
+      shadowColor: success,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      elevation: 8,
+    },
   },
+
+  // ─── Fonts ─────────────────────────────────────────────
   fonts: {
-    /** Marquee & headers — chunky, athletic, industrial/arcade feel */
-    marquee: 'RussoOne-Regular',
+    // Headings, branding
+    heading: "RussoOne-Regular",
+    headingBold: "RussoOne-Regular",
 
-    /** Digital scoreboard & odds — modern stadium display look */
-    digital: 'ChakraPetch-BoldItalic',
-    /** Less aggressive digital (non-italic numbers) */
-    digitalRegular: 'ChakraPetch-Bold',
-    /** Regular digital for body-like usage */
-    digitalBody: 'ChakraPetch-Regular',
+    // Numbers, monetary values, multipliers
+    numbers: "ChakraPetch-Bold",
+    numbersItalic: "ChakraPetch-BoldItalic",
+    numbersRegular: "ChakraPetch-Regular",
 
-    /** General UI, menus, paytable — geometric sports/tech sans */
-    body: 'Exo2-Regular',
-    bodyBold: 'Exo2-SemiBold',
-    button: 'Exo2-Bold',
+    // Body text, labels, navigation
+    body: "Exo2-Regular",
+    bodyMedium: "Exo2-SemiBold",
+    bodyBold: "Exo2-Bold",
+
+    // Legacy aliases
+    marquee: "RussoOne-Regular",
+    digital: "ChakraPetch-BoldItalic",
+    digitalRegular: "ChakraPetch-Bold",
+    digitalBody: "ChakraPetch-Regular",
+    button: "Exo2-Bold",
+  },
+
+  // ─── Typography sizes ──────────────────────────────────
+  typography: {
+    xs: { size: 10, line: 14 },
+    sm: { size: 12, line: 16 },
+    md: { size: 14, line: 20 },
+    lg: { size: 16, line: 24 },
+    xl: { size: 20, line: 28 },
+    xl2: { size: 24, line: 32 },
+    xl3: { size: 32, line: 40 },
+    xl4: { size: 40, line: 48 },
   },
 };

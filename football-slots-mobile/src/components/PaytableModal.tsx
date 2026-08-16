@@ -9,22 +9,56 @@ import {
 } from 'react-native';
 import { SYMBOLS } from '../types';
 import { gameApi } from '../api/client';
-import { PaytableRow } from '../types';
+import { PaytableRow as PaytableRowType } from '../types';
 import { theme } from './theme';
+import { PaytableRow } from './PaytableRow';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 
 interface Props {
   visible: boolean;
   onClose: () => void;
 }
 
+/** Tier legend item */
+function TierLegend({
+  label,
+  bg,
+  fg,
+}: {
+  label: string;
+  bg: string;
+  fg: string;
+}) {
+  return (
+    <View style={[legendStyles.pill, { backgroundColor: bg }]}>
+      <Text style={[legendStyles.pillText, { color: fg }]}>{label}</Text>
+    </View>
+  );
+}
+
+const legendStyles = StyleSheet.create({
+  pill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  pillText: {
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+  },
+});
+
 export function PaytableModal({ visible, onClose }: Props) {
-  const [rows, setRows] = useState<PaytableRow[]>([]);
+  const [rows, setRows] = useState<PaytableRowType[]>([]);
 
   useEffect(() => {
     if (!visible) return;
-    gameApi.paytable()
+    gameApi
+      .paytable()
       .then((res) => setRows(res.data.symbols))
-      .catch(() => setRows([])); // keep the modal usable if the fetch fails
+      .catch(() => setRows([]));
   }, [visible]);
 
   return (
@@ -35,114 +69,110 @@ export function PaytableModal({ visible, onClose }: Props) {
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        {/* Backdrop touch dismiss */}
         <TouchableOpacity
           style={styles.backdropTouchable}
           activeOpacity={1}
           onPress={onClose}
         />
         <View style={styles.modal}>
-          {/* Header */}
+          {/* ── Header ── */}
           <View style={styles.header}>
-            <Text style={styles.title}>⚽ HOW TO PLAY</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeText}>✕</Text>
+            <View>
+              <Text style={styles.title}>Paytable</Text>
+              <View style={styles.rtpRow}>
+                <Text style={styles.subtitle}>Return to player</Text>
+                <View style={styles.rtpPill}>
+                  <Text style={styles.rtpValue}>95.24%</Text>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={theme.colors.textMuted} />
             </TouchableOpacity>
           </View>
 
+          {/* ── Tier Legend ── */}
+          <View style={styles.tierRow}>
+            <TierLegend label="COMMON" bg="rgba(148,163,208,0.14)" fg={theme.colors.textMuted} />
+            <TierLegend label="MID" bg="rgba(76,141,255,0.14)" fg={theme.colors.blue} />
+            <TierLegend label="RARE" bg="rgba(196,162,255,0.14)" fg={theme.colors.bonusAccent} />
+            <TierLegend label="JACKPOT" bg="rgba(231,200,119,0.18)" fg={theme.colors.gold} />
+          </View>
+
           <ScrollView
-            showsVerticalScrollIndicator={true}
+            showsVerticalScrollIndicator={false}
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
-            bounces={true}
+            bounces
           >
-            {/* Rules */}
+            {/* ── Symbol Table ── */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>📋 RULES</Text>
-              <Text style={styles.rule}>
-                1. Tap clubs below the wheel to place bets
-              </Text>
-              <Text style={styles.rule}>
-                2. Press GO to spin the wheel
-              </Text>
-              <Text style={styles.rule}>
-                3. If the wheel lands on a club you bet on, you win your bet × multiplier
-              </Text>
-            </View>
-
-            {/* Symbol Table */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🏆 SYMBOLS & PAYOUTS</Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="trophy-outline" size={15} color={theme.colors.gold} />
+                <Text style={styles.sectionTitle}>Symbols & Payouts</Text>
+              </View>
               {SYMBOLS.map((sym) => {
                 const row = rows.find((r) => r.symbol === sym.key);
                 const multiplier = row ? row.multiplier : sym.multiplier;
                 const probability = row ? (row.probability * 100).toFixed(2) : null;
                 return (
-                  <View key={sym.key} style={styles.symbolRow}>
-                    <View style={styles.symbolIconWrap}>
-                      {sym.icon && <sym.icon width={28} height={28} />}
-                    </View>
-                    <View style={styles.symbolInfo}>
-                      <Text style={styles.symbolName}>{sym.name}</Text>
-                      {probability && (
-                        <Text style={styles.symbolTier}>
-                          {probability}% chance
-                        </Text>
-                      )}
-                    </View>
-                    <View style={[styles.multiplierBadge, { backgroundColor: sym.color }]}>
-                      <Text style={styles.multiplierText}>×{multiplier}</Text>
-                    </View>
-                  </View>
+                  <PaytableRow
+                    key={sym.key}
+                    name={sym.name}
+                    tier={sym.tier.toUpperCase()}
+                    probability={probability ? `${probability}%` : '—'}
+                    multiplier={multiplier}
+                    color={sym.color}
+                    icon={sym.icon}
+                  />
                 );
               })}
             </View>
 
-            {/* Betting Info */}
+            {/* ── Rules ── */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>💡 BETTING TIPS</Text>
-              <Text style={styles.tip}>
-                • Bet on multiple clubs to increase your chances
-              </Text>
-              <Text style={styles.tip}>
-                • Common clubs (×5) hit more often but pay less
-              </Text>
-              <Text style={styles.tip}>
-                • The UCL Trophy (×100) is rare but pays big
-              </Text>
-              <Text style={styles.tip}>
-                • Long-press a club to remove a bet
-              </Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="document-text-outline" size={15} color={theme.colors.blue} />
+                <Text style={styles.sectionTitle}>How to Play</Text>
+              </View>
+              {[
+                "Tap clubs below the wheel to place bets",
+                "Press GO to spin the wheel",
+                "If the wheel lands on a club you bet on, you win your bet × multiplier",
+                "Long-press a club chip to remove a bet",
+              ].map((rule, i) => (
+                <Text key={i} style={styles.rule}>
+                  {i + 1}. {rule}
+                </Text>
+              ))}
             </View>
 
-            {/* Fairness */}
+            {/* ── Tips ── */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🔒 PROVABLY FAIR</Text>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="bulb-outline" size={15} color={theme.colors.warning} />
+                <Text style={styles.sectionTitle}>Tips</Text>
+              </View>
+              {[
+                "Bet on multiple clubs to increase your chances",
+                "Common clubs (×5) hit more often but pay less",
+                "The UCL Trophy (×100) is rare but pays big",
+                "Bonus meter fills with every real KES spin",
+              ].map((tip, i) => (
+                <Text key={i} style={styles.tip}>
+                  • {tip}
+                </Text>
+              ))}
+            </View>
+
+            {/* ── Provably Fair ── */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Ionicons name="shield-checkmark-outline" size={15} color={theme.colors.success} />
+                <Text style={styles.sectionTitle}>Provably Fair</Text>
+              </View>
               <Text style={styles.tip}>
                 Every spin uses HMAC-SHA256 with a server seed and your client seed. Results can be independently verified.
-              </Text>
-            </View>
-
-            {/* Bonus Meter */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>🎁 BONUS METER</Text>
-              <Text style={styles.tip}>
-                • Real KES spins fill the Match Bonus meter
-              </Text>
-              <Text style={styles.tip}>
-                • When full, you receive bonus credits
-              </Text>
-              <Text style={styles.tip}>
-                • Bonus credits require 5× wagering before conversion
-              </Text>
-              <Text style={styles.tip}>
-                • Use Bonus Mode to complete wagering
-              </Text>
-              <Text style={styles.tip}>
-                • Remaining bonus converts to real KES after wagering
-              </Text>
-              <Text style={styles.tip}>
-                • If bonus reaches zero before wagering completes, it is lost
               </Text>
             </View>
           </ScrollView>
@@ -152,15 +182,13 @@ export function PaytableModal({ visible, onClose }: Props) {
   );
 }
 
-const { colors, radius, spacing, shadows } = theme;
+const { colors, radius, spacing, fonts } = theme;
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
+    backgroundColor: 'rgba(0,0,0,0.78)',
+    justifyContent: 'flex-end',
   },
   backdropTouchable: {
     position: 'absolute',
@@ -170,113 +198,104 @@ const styles = StyleSheet.create({
     right: 0,
   },
   modal: {
-    backgroundColor: colors.surface,
-    width: '92%',
-    maxHeight: '85%',
-    borderRadius: radius.xl,
-    padding: spacing.lg,
+    backgroundColor: colors.surfaceElevated,
+    width: '100%',
+    maxHeight: '92%',
+    borderTopLeftRadius: radius.xl2,
+    borderTopRightRadius: radius.xl2,
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: 0,
     borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.35)',
-    ...shadows.md,
+    borderColor: colors.borderMuted,
+    borderBottomWidth: 0,
   },
+
+  /* Header */
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
   },
   title: {
-    fontFamily: theme.fonts.marquee,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: colors.accent,
+    fontFamily: fonts.heading,
+    fontSize: 24,
+    color: colors.textPrimary,
+    letterSpacing: 0.5,
+  },
+  rtpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  subtitle: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.textMuted,
+  },
+  rtpPill: {
+    backgroundColor: colors.successBg,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.full,
+  },
+  rtpValue: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 11,
+    color: colors.success,
+    fontWeight: '700',
   },
   closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.full,
-    backgroundColor: colors.glassLight,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.glassMedium,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  closeText: {
-    fontFamily: theme.fonts.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  scroll: {
-    flexGrow: 1,
-    flexShrink: 1,
-  },
-  scrollContent: {
-    paddingBottom: spacing.md,
-  },
-  section: {
+
+  /* Tier legend row */
+  tierRow: {
+    flexDirection: 'row',
+    gap: 6,
     marginBottom: spacing.md,
+    flexWrap: 'wrap',
   },
-  sectionTitle: {
-    fontFamily: theme.fonts.marquee,
-    color: colors.accent,
-    fontSize: 14,
-    fontWeight: 'bold',
+
+  /* Scroll */
+  scroll: { flexGrow: 1, flexShrink: 1 },
+  scrollContent: { paddingBottom: spacing.xl2 },
+
+  /* Sections */
+  section: { marginBottom: spacing.md },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
     marginBottom: spacing.sm,
   },
+  sectionTitle: {
+    fontFamily: fonts.bodyMedium,
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '700',
+  },
   rule: {
-    fontFamily: theme.fonts.body,
+    fontFamily: fonts.body,
     color: colors.textMuted,
     fontSize: 13,
     lineHeight: 20,
     marginBottom: 4,
-  },
-  symbolRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: 6,
-    borderWidth: 1,
-    borderColor: colors.borderMuted,
-  },
-  symbolIconWrap: {
-    width: 36,
-    height: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  symbolInfo: {
-    flex: 1,
-  },
-  symbolName: {
-    fontFamily: theme.fonts.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  symbolTier: {
-    fontFamily: theme.fonts.body,
-    color: colors.textDim,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  multiplierBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
-  },
-  multiplierText: {
-    fontFamily: theme.fonts.digitalRegular,
-    color: colors.surface,
-    fontSize: 14,
-    fontWeight: 'bold',
+    paddingLeft: 4,
   },
   tip: {
-    fontFamily: theme.fonts.body,
+    fontFamily: fonts.body,
     color: colors.textMuted,
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 4,
+    paddingLeft: 4,
   },
 });

@@ -5,8 +5,10 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { View, Text, Animated, StyleSheet, Dimensions } from "react-native";
+import { View, Text, Animated, StyleSheet, Dimensions, StatusBar } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { theme } from "./theme";
+import { Ionicons } from "@react-native-vector-icons/ionicons";
 
 // ============================================================
 // Types
@@ -44,7 +46,7 @@ export function useToast() {
 }
 
 // ============================================================
-// Provider
+// Provider component
 // ============================================================
 
 const TOAST_DURATION = 3000;
@@ -118,70 +120,70 @@ export function ToastProvider({ children }: ToastProviderProps) {
       value={{ showToast, showSuccess, showError, showInfo, showWarning }}
     >
       {children}
-      <View style={styles.toastContainer} pointerEvents="none">
-        {toasts.map((toast, index) => {
-          const anim = animations.current.get(toast.id);
-          if (!anim) return null;
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.toastContainer} pointerEvents="none">
+          {toasts.map((toast, index) => {
+            const anim = animations.current.get(toast.id);
+            if (!anim) return null;
 
-          const translateY = anim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [-100, 0],
-          });
+            const translateY = anim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-100, 0],
+            });
 
-          return (
-            <Animated.View
-              key={toast.id}
-              style={[
-                styles.toastWrapper,
-                {
-                  transform: [{ translateY }],
-                  top: 50 + index * (60 + TOAST_GAP),
-                },
-              ]}
-            >
-              <View style={[styles.toast, styles[`toast_${toast.type}`]]}>
-                <View style={styles.toastIcon}>
-                  <Text>{typeIcon(toast.type)}</Text>
+            const iconMap: Record<ToastType, { name: any; color: string }> = {
+              success: { name: "checkmark-circle", color: theme.colors.success },
+              error: { name: "close-circle", color: theme.colors.error },
+              warning: { name: "alert-circle", color: theme.colors.warning },
+              info: { name: "information-circle", color: theme.colors.blue },
+            };
+
+            const icon = iconMap[toast.type];
+
+            return (
+              <Animated.View
+                key={toast.id}
+                style={[
+                  styles.toastWrapper,
+                  {
+                    transform: [{ translateY }],
+                    top: index * (60 + TOAST_GAP),
+                  },
+                ]}
+              >
+                <View style={[styles.toast, styles[`toast_${toast.type}`]]}>
+                  <Ionicons name={icon.name} size={20} color={icon.color} style={styles.toastIcon} />
+                  <View style={styles.toastContent}>
+                    {toast.title && (
+                      <Text style={styles.toastTitle}>{toast.title}</Text>
+                    )}
+                    <Text style={styles.toastMessage}>{toast.message}</Text>
+                  </View>
                 </View>
-                <View style={styles.toastContent}>
-                  {toast.title && (
-                    <Text style={styles.toastTitle}>{toast.title}</Text>
-                  )}
-                  <Text style={styles.toastMessage}>{toast.message}</Text>
-                </View>
-              </View>
-            </Animated.View>
-          );
-        })}
-      </View>
+              </Animated.View>
+            );
+          })}
+        </View>
+      </SafeAreaView>
     </ToastContext.Provider>
   );
-}
-
-function typeIcon(type: ToastType): string {
-  switch (type) {
-    case "success":
-      return "✅";
-    case "error":
-      return "❌";
-    case "warning":
-      return "⚠️";
-    case "info":
-      return "ℹ️";
-  }
 }
 
 // ============================================================
 // Styles
 // ============================================================
 
+const { colors, radius } = theme;
+
 const styles = StyleSheet.create({
-  toastContainer: {
+  safeArea: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: 9999,
+  },
+  toastContainer: {
     alignItems: "center",
     paddingHorizontal: 16,
   },
@@ -192,8 +194,11 @@ const styles = StyleSheet.create({
   toast: {
     flexDirection: "row",
     alignItems: "center",
-    borderRadius: 12,
+    borderRadius: radius.md,
     padding: 12,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -201,42 +206,33 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   toast_success: {
-    backgroundColor: "#1a3a1a",
-    borderWidth: 1,
-    borderColor: "#2d5a2d",
+    borderColor: "rgba(47,212,138,0.3)",
   },
   toast_error: {
-    backgroundColor: "#3a1a1a",
-    borderWidth: 1,
-    borderColor: "#5a2d2d",
+    borderColor: "rgba(255,84,104,0.3)",
   },
   toast_warning: {
-    backgroundColor: "#3a3a1a",
-    borderWidth: 1,
-    borderColor: "#5a5a2d",
+    borderColor: "rgba(243,217,139,0.3)",
   },
   toast_info: {
-    backgroundColor: "#1a2a3a",
-    borderWidth: 1,
-    borderColor: "#2d4a5a",
+    borderColor: "rgba(76,141,255,0.3)",
   },
   toastIcon: {
-    fontSize: 22,
     marginRight: 10,
   },
   toastContent: {
     flex: 1,
   },
   toastTitle: {
-    fontFamily: theme.fonts.bodyBold,
-    color: "#fff",
+    fontFamily: theme.fonts.bodyMedium,
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: "700",
     marginBottom: 2,
   },
   toastMessage: {
     fontFamily: theme.fonts.body,
-    color: "#ddd",
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 16,
   },

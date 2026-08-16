@@ -6,17 +6,25 @@ import {
   StyleSheet,
   RefreshControl,
   StatusBar,
+  TouchableOpacity,
 } from "react-native";
 import { gameApi } from "../api/client";
 import { GameRound, formatMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
 import { theme } from "../components/theme";
+import { EmptyState } from "../components/EmptyState";
+import { BetHistoryCard } from "../components/BetHistoryCard";
 
 export function HistoryScreen() {
   const [rounds, setRounds] = useState<GameRound[]>([]);
   const [_loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const isAuthenticated = useGameStore((state) => state.isAuthenticated);
+  const currency = useGameStore((state) => state.currency);
+
+  const [filter, setFilter] = useState<"real" | "demo">(
+    currency === "real" || currency === "bonus" ? "real" : "demo"
+  );
 
   const fetchHistory = async () => {
     if (!isAuthenticated) return;
@@ -48,99 +56,121 @@ export function HistoryScreen() {
     });
   };
 
-  const renderItem = ({ item, index }: { item: GameRound; index: number }) => (
-    <View style={[styles.card, item.is_win && styles.winCard]}>
-      {/* Card header */}
-      <View style={styles.cardHeader}>
-        <View style={styles.symbolWrap}>
-          <Text style={styles.symbolText}>
-            {item.result_symbol.replace(/_/g, " ")}
-          </Text>
-          <Text style={styles.multiplierText}>×{item.result_multiplier}</Text>
-        </View>
-        <View
-          style={[
-            styles.badge,
-            item.is_win ? styles.badgeWin : styles.badgeLoss,
-          ]}
-        >
-          <Text
-            style={[
-              styles.badgeText,
-              item.is_win ? styles.badgeTextWin : styles.badgeTextLoss,
-            ]}
-          >
-            {item.is_win ? "WIN" : "LOSS"}
-          </Text>
-        </View>
-      </View>
-
-      {/* Stats row */}
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Stake</Text>
-          <Text style={styles.statValue}>
-            {formatMinor(item.total_stake_minor, item.currency)}
-          </Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Payout</Text>
-          <Text style={[styles.statValue, item.is_win && styles.winValue]}>
-            {formatMinor(item.gross_payout_minor, item.currency)}
-          </Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Net</Text>
-          <Text
-            style={[
-              styles.statValue,
-              item.net_result_minor >= 0 ? styles.winValue : styles.lossValue,
-            ]}
-          >
-            {item.net_result_minor >= 0 ? "+" : ""}
-            {formatMinor(item.net_result_minor, item.currency)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Date */}
-      <Text style={styles.dateText}>{formatDate(item.created_at)}</Text>
-    </View>
-  );
-
-  const currency = useGameStore((state) => state.currency);
-  const isRealMode = currency === "real" || currency === "bonus";
-
   const activeRounds = rounds.filter((item) =>
-    isRealMode
+    filter === "real"
       ? item.currency === "real" || item.currency === "bonus"
       : item.currency === "virtual"
   );
 
+  // Summary stats
+  const totalStaked = activeRounds.reduce((s, r) => s + r.total_stake_minor, 0);
+  const totalNet = activeRounds.reduce((s, r) => s + r.net_result_minor, 0);
+  const wins = activeRounds.filter((r) => r.is_win).length;
+  const winRate =
+    activeRounds.length > 0
+      ? Math.round((wins / activeRounds.length) * 100)
+      : 0;
+
+  const clubColors: Record<string, string> = {
+    barcelona: "#003DA5",
+    real_madrid: "#7c6c3e",
+    man_city: "#6CABDD",
+    liverpool: "#C8102E",
+    paris: "#004170",
+    arsenal: "#EF0107",
+    bayern: "#DC052D",
+    ucl_trophy: "#1B3A6E",
+  };
+
+  const renderItem = ({ item }: { item: GameRound }) => {
+    const clubInfo = item.result_symbol.replace(/_/g, " ");
+    const clubName = clubInfo.charAt(0).toUpperCase() + clubInfo.slice(1);
+    const clubColor = clubColors[item.result_symbol] || theme.colors.card;
+    const netValue = item.net_result_minor;
+    const netPositive = netValue >= 0;
+
+    return (
+      <BetHistoryCard
+        clubName={clubName}
+        clubColor={clubColor}
+        multiplier={item.result_multiplier}
+        isWin={item.is_win}
+        stake={formatMinor(item.total_stake_minor, item.currency)}
+        payout={formatMinor(item.gross_payout_minor, item.currency)}
+        net={`${netPositive ? "+" : ""}${formatMinor(netValue, item.currency)}`}
+        time={formatDate(item.created_at)}
+      />
+    );
+  };
+
+  const isRealFilter = filter === "real";
+
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Bet History</Text>
+      </View>
+
+      {/* Filter Tabs */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tab, isRealFilter && styles.tabActiveReal]}
+          onPress={() => setFilter("real")}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, isRealFilter && styles.tabTextActiveReal]}>
+            REAL
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, !isRealFilter && styles.tabActiveDemo]}
+          onPress={() => setFilter("demo")}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabText, !isRealFilter && styles.tabTextActiveDemo]}>
+            DEMO
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Summary Strip */}
+      {activeRounds.length > 0 && (
+        <View style={styles.summaryStrip}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Staked</Text>
+            <Text style={styles.summaryValue}>
+              {formatMinor(totalStaked, isRealFilter ? "real" : "virtual")}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Net</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                totalNet >= 0 ? styles.summaryPositive : styles.summaryNegative,
+              ]}
+            >
+              {totalNet >= 0 ? "+" : ""}
+              {formatMinor(totalNet, isRealFilter ? "real" : "virtual")}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Win rate</Text>
+            <Text style={styles.summaryValue}>{winRate}%</Text>
+          </View>
+        </View>
+      )}
 
       <FlatList
         data={activeRounds}
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={[styles.modeBanner, !isRealMode ? styles.modeBannerDemo : styles.modeBannerReal]}>
-            <Text style={styles.modeBannerIcon}>{!isRealMode ? "🎮" : "💰"}</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.modeBannerTitle}>
-                {!isRealMode ? "DEMO Mode Bet History" : "REAL Mode Bet History"}
-              </Text>
-              <Text style={styles.modeBannerSub}>
-                {!isRealMode ? "Showing Demo Play Spins" : "Showing M-Pesa Real Money Spins"}
-              </Text>
-            </View>
-          </View>
-        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -148,112 +178,107 @@ export function HistoryScreen() {
               setRefreshing(true);
               fetchHistory();
             }}
-            tintColor={colors.accent}
+            tintColor={theme.colors.gold}
           />
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>⚽</Text>
-            <Text style={styles.emptyTitle}>No {!isRealMode ? "DEMO" : "REAL"} spins yet</Text>
-            <Text style={styles.emptyHint}>
-              Spin in {!isRealMode ? "DEMO" : "REAL"} mode to see your history here
-            </Text>
-          </View>
+          <EmptyState
+            icon="football-outline"
+            title={`No ${isRealFilter ? "REAL" : "DEMO"} spins yet`}
+            message={`Spin in ${isRealFilter ? "REAL" : "DEMO"} mode to see your history here`}
+          />
         }
       />
     </View>
   );
 }
 
-const { colors, radius, spacing, shadows } = theme;
+const { colors, radius, spacing, fonts } = theme;
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  list: { padding: spacing.md, gap: 10, paddingBottom: 40 },
 
-  card: {
-    backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.lg,
-    padding: spacing.md,
+  header: {
+    paddingHorizontal: spacing.md,
+    paddingTop: 56,
+    paddingBottom: spacing.sm,
+  },
+  headerTitle: {
+    fontFamily: fonts.heading,
+    color: colors.textPrimary,
+    fontSize: 22,
+    letterSpacing: 0.5,
+  },
+
+  /* Filter Tabs */
+  tabRow: {
+    flexDirection: "row",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: 4,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    ...shadows.sm,
   },
-  winCard: { borderColor: colors.positive },
-
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  tab: {
+    flex: 1,
     alignItems: "center",
-    marginBottom: 12,
-  },
-  symbolWrap: { flexDirection: "row", alignItems: "baseline", gap: 6 },
-  symbolText: {
-    fontFamily: theme.fonts.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 15,
-    fontWeight: "700",
-    textTransform: "capitalize",
-  },
-  multiplierText: {
-    fontFamily: theme.fonts.digitalRegular,
-    color: colors.accent,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: radius.full,
-  },
-  badgeWin: { backgroundColor: colors.positiveLight },
-  badgeLoss: { backgroundColor: colors.negativeLight },
-  badgeText: { fontFamily: theme.fonts.button, fontSize: 11, fontWeight: "700" },
-  badgeTextWin: { color: colors.positive },
-  badgeTextLoss: { color: colors.negative },
-
-  statsRow: {
-    flexDirection: "row",
-    backgroundColor: colors.glassLight,
+    paddingVertical: 9,
     borderRadius: radius.sm,
+  },
+  tabActiveReal: {
+    backgroundColor: colors.realLight,
+    borderWidth: 1,
+    borderColor: colors.realBorder,
+  },
+  tabActiveDemo: {
+    backgroundColor: colors.demoLight,
+    borderWidth: 1,
+    borderColor: colors.demoBorder,
+  },
+  tabText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    letterSpacing: 1,
+    color: colors.textDim,
+  },
+  tabTextActiveReal: { color: colors.gold },
+  tabTextActiveDemo: { color: colors.success },
+
+  /* Summary Strip */
+  summaryStrip: {
+    flexDirection: "row",
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderMuted,
     overflow: "hidden",
   },
-  statItem: { flex: 1, alignItems: "center", paddingVertical: 10 },
-  statDivider: { width: 1, backgroundColor: colors.glassMedium },
-  statLabel: { fontFamily: theme.fonts.bodyBold, color: colors.textMuted, fontSize: 10, marginBottom: 3 },
-  statValue: { fontFamily: theme.fonts.digitalRegular, color: colors.textPrimary, fontSize: 13, fontWeight: "600" },
-  winValue: { color: colors.positive },
-  lossValue: { color: colors.negative },
-
-  dateText: {
-    fontFamily: theme.fonts.body,
-    color: colors.textDim,
-    fontSize: 10,
-    marginTop: 10,
-    textAlign: "right",
-  },
-
-  empty: { alignItems: "center", paddingVertical: 80 },
-  emptyEmoji: { fontSize: 64, marginBottom: 16 },
-  emptyTitle: {
-    fontFamily: theme.fonts.bodyBold,
-    color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  emptyHint: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 13, marginTop: 6 },
-
-  modeBanner: {
-    flexDirection: "row",
+  summaryItem: {
+    flex: 1,
     alignItems: "center",
-    padding: 12,
-    borderRadius: radius.md,
-    marginBottom: 12,
-    gap: 12,
+    paddingVertical: 12,
   },
-  modeBannerDemo: { backgroundColor: colors.demoLight, borderWidth: 1, borderColor: colors.demo },
-  modeBannerReal: { backgroundColor: colors.realLight, borderWidth: 1, borderColor: colors.real },
-  modeBannerIcon: { fontSize: 24 },
-  modeBannerTitle: { fontFamily: theme.fonts.bodyBold, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
-  modeBannerSub: { fontFamily: theme.fonts.body, color: colors.textMuted, fontSize: 12 },
+  summaryDivider: {
+    width: 1,
+    backgroundColor: colors.borderMuted,
+  },
+  summaryLabel: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.textDim,
+    marginBottom: 3,
+  },
+  summaryValue: {
+    fontFamily: fonts.numbers,
+    fontSize: 14,
+    color: colors.textPrimary,
+  },
+  summaryPositive: { color: colors.success },
+  summaryNegative: { color: colors.error },
+
+  list: { paddingHorizontal: spacing.md, gap: 10, paddingBottom: 40, paddingTop: 4 },
 });

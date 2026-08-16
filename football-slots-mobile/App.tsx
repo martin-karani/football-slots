@@ -7,6 +7,7 @@ import { AppNavigation } from './src/navigation/AppNavigation';
 import { GameProvider } from './src/store/GameProvider';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
+import { theme } from './src/components/theme';
 
 // Keep the splash screen visible while we load fonts
 SplashScreen.preventAutoHideAsync();
@@ -17,7 +18,7 @@ export default function App() {
   useEffect(() => {
     async function prepare() {
       try {
-        // Pre-load arcade fonts
+        // Pre-load fonts
         await Font.loadAsync({
           'RussoOne-Regular': require('./assets/fonts/RussoOne-Regular.ttf'),
           'ChakraPetch-Bold': require('./assets/fonts/ChakraPetch-Bold.ttf'),
@@ -52,7 +53,7 @@ export default function App() {
         <NavigationContainer>
           <AppNavigation />
         </NavigationContainer>
-        <StatusBar style="light" />
+        <StatusBar style="light" backgroundColor={theme.colors.background} />
       </GameProvider>
     </SafeAreaProvider>
   );
