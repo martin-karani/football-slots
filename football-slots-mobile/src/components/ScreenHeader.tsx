@@ -25,7 +25,14 @@ export function ScreenHeader({
       {showBack ? (
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={onBack ?? (() => navigation.goBack())}
+          onPress={
+            onBack ??
+            (() =>
+              navigation.canGoBack()
+                ? navigation.goBack()
+                : navigation.navigate("Game"))
+          }
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >
           <Ionicons name="chevron-back" size={22} color={theme.colors.textPrimary} />

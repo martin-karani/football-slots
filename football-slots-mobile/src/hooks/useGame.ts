@@ -104,6 +104,7 @@ export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () =
         updateBonusFromSpin(result);
       }
       clearBets();
+      setSpinning(false);
 
       // Sync authoritative bonus state whenever the spin touched the bonus
       // system. Bonus-currency spins need it to update the wagering bar;

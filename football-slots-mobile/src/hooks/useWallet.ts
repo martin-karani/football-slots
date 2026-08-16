@@ -12,9 +12,10 @@ export function useWallet(currency?: CurrencyType) {
   const { showSuccess, showError, showInfo } = useToast();
 
   const fetchBalance = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || useGameStore.getState().isSpinning) return;
     try {
       const res = await walletApi.balance(targetCurrency);
+      if (useGameStore.getState().isSpinning) return;
       setBalance(targetCurrency, res.data.balance_minor);
     } catch (error: any) {
       if (error.response?.status !== 401) {
@@ -94,9 +95,11 @@ export function useAuthWallet() {
   const { currency, setBalance, setCurrency } = useGameStore();
 
   const fetchAllBalances = useCallback(async () => {
+    if (useGameStore.getState().isSpinning) return;
     for (const c of ["virtual", "real", "bonus"] as CurrencyType[]) {
       try {
         const res = await walletApi.balance(c);
+        if (useGameStore.getState().isSpinning) return;
         setBalance(c, res.data.balance_minor);
       } catch {
         // Skip if not authenticated

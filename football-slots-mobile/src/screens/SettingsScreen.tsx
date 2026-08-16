@@ -13,10 +13,10 @@ import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { authStorage } from "../api/client";
 import { useState, useRef, useEffect } from "react";
-import { formatMinor } from "../types";
 import { theme } from "../components/theme";
 import { SettingsRow } from "../components/SettingsRow";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /** Animated toggle switch */
 function ToggleSwitch({
@@ -42,7 +42,7 @@ function ToggleSwitch({
   });
   const bgColor = anim.interpolate({
     inputRange: [0, 1],
-    outputRange: [theme.colors.glassMedium, theme.colors.blue],
+    outputRange: ["rgba(255,255,255,0.08)", "#7a00b8"],
   });
 
   return (
@@ -58,12 +58,13 @@ function ToggleSwitch({
 
 export function SettingsScreen() {
   const navigation = useNavigation<any>();
-  const balances = useGameStore((state) => state.balances);
+  const insets = useSafeAreaInsets();
   const currency = useGameStore((state) => state.currency);
   const clearAuth = useGameStore((state) => state.clearAuth);
   const phoneNumber = useGameStore((state) => state.phoneNumber);
   const soundEnabled = useGameStore((state) => state.soundEnabled);
   const setSoundEnabled = useGameStore((state) => state.setSoundEnabled);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const kycStatus = useGameStore((state) => state.kycStatus);
   const { topupVirtual } = useWallet();
 
@@ -90,18 +91,27 @@ export function SettingsScreen() {
 
   const kycBadgeStyle =
     kycStatus === "verified"
-      ? { bg: theme.colors.successBg, fg: theme.colors.success, label: "VERIFIED" }
+      ? { bg: "rgba(34,197,94,0.18)", fg: "#22c55e", label: "VERIFIED" }
       : kycStatus === "pending"
-      ? { bg: theme.colors.warningBg, fg: theme.colors.warning, label: "PENDING" }
-      : { bg: theme.colors.errorBg, fg: theme.colors.error, label: "UNVERIFIED" };
+      ? { bg: "rgba(255,215,0,0.14)", fg: "#FFD700", label: "PENDING" }
+      : { bg: "rgba(255,102,102,0.14)", fg: "#ff6666", label: "UNVERIFIED" };
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.surface} />
+      <StatusBar barStyle="light-content" backgroundColor="#5c0090" />
 
-      {/* Page header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Account</Text>
+      {/* ── Marquee Header ── */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Game"))}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.85)" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>PROFILE</Text>
+        <View style={styles.backBtn} />{/* spacer to centre title */}
       </View>
 
       <ScrollView
@@ -111,12 +121,10 @@ export function SettingsScreen() {
       >
         {/* ── Avatar / Profile card ── */}
         <View style={styles.profileCard}>
-          {/* Gradient-style avatar circle */}
           <View style={styles.avatarOuter}>
             <View style={styles.avatarInner}>
               <Text style={styles.avatarInitials}>{initials}</Text>
             </View>
-            {/* Verified tick */}
             {kycStatus === "verified" && (
               <View style={styles.verifiedBadge}>
                 <Ionicons name="checkmark" size={11} color="#fff" />
@@ -135,80 +143,23 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* ── Balance panel ── */}
-        <View
-          style={[
-            styles.balancePanel,
-            isReal ? styles.balancePanelReal : styles.balancePanelDemo,
-          ]}
-        >
-          <View style={styles.balanceRow}>
-            <View>
-              <Text style={styles.balancePanelLabel}>
-                {isReal ? "REAL BALANCE · KES" : "DEMO CREDITS"}
-              </Text>
-              <Text
-                style={[
-                  styles.balancePanelAmount,
-                  isReal ? styles.amountReal : styles.amountDemo,
-                ]}
-              >
-                {isReal
-                  ? formatMinor(balances.real, "real")
-                  : formatMinor(balances.virtual, "virtual")}
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.modePill,
-                isReal ? styles.modePillReal : styles.modePillDemo,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.modePillText,
-                  isReal ? styles.modePillTextReal : styles.modePillTextDemo,
-                ]}
-              >
-                {isReal ? "REAL" : "DEMO"}
-              </Text>
-            </View>
-          </View>
-
-          {balances.bonus > 0 && (
-            <View style={styles.bonusRow}>
-              <Ionicons name="gift-outline" size={13} color={theme.colors.bonusAccent} />
-              <Text style={styles.bonusRowLabel}>Bonus Credits</Text>
-              <Text style={styles.bonusRowValue}>
-                {formatMinor(balances.bonus, "bonus")}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* ── Quick Actions ── */}
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
+        {/* ── Quick Actions / Wallet ── */}
+        <Text style={styles.sectionTitle}>Wallet &amp; Activity</Text>
         <View style={styles.menuGroup}>
-          {isReal ? (
-            <>
-              <SettingsRow
-                icon="card-outline"
-                label="Deposit via M-Pesa"
-                sublabel="Add real money to your account"
-                onPress={() => navigation.navigate("Main" as never, { screen: "WalletTab" } as never)}
-              />
-              <SettingsRow
-                icon="arrow-up-circle-outline"
-                label="Withdraw Winnings"
-                sublabel="Send your balance to M-Pesa"
-                onPress={() => navigation.navigate("Main" as never, { screen: "WalletTab" } as never)}
-              />
-            </>
-          ) : (
+          <SettingsRow
+            icon="wallet-outline"
+            label="Wallet"
+            onPress={() => navigation.navigate("Wallet" as never)}
+          />
+          <SettingsRow
+            icon="receipt-outline"
+            label="Transactions"
+            onPress={() => navigation.navigate("Transactions" as never)}
+          />
+          {!isReal && (
             <SettingsRow
               icon="refresh-outline"
               label="Free DEMO Refill"
-              sublabel="Get 1,000 free DEMO credits instantly"
               onPress={topupVirtual}
             />
           )}
@@ -220,21 +171,16 @@ export function SettingsScreen() {
           <SettingsRow
             icon="time-outline"
             label="Bet History"
-            sublabel="View your past spins and results"
-            onPress={() => navigation.navigate("Main" as never, { screen: "Activity" } as never)}
+            onPress={() => navigation.navigate("History" as never)}
           />
           <SettingsRow
             icon="information-circle-outline"
             label="Rules & Paytable"
-            sublabel="Learn how to play"
-            onPress={() =>
-              Alert.alert("Coming Soon", "Rules & Paytable will be available soon.")
-            }
+            onPress={() => navigation.navigate("Paytable" as never)}
           />
           <SettingsRow
             icon="shield-checkmark-outline"
             label="Provably Fair"
-            sublabel="Verify every spin is genuinely random"
             onPress={() =>
               Alert.alert(
                 "Provably Fair",
@@ -252,18 +198,30 @@ export function SettingsScreen() {
               <View style={styles.prefIcon}>
                 <Ionicons
                   name={soundEnabled ? "volume-high-outline" : "volume-mute-outline"}
-                  size={17}
-                  color={theme.colors.textSecondary}
+                  size={18}
+                  color="#FFE566"
                 />
               </View>
-              <View>
-                <Text style={styles.prefLabel}>Sound Effects</Text>
-                <Text style={styles.prefSub}>
-                  {soundEnabled ? "Sounds are on" : "Sounds are off"}
-                </Text>
-              </View>
+              <Text style={styles.prefLabel}>Sounds & Haptics</Text>
             </View>
             <ToggleSwitch value={soundEnabled} onValueChange={setSoundEnabled} />
+          </View>
+
+          <View style={[styles.prefRow, styles.prefRowBorder]}>
+            <View style={styles.prefRowLeft}>
+              <View style={styles.prefIcon}>
+                <Ionicons
+                  name={notificationsEnabled ? "notifications-outline" : "notifications-off-outline"}
+                  size={18}
+                  color="#FFE566"
+                />
+              </View>
+              <Text style={styles.prefLabel}>Notifications</Text>
+            </View>
+            <ToggleSwitch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+            />
           </View>
         </View>
 
@@ -285,38 +243,62 @@ export function SettingsScreen() {
   );
 }
 
-const { colors, radius, spacing, fonts } = theme;
+const { fonts } = theme;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: "#2a0048" },
   scroll: { flex: 1 },
   content: { paddingBottom: 52 },
 
-  /* Page header */
+  /* ── Marquee Header ── */
   header: {
-    paddingHorizontal: spacing.md,
-    paddingTop: 56,
-    paddingBottom: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#5c0090",
+    paddingHorizontal: 12,
+    paddingTop: 52,
+    paddingBottom: 12,
+    borderBottomWidth: 3,
+    borderBottomColor: "#8b5a2b",
+    shadowColor: "#8800dd",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontFamily: fonts.heading,
-    color: colors.textPrimary,
-    fontSize: 22,
-    letterSpacing: 0.5,
+    fontFamily: fonts.marquee,
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 2,
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
 
-  /* Profile card */
+  /* ── Profile card ── */
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.card,
-    padding: spacing.md,
-    borderRadius: radius.lg,
+    marginHorizontal: 14,
+    marginTop: 16,
+    marginBottom: 12,
+    backgroundColor: "#220538",
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255,215,0,0.25)",
   },
   avatarOuter: {
     position: "relative",
@@ -327,15 +309,15 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "rgba(76,141,255,0.22)",
+    backgroundColor: "rgba(122,0,184,0.35)",
     borderWidth: 2,
-    borderColor: colors.blue + "66",
+    borderColor: "rgba(255,215,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarInitials: {
     fontFamily: fonts.numbers,
-    color: colors.blue,
+    color: "#FFD700",
     fontSize: 22,
     fontWeight: "700",
   },
@@ -346,29 +328,29 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: colors.success,
+    backgroundColor: "#22c55e",
     borderWidth: 2,
-    borderColor: colors.card,
+    borderColor: "#220538",
     justifyContent: "center",
     alignItems: "center",
   },
   profileMeta: { flex: 1, gap: 4 },
   profilePhone: {
     fontFamily: fonts.numbersRegular,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
     fontSize: 15,
     fontWeight: "700",
   },
   profileSub: {
     fontFamily: fonts.body,
-    color: colors.textMuted,
+    color: "rgba(255,255,255,0.5)",
     fontSize: 12,
   },
   kycPill: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: radius.full,
+    borderRadius: 999,
     marginTop: 2,
   },
   kycPillText: {
@@ -378,21 +360,21 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* Balance panel */
+  /* ── Balance panel ── */
   balancePanel: {
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    borderRadius: radius.lg,
+    marginHorizontal: 14,
+    marginBottom: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: spacing.md,
+    padding: 16,
   },
   balancePanelReal: {
-    backgroundColor: colors.realLight,
-    borderColor: colors.realBorder,
+    backgroundColor: "rgba(255,215,0,0.10)",
+    borderColor: "rgba(255,215,0,0.35)",
   },
   balancePanelDemo: {
-    backgroundColor: colors.demoLight,
-    borderColor: colors.demoBorder,
+    backgroundColor: "rgba(34,197,94,0.10)",
+    borderColor: "rgba(34,197,94,0.35)",
   },
   balanceRow: {
     flexDirection: "row",
@@ -400,8 +382,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   balancePanelLabel: {
-    fontFamily: fonts.bodyMedium,
-    color: colors.textDim,
+    fontFamily: fonts.button,
+    color: "rgba(255,255,255,0.5)",
     fontSize: 10,
     letterSpacing: 1,
     marginBottom: 4,
@@ -410,18 +392,18 @@ const styles = StyleSheet.create({
     fontFamily: fonts.numbers,
     fontSize: 30,
   },
-  amountReal: { color: colors.gold },
-  amountDemo: { color: colors.success },
+  amountReal: { color: "#FFD700" },
+  amountDemo: { color: "#22c55e" },
   modePill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: radius.full,
+    borderRadius: 999,
   },
-  modePillReal: { backgroundColor: colors.realLight, borderWidth: 1, borderColor: colors.realBorder },
-  modePillDemo: { backgroundColor: colors.demoLight, borderWidth: 1, borderColor: colors.demoBorder },
+  modePillReal: { backgroundColor: "rgba(255,215,0,0.15)", borderWidth: 1, borderColor: "rgba(255,215,0,0.4)" },
+  modePillDemo: { backgroundColor: "rgba(34,197,94,0.15)", borderWidth: 1, borderColor: "rgba(34,197,94,0.4)" },
   modePillText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8, fontWeight: "700" },
-  modePillTextReal: { color: colors.gold },
-  modePillTextDemo: { color: colors.success },
+  modePillTextReal: { color: "#FFD700" },
+  modePillTextDemo: { color: "#22c55e" },
 
   bonusRow: {
     flexDirection: "row",
@@ -434,43 +416,47 @@ const styles = StyleSheet.create({
   },
   bonusRowLabel: {
     fontFamily: fonts.body,
-    color: colors.textMuted,
+    color: "rgba(255,255,255,0.5)",
     fontSize: 12,
     flex: 1,
   },
   bonusRowValue: {
     fontFamily: fonts.numbers,
-    color: colors.bonusAccent,
+    color: "#a855f7",
     fontSize: 13,
   },
 
-  /* Section */
+  /* ── Section ── */
   sectionTitle: {
-    fontFamily: fonts.bodyMedium,
-    color: colors.textDim,
-    fontSize: 11,
-    letterSpacing: 1,
+    fontFamily: fonts.button,
+    color: "#D0B0FF",
+    fontSize: 10,
+    letterSpacing: 1.2,
     textTransform: "uppercase",
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.md,
+    paddingHorizontal: 14,
+    marginTop: 16,
     marginBottom: 8,
   },
   menuGroup: {
-    marginHorizontal: spacing.md,
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
+    marginHorizontal: 14,
+    backgroundColor: "#220538",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255,215,0,0.2)",
     overflow: "hidden",
   },
 
-  /* Preferences row */
+  /* ── Preferences row ── */
   prefRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  prefRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 215, 0, 0.1)",
   },
   prefRowLeft: {
     flexDirection: "row",
@@ -482,24 +468,24 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: colors.glassMedium,
+    backgroundColor: "rgba(255,255,255,0.06)",
     justifyContent: "center",
     alignItems: "center",
   },
   prefLabel: {
     fontFamily: fonts.bodyMedium,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "600",
   },
   prefSub: {
     fontFamily: fonts.body,
-    color: colors.textMuted,
+    color: "rgba(255,255,255,0.45)",
     fontSize: 12,
     marginTop: 1,
   },
 
-  /* Animated toggle */
+  /* ── Animated toggle ── */
   toggleTrack: {
     width: 50,
     height: 28,
@@ -522,9 +508,9 @@ const styles = StyleSheet.create({
   version: {
     fontFamily: fonts.body,
     textAlign: "center",
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.3)",
     fontSize: 10,
-    marginTop: spacing.lg,
-    marginBottom: spacing.sm,
+    marginTop: 24,
+    marginBottom: 8,
   },
 });

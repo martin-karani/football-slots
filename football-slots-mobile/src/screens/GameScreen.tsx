@@ -21,13 +21,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { theme } from "../components/theme";
 import { useGameStore } from "../store/GameProvider";
 import { useGame } from "../hooks/useGame";
 import { useWallet } from "../hooks/useWallet";
 import { useBonus } from "../hooks/useBonus";
 import { WheelDisplay } from "../components/WheelDisplay";
-import { PaytableModal } from "../components/PaytableModal";
 // WinCelebration modal removed — replaced with rail-dot flash animation
 import { authStorage } from "../api/client";
 import {
@@ -131,7 +131,6 @@ export function GameScreen() {
     refreshBonus();
   }, []);
 
-  const [showPaytable, setShowPaytable] = useState(false);
   // winFlashTick increments on each win to trigger rail-dot chase flash
   const [winFlashTick, setWinFlashTick] = useState(0);
   const [showDropdownMenu, setShowDropdownMenu] = useState(false);
@@ -235,16 +234,12 @@ export function GameScreen() {
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.header}>
           <Text style={st.headerTxt}>FOOTBALL SLOTS</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity
-              style={st.menuBtn}
-              onPress={() => setShowPaytable(true)}
-            >
-              <Text style={st.menuBtnTxt}>?</Text>
-            </TouchableOpacity>
+          <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
             <TouchableOpacity
               ref={menuBtnRef}
               style={st.menuBtn}
+              hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
+              activeOpacity={0.7}
               onPress={() => {
                 if (menuBtnRef.current) {
                   menuBtnRef.current.measure(
@@ -265,7 +260,7 @@ export function GameScreen() {
                 }
               }}
             >
-              <Text style={st.menuBtnTxt}>≡</Text>
+              <Ionicons name="menu-outline" size={22} color="#FFE566" />
             </TouchableOpacity>
           </View>
         </View>
@@ -374,7 +369,7 @@ export function GameScreen() {
                       100,
                       (bonusWageredMinor /
                         Math.max(bonusWagerRequiredMinor, 1)) *
-                        100
+                      100
                     )}%`,
                   },
                 ]}
@@ -559,7 +554,17 @@ export function GameScreen() {
                     <View pointerEvents="none" style={st.clubActiveBar} />
                   )}
 
-                  {sym.icon && <sym.icon width={28} height={28} />}
+                  <View
+                    style={[
+                      st.clubIconBadge,
+                      {
+                        backgroundColor: sym.color + "25",
+                        borderColor: hasBet ? "#FFD700" : sym.color + "55",
+                      },
+                    ]}
+                  >
+                    {sym.icon && <sym.icon width={22} height={22} />}
+                  </View>
                   <Text style={[st.clubBet, hasBet && st.clubBetOn]}>
                     {hasBet ? betDisplay : "00"}
                   </Text>
@@ -570,10 +575,6 @@ export function GameScreen() {
         </View>
       </View>
 
-      <PaytableModal
-        visible={showPaytable}
-        onClose={() => setShowPaytable(false)}
-      />
       {/* Win celebration is handled by rail-dot flash animation (no overlay modal) */}
 
       {/* ── Dedicated Mode Selection Dropdown Modal ── */}
@@ -733,7 +734,10 @@ export function GameScreen() {
                   },
                 ]}
               >
-                {/* Navigation Items */}
+                {/* Popover Header */}
+                <Text style={st.dropdownMenuTitle}>GAME MENU</Text>
+                <View style={st.dropdownDivider} />
+
                 <TouchableOpacity
                   style={st.dropdownItem}
                   onPress={() => {
@@ -742,7 +746,7 @@ export function GameScreen() {
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>👛</Text>
-                  <Text style={st.dropdownItemTxt}>Wallet</Text>
+                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Wallet</Text>
                   <Text style={st.dropdownItemArrow}>›</Text>
                 </TouchableOpacity>
 
@@ -754,7 +758,7 @@ export function GameScreen() {
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>📜</Text>
-                  <Text style={st.dropdownItemTxt}>Bet History</Text>
+                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Bet History</Text>
                   <Text style={st.dropdownItemArrow}>›</Text>
                 </TouchableOpacity>
 
@@ -762,11 +766,11 @@ export function GameScreen() {
                   style={st.dropdownItem}
                   onPress={() => {
                     setShowDropdownMenu(false);
-                    setShowPaytable(true);
+                    navigation.navigate("Paytable");
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>📋</Text>
-                  <Text style={st.dropdownItemTxt}>Rules &amp; Paytable</Text>
+                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Rules &amp; Paytable</Text>
                   <Text style={st.dropdownItemArrow}>›</Text>
                 </TouchableOpacity>
 
@@ -774,11 +778,11 @@ export function GameScreen() {
                   style={st.dropdownItem}
                   onPress={() => {
                     setShowDropdownMenu(false);
-                    navigation.navigate("Settings");
+                    navigation.navigate("Profile");
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>⚙️</Text>
-                  <Text style={st.dropdownItemTxt}>Profile &amp; Settings</Text>
+                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Profile &amp; Settings</Text>
                   <Text style={st.dropdownItemArrow}>›</Text>
                 </TouchableOpacity>
 
@@ -806,7 +810,7 @@ export function GameScreen() {
                   }}
                 >
                   <Text style={st.dropdownItemIcon}>🚪</Text>
-                  <Text style={[st.dropdownItemTxt, { color: "#ff6666" }]}>
+                  <Text style={[st.dropdownItemTxt, { color: "#ff6666", flex: 1 }]}>
                     Log Out
                   </Text>
                 </TouchableOpacity>
@@ -927,17 +931,22 @@ const st = StyleSheet.create({
     textShadowRadius: 10,
   },
   menuBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#7a00b8",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderTopColor: "#aa44ee",
+    borderTopColor: "#ffe566",
     borderLeftColor: "#aa44ee",
-    borderBottomColor: "#440066",
-    borderRightColor: "#440066",
+    borderBottomColor: "#3a0050",
+    borderRightColor: "#3a0050",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 4,
   },
   menuBtnTxt: {
     fontFamily: theme.fonts.button,
@@ -1548,6 +1557,15 @@ const st = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     zIndex: 10,
   },
+  clubIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    marginTop: 2,
+  },
   clubTiltHi: {
     position: "absolute",
     top: 0,
@@ -1608,17 +1626,58 @@ const st = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.65)",
   },
   dropdownCard: {
-    width: 250,
-    backgroundColor: "#220538",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.35)",
-    padding: 10,
+    width: 270,
+    backgroundColor: "#1e0430",
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 215, 0, 0.45)",
+    padding: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.7,
-    shadowRadius: 16,
-    elevation: 16,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.75,
+    shadowRadius: 18,
+    elevation: 18,
+  },
+  dropdownMenuTitle: {
+    fontFamily: theme.fonts.marquee,
+    color: "#FFE566",
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.5,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  dropdownSectionHeader: {
+    fontFamily: theme.fonts.button,
+    color: "#D0B0FF",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  dropdownGameItemActive: {
+    backgroundColor: "rgba(255, 215, 0, 0.12)",
+    borderColor: "rgba(255, 215, 0, 0.4)",
+    borderWidth: 1,
+  },
+  dropdownActiveTag: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  dropdownActiveTagTxt: {
+    fontFamily: theme.fonts.button,
+    color: "#1a0033",
+    fontSize: 8,
+    fontWeight: "900",
+  },
+  dropdownSoonTag: {
+    fontFamily: theme.fonts.button,
+    color: "rgba(255, 255, 255, 0.4)",
+    fontSize: 8,
+    fontWeight: "900",
   },
   modeDropdownCard: {
     width: 260,
@@ -1723,7 +1782,7 @@ const st = StyleSheet.create({
   dropdownItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 9,
+    paddingVertical: 7,
     paddingHorizontal: 8,
     borderRadius: 8,
   },
@@ -1734,10 +1793,15 @@ const st = StyleSheet.create({
   },
   dropdownItemTxt: {
     fontFamily: theme.fonts.bodyBold,
-    flex: 1,
     color: "#FFFFFF",
     fontSize: 13,
     fontWeight: "700",
+  },
+  dropdownItemSub: {
+    fontFamily: theme.fonts.body,
+    color: "rgba(255, 255, 255, 0.5)",
+    fontSize: 9,
+    marginTop: 1,
   },
   dropdownItemArrow: {
     fontFamily: theme.fonts.bodyBold,

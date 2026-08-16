@@ -13,11 +13,13 @@ export function useBonus() {
   const setBalance = useGameStore((state) => state.setBalance);
 
   const refreshBonus = useCallback(async () => {
+    if (useGameStore.getState().isSpinning) return;
     try {
       const [statusRes, realBalRes] = await Promise.all([
         bonusApi.status(),
         walletApi.balance("real"),
       ]);
+      if (useGameStore.getState().isSpinning) return;
       setBonusStatus(statusRes.data);
       // status already carries the current bonus balance — no extra call needed
       setBalance("bonus", statusRes.data.bonus_balance_minor);

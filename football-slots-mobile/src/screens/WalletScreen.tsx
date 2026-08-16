@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,19 +9,22 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { formatMinor } from "../types";
 import { useToast } from "../components/Toast";
 import { theme } from "../components/theme";
-import { ScreenHeader } from "../components/ScreenHeader";
 import { AmountSelector } from "../components/AmountSelector";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
+import { walletApi } from "../api/client";
+import { LedgerEntry } from "../types";
 
 type WalletTab = "overview" | "deposit" | "withdraw";
 
 export function WalletScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const balances = useGameStore((state) => state.balances);
   const currency = useGameStore((state) => state.currency);
@@ -37,8 +40,17 @@ export function WalletScreen() {
   const [withdrawPhone, setWithdrawPhone] = useState(phoneNumber || "");
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
 
   const isReal = currency === "real" || currency === "bonus";
+
+  // Fetch ledger whenever currency changes
+  useEffect(() => {
+    walletApi
+      .ledger(isReal ? "real" : "virtual", 10)
+      .then((res) => setLedgerEntries(res.data.entries))
+      .catch(() => { });
+  }, [currency]);
 
   const handleDeposit = async () => {
     const amount = parseInt(depositAmount, 10);
@@ -105,14 +117,29 @@ export function WalletScreen() {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.surface} />
+      <StatusBar barStyle="light-content" backgroundColor="#5c0090" />
 
-      {/* Screen Header */}
-      <ScreenHeader
-        title={activeTab === "deposit" ? "Deposit" : activeTab === "withdraw" ? "Withdraw" : "Wallet"}
-        showBack={activeTab !== "overview"}
-        onBack={() => setActiveTab("overview")}
-      />
+      {/* ── Marquee Header ── */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
+        <TouchableOpacity
+          onPress={() =>
+            activeTab !== "overview"
+              ? setActiveTab("overview")
+              : navigation.canGoBack()
+              ? navigation.goBack()
+              : navigation.navigate("Game")
+          }
+          style={styles.backBtn}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="chevron-back" size={22} color="#FFE566" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {activeTab === "deposit" ? "DEPOSIT" : activeTab === "withdraw" ? "WITHDRAW" : "WALLET"}
+        </Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
       <ScrollView
         style={styles.scroll}
@@ -121,22 +148,20 @@ export function WalletScreen() {
       >
         {activeTab === "overview" && (
           <>
-            {/* HERO BALANCE CARD */}
+            {/* ── HERO BALANCE CARD ── */}
             <View style={styles.heroBalanceCard}>
               <View style={styles.heroHeaderRow}>
                 <View style={styles.goldDot} />
                 <Text style={styles.heroModeLabel}>REAL BALANCE · KES</Text>
               </View>
-              <Text style={styles.heroBalanceNumber}>
-                {realBalanceDisplay}
-              </Text>
+              <Text style={styles.heroBalanceNumber}>{realBalanceDisplay}</Text>
               <View style={styles.heroActionRow}>
                 <TouchableOpacity
                   style={styles.heroDepositBtn}
                   onPress={() => setActiveTab("deposit")}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="arrow-up" size={16} color="#1A1206" />
+                  <Ionicons name="arrow-up" size={16} color="#1a0033" />
                   <Text style={styles.heroDepositBtnText}>Deposit</Text>
                 </TouchableOpacity>
 
@@ -145,13 +170,13 @@ export function WalletScreen() {
                   onPress={() => setActiveTab("withdraw")}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="arrow-down" size={16} color={theme.colors.textPrimary} />
+                  <Ionicons name="arrow-down" size={16} color="#FFFFFF" />
                   <Text style={styles.heroWithdrawBtnText}>Withdraw</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* BALANCE CHIPS ROW: DEMO & BONUS */}
+            {/* ── DEMO & BONUS CHIPS ── */}
             <View style={styles.chipsRow}>
               <View style={styles.demoChip}>
                 <Text style={styles.demoChipTag}>DEMO</Text>
@@ -168,52 +193,97 @@ export function WalletScreen() {
               </View>
             </View>
 
-            {/* RECENT ACTIVITY STRIP */}
+            {/* ── RECENT ACTIVITY STRIP ── */}
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeading}>Recent activity</Text>
-              <TouchableOpacity onPress={() => navigation.navigate("Activity")} activeOpacity={0.7}>
+              <TouchableOpacity onPress={() => navigation.navigate("Transactions")} activeOpacity={0.7}>
                 <Text style={styles.seeAllText}>See all</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.activityFeed}>
-              <View style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: "rgba(47,212,138,0.14)" }]}>
-                  <Ionicons name="arrow-down" size={18} color={theme.colors.success} />
+              {ledgerEntries.length === 0 ? (
+                <View style={styles.activityItem}>
+                  <View style={styles.activityMeta}>
+                    <Text style={[styles.activitySub, { textAlign: "center", paddingVertical: 8 }]}>
+                      No transactions yet
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.activityMeta}>
-                  <Text style={styles.activityTitle}>Deposit</Text>
-                  <Text style={styles.activitySub}>M-Pesa · instant</Text>
-                </View>
-                <Text style={[styles.activityAmount, { color: theme.colors.success }]}>+1,000</Text>
-              </View>
+              ) : (
+                ledgerEntries.slice(0, 5).map((entry) => {
+                  const isCredit = entry.amount_minor > 0;
+                  const isDeposit = entry.entry_type === "mpesa_deposit" || entry.entry_type === "deposit";
+                  const isWithdrawal = entry.entry_type === "mpesa_withdraw" || entry.entry_type === "withdrawal";
+                  const isBet = entry.entry_type === "bet" || entry.entry_type === "spin_debit";
+                  const isWin = entry.entry_type === "win" || entry.entry_type === "payout";
+                  const isBonus = entry.entry_type === "bonus_credit";
 
-              <View style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: "rgba(47,212,138,0.14)" }]}>
-                  <Ionicons name="trophy" size={16} color={theme.colors.success} />
-                </View>
-                <View style={styles.activityMeta}>
-                  <Text style={styles.activityTitle}>Win credited</Text>
-                  <Text style={styles.activitySub}>Bayern ×25</Text>
-                </View>
-                <Text style={[styles.activityAmount, { color: theme.colors.success }]}>+1,000</Text>
-              </View>
+                  const glyph = isDeposit ? "↓" : isWithdrawal ? "↑" : isWin || isBonus ? "★" : "•";
 
-              <View style={styles.activityItem}>
-                <View style={[styles.activityIcon, { backgroundColor: "rgba(231,200,119,0.14)" }]}>
-                  <Ionicons name="arrow-up" size={18} color={theme.colors.gold} />
-                </View>
-                <View style={styles.activityMeta}>
-                  <Text style={styles.activityTitle}>Withdrawal</Text>
-                  <Text style={styles.activitySub}>M-Pesa · registered line</Text>
-                </View>
-                <Text style={[styles.activityAmount, { color: theme.colors.textPrimary }]}>-500</Text>
-              </View>
+                  const glyphBg = isDeposit
+                    ? "rgba(34, 197, 94, 0.18)"
+                    : isWithdrawal
+                    ? "rgba(255, 215, 0, 0.16)"
+                    : isWin
+                    ? "rgba(34, 197, 94, 0.18)"
+                    : isBonus
+                    ? "rgba(168, 85, 247, 0.18)"
+                    : "rgba(255, 255, 255, 0.08)";
+
+                  const glyphFg = isDeposit
+                    ? "#22c55e"
+                    : isWithdrawal
+                    ? "#FFD700"
+                    : isWin
+                    ? "#22c55e"
+                    : isBonus
+                    ? "#a855f7"
+                    : "rgba(255, 255, 255, 0.6)";
+
+                  const title = isDeposit
+                    ? "Deposit"
+                    : isWithdrawal
+                    ? "Withdrawal"
+                    : isBet
+                    ? "Bet settled"
+                    : isWin
+                    ? "Win credited"
+                    : isBonus
+                    ? "Match bonus"
+                    : entry.entry_type.replace(/_/g, " ");
+
+                  const sub = isDeposit || isWithdrawal
+                    ? "M-Pesa · instant"
+                    : isBet || isWin
+                    ? "Football Slots"
+                    : "";
+
+                  const amountKes = (Math.abs(entry.amount_minor) / 100).toLocaleString();
+                  const amountStr = `${isCredit ? "+" : "−"}${amountKes}`;
+                  const amountColor = isCredit ? "#22c55e" : "#FFFFFF";
+
+                  return (
+                    <View key={entry.id} style={styles.activityItem}>
+                      <View style={[styles.activityIcon, { backgroundColor: glyphBg }]}>
+                        <Text style={{ fontFamily: theme.fonts.heading, fontSize: 17, fontWeight: "800", color: glyphFg }}>
+                          {glyph}
+                        </Text>
+                      </View>
+                      <View style={styles.activityMeta}>
+                        <Text style={styles.activityTitle}>{title}</Text>
+                        <Text style={styles.activitySub}>{sub}</Text>
+                      </View>
+                      <Text style={[styles.activityAmount, { color: amountColor }]}>{amountStr}</Text>
+                    </View>
+                  );
+                })
+              )}
             </View>
           </>
         )}
 
-        {/* ─── DEPOSIT TAB ─── */}
+        {/* ── DEPOSIT TAB ── */}
         {activeTab === "deposit" && (
           <View style={styles.formContainer}>
             {/* M-Pesa Badge Card */}
@@ -227,13 +297,26 @@ export function WalletScreen() {
               </View>
             </View>
 
-            {/* Amount Big Display */}
-            <View style={styles.amountDisplayBlock}>
-              <Text style={styles.amountDisplayLabel}>ENTER AMOUNT</Text>
-              <Text style={styles.amountDisplayNumber}>
-                <Text style={styles.amountCurrencyPrefix}>KES </Text>
-                {depositAmount || "0"}
-              </Text>
+            {/* Custom Deposit Amount Input */}
+            <Text style={styles.fieldLabel}>CUSTOM DEPOSIT AMOUNT (KES)</Text>
+            <View style={styles.textInputCard}>
+              <Text style={styles.inputPrefix}>KES</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="1000"
+                value={depositAmount}
+                onChangeText={(text) => setDepositAmount(text.replace(/[^0-9]/g, ""))}
+                keyboardType="numeric"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+              />
+              {depositAmount.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setDepositAmount("")}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Quick Preset Chips */}
@@ -248,7 +331,7 @@ export function WalletScreen() {
                     activeOpacity={0.7}
                   >
                     <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActiveGold]}>
-                      {val}
+                      +{val}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -263,7 +346,7 @@ export function WalletScreen() {
                 value={depositPhone}
                 onChangeText={setDepositPhone}
                 keyboardType="phone-pad"
-                placeholderTextColor={theme.colors.textDim}
+                placeholderTextColor="rgba(255,255,255,0.3)"
               />
             </View>
 
@@ -279,20 +362,28 @@ export function WalletScreen() {
               activeOpacity={0.85}
             >
               {depositLoading ? (
-                <ActivityIndicator color="#1A1206" />
+                <ActivityIndicator color="#1a0033" />
               ) : (
                 <Text style={styles.primaryGoldBtnText}>Deposit KES {depositAmount || "0"}</Text>
               )}
             </TouchableOpacity>
 
+            <TouchableOpacity
+              style={styles.cancelLink}
+              onPress={() => setActiveTab("overview")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelLinkText}>Back to Wallet</Text>
+            </TouchableOpacity>
+
             <View style={styles.securedFooter}>
-              <Ionicons name="lock-closed-outline" size={13} color={theme.colors.textDim} />
+              <Ionicons name="lock-closed-outline" size={13} color="rgba(255,255,255,0.4)" />
               <Text style={styles.securedText}>Secured by Safaricom Daraja</Text>
             </View>
           </View>
         )}
 
-        {/* ─── WITHDRAW TAB ─── */}
+        {/* ── WITHDRAW TAB ── */}
         {activeTab === "withdraw" && (
           <View style={styles.formContainer}>
             {/* Withdrawable Balance Info */}
@@ -302,18 +393,31 @@ export function WalletScreen() {
                 <Text style={styles.withdrawableAmount}>KES {realBalanceDisplay}</Text>
               </View>
               <View style={styles.kycOkBadge}>
-                <Ionicons name="checkmark" size={14} color={theme.colors.success} />
+                <Ionicons name="checkmark" size={14} color="#22c55e" />
                 <Text style={styles.kycOkText}>KYC OK</Text>
               </View>
             </View>
 
-            {/* Amount Big Display */}
-            <View style={styles.amountDisplayBlock}>
-              <Text style={styles.amountDisplayLabel}>WITHDRAW AMOUNT</Text>
-              <Text style={styles.amountDisplayNumber}>
-                <Text style={styles.amountCurrencyPrefix}>KES </Text>
-                {withdrawAmount || "0"}
-              </Text>
+            {/* Custom Withdraw Amount Input */}
+            <Text style={styles.fieldLabel}>CUSTOM WITHDRAW AMOUNT (KES)</Text>
+            <View style={styles.textInputCard}>
+              <Text style={styles.inputPrefix}>KES</Text>
+              <TextInput
+                style={styles.inputField}
+                placeholder="5000"
+                value={withdrawAmount}
+                onChangeText={(text) => setWithdrawAmount(text.replace(/[^0-9]/g, ""))}
+                keyboardType="numeric"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+              />
+              {withdrawAmount.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setWithdrawAmount("")}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.4)" />
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Quick Preset Chips */}
@@ -323,22 +427,25 @@ export function WalletScreen() {
                 return (
                   <TouchableOpacity
                     key={val}
-                    style={[styles.presetChip, isSelected && styles.presetChipActiveBlue]}
+                    style={[styles.presetChip, isSelected && styles.presetChipActivePurple]}
                     onPress={() => setWithdrawAmount(val.toString())}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActiveBlue]}>
-                      {val}
+                    <Text style={[styles.presetChipText, isSelected && styles.presetChipTextActivePurple]}>
+                      +{val}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
               <TouchableOpacity
-                style={styles.presetChip}
+                style={[
+                  styles.presetChip,
+                  withdrawAmount === Math.floor(balances.real / 100).toString() && styles.presetChipActivePurple,
+                ]}
                 onPress={() => setWithdrawAmount(Math.floor(balances.real / 100).toString())}
                 activeOpacity={0.7}
               >
-                <Text style={styles.presetChipText}>MAX</Text>
+                <Text style={[styles.presetChipText, { color: "#FFD700", fontWeight: "900" }]}>MAX</Text>
               </TouchableOpacity>
             </View>
 
@@ -350,7 +457,7 @@ export function WalletScreen() {
                 value={withdrawPhone}
                 onChangeText={setWithdrawPhone}
                 keyboardType="phone-pad"
-                placeholderTextColor={theme.colors.textDim}
+                placeholderTextColor="rgba(255,255,255,0.3)"
               />
               <View style={styles.registeredTag}>
                 <Text style={styles.registeredTagText}>Registered</Text>
@@ -369,10 +476,18 @@ export function WalletScreen() {
               activeOpacity={0.85}
             >
               {withdrawLoading ? (
-                <ActivityIndicator color={theme.colors.textPrimary} />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
                 <Text style={styles.secondaryBorderBtnText}>Withdraw KES {withdrawAmount || "0"}</Text>
               )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelLink}
+              onPress={() => setActiveTab("overview")}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cancelLinkText}>Back to Wallet</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -381,30 +496,77 @@ export function WalletScreen() {
   );
 }
 
-const { colors, radius, fonts } = theme;
+const { fonts } = theme;
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#2a0048",
   },
-  scroll: {
-    flex: 1,
-  },
+  scroll: { flex: 1 },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 14,
     paddingBottom: 36,
   },
 
-  /* HERO BALANCE CARD */
-  heroBalanceCard: {
-    borderRadius: 22,
-    padding: 24,
-    backgroundColor: "rgba(29, 42, 80, 0.45)",
+  /* ── Marquee Header ── */
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#5c0090",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 3,
+    borderBottomColor: "#8b5a2b",
+    shadowColor: "#8800dd",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 100,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
     borderWidth: 1,
-    borderColor: "rgba(231, 200, 119, 0.28)",
-    marginTop: 8,
-    marginBottom: 16,
+    borderColor: "rgba(255, 215, 0, 0.35)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 101,
+  },
+  headerSpacer: {
+    width: 38,
+  },
+  headerTitle: {
+    flex: 1,
+    fontFamily: fonts.marquee,
+    color: "#fff",
+    fontWeight: "900",
+    fontSize: 18,
+    letterSpacing: 2,
+    textAlign: "center",
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+
+  /* ── Hero Balance Card ── */
+  heroBalanceCard: {
+    borderRadius: 20,
+    padding: 22,
+    backgroundColor: "#220538",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,215,0,0.35)",
+    marginTop: 16,
+    marginBottom: 14,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
   heroHeaderRow: {
     flexDirection: "row",
@@ -416,18 +578,18 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: colors.gold,
+    backgroundColor: "#FFD700",
   },
   heroModeLabel: {
-    fontFamily: fonts.heading,
-    fontSize: 11.5,
+    fontFamily: fonts.button,
+    fontSize: 11,
     letterSpacing: 1.5,
-    color: colors.gold,
+    color: "#FFD700",
   },
   heroBalanceNumber: {
     fontFamily: fonts.numbers,
     fontSize: 40,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
     lineHeight: 46,
     letterSpacing: 0.5,
   },
@@ -440,29 +602,29 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 46,
     borderRadius: 13,
-    backgroundColor: colors.gold,
+    backgroundColor: "#FFD700",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    shadowColor: colors.gold,
+    shadowColor: "#FFD700",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 4,
   },
   heroDepositBtnText: {
     fontFamily: fonts.heading,
     fontSize: 14.5,
-    color: "#1A1206",
+    color: "#1a0033",
   },
   heroWithdrawBtn: {
     flex: 1,
     height: 46,
     borderRadius: 13,
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: "#7a00b8",
     borderWidth: 1,
-    borderColor: "rgba(148, 163, 208, 0.28)",
+    borderColor: "rgba(255,215,0,0.4)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -471,67 +633,65 @@ const styles = StyleSheet.create({
   heroWithdrawBtnText: {
     fontFamily: fonts.heading,
     fontSize: 14.5,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
   },
 
-  /* CHIPS ROW */
+  /* ── Chips Row ── */
   chipsRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 24,
+    marginBottom: 22,
   },
   demoChip: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: "rgba(47, 212, 138, 0.28)",
+    borderColor: "rgba(34,197,94,0.35)",
     padding: 14,
   },
   demoChipTag: {
-    fontFamily: fonts.heading,
-    fontSize: 10.5,
+    fontFamily: fonts.button,
+    fontSize: 10,
     letterSpacing: 1.2,
-    color: colors.success,
+    color: "#22c55e",
     marginBottom: 4,
   },
   bonusChip: {
     flex: 1,
     borderRadius: 16,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: "rgba(196, 162, 255, 0.3)",
+    borderColor: "rgba(168,85,247,0.35)",
     padding: 14,
   },
   bonusChipTag: {
-    fontFamily: fonts.heading,
-    fontSize: 10.5,
+    fontFamily: fonts.button,
+    fontSize: 10,
     letterSpacing: 1.2,
-    color: colors.bonusAccent,
+    color: "#a855f7",
     marginBottom: 4,
   },
   chipBalanceValue: {
     fontFamily: fonts.numbers,
     fontSize: 18,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
     lineHeight: 22,
   },
-  chipRefillBtn: {
-    marginTop: 6,
-  },
+  chipRefillBtn: { marginTop: 6 },
   chipRefillText: {
     fontFamily: fonts.bodyBold,
     fontSize: 11,
-    color: colors.blueLight,
+    color: "#22c55e",
   },
   chipSubtitle: {
     fontFamily: fonts.body,
     fontSize: 11,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.4)",
     marginTop: 6,
   },
 
-  /* ACTIVITY FEED */
+  /* ── Activity Feed ── */
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -539,28 +699,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   sectionHeading: {
-    fontFamily: fonts.headingBold,
-    fontSize: 15,
-    color: colors.textPrimary,
+    fontFamily: fonts.heading,
+    fontSize: 14,
+    color: "#FFD700",
+    letterSpacing: 0.5,
   },
   seeAllText: {
     fontFamily: fonts.bodyBold,
     fontSize: 13,
-    color: colors.blueLight,
+    color: "#a855f7",
   },
-  activityFeed: {
-    flexDirection: "column",
-    gap: 9,
-  },
+  activityFeed: { flexDirection: "column", gap: 9 },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 13,
     padding: 13,
-    borderRadius: 15,
-    backgroundColor: colors.surfaceElevated,
+    borderRadius: 14,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255,215,0,0.15)",
   },
   activityIcon: {
     width: 38,
@@ -569,18 +727,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  activityMeta: {
-    flex: 1,
-  },
+  activityMeta: { flex: 1 },
   activityTitle: {
     fontFamily: fonts.bodyBold,
     fontSize: 14,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
   },
   activitySub: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.45)",
     marginTop: 2,
   },
   activityAmount: {
@@ -589,20 +745,18 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 
-  /* FORM STYLES (Deposit & Withdraw) */
-  formContainer: {
-    marginTop: 10,
-  },
+  /* ── Form Styles ── */
+  formContainer: { marginTop: 10 },
   mpesaInfoCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 13,
     padding: 14,
-    borderRadius: 15,
-    backgroundColor: "rgba(47, 212, 138, 0.08)",
+    borderRadius: 14,
+    backgroundColor: "rgba(34,197,94,0.08)",
     borderWidth: 1,
-    borderColor: "rgba(47, 212, 138, 0.25)",
-    marginBottom: 24,
+    borderColor: "rgba(34,197,94,0.3)",
+    marginBottom: 22,
   },
   mpesaLogoBox: {
     width: 42,
@@ -614,21 +768,19 @@ const styles = StyleSheet.create({
   },
   mpesaLogoText: {
     fontFamily: fonts.headingBold,
-    fontSize: 10.5,
+    fontSize: 10,
     color: "#fff",
   },
-  mpesaInfoText: {
-    flex: 1,
-  },
+  mpesaInfoText: { flex: 1 },
   mpesaInfoTitle: {
     fontFamily: fonts.bodyBold,
-    fontSize: 13.5,
-    color: colors.textPrimary,
+    fontSize: 13,
+    color: "#FFFFFF",
   },
   mpesaInfoSub: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: colors.textMuted,
+    color: "rgba(255,255,255,0.5)",
     marginTop: 2,
   },
   withdrawableCard: {
@@ -637,22 +789,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderRadius: 16,
-    backgroundColor: "rgba(29, 42, 80, 0.45)",
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: "rgba(231, 200, 119, 0.25)",
+    borderColor: "rgba(255,215,0,0.3)",
     marginBottom: 18,
   },
   withdrawableLabel: {
-    fontFamily: fonts.heading,
-    fontSize: 10.5,
+    fontFamily: fonts.button,
+    fontSize: 10,
     letterSpacing: 1.2,
-    color: colors.gold,
+    color: "#FFD700",
     marginBottom: 4,
   },
   withdrawableAmount: {
     fontFamily: fonts.numbers,
     fontSize: 24,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
   },
   kycOkBadge: {
     flexDirection: "row",
@@ -661,85 +813,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 9,
-    backgroundColor: "rgba(47, 212, 138, 0.14)",
+    backgroundColor: "rgba(34,197,94,0.14)",
   },
   kycOkText: {
-    fontFamily: fonts.heading,
+    fontFamily: fonts.button,
     fontSize: 11,
-    color: colors.success,
+    color: "#22c55e",
   },
-  amountDisplayBlock: {
-    alignItems: "center",
-    marginBottom: 22,
-  },
+  amountDisplayBlock: { alignItems: "center", marginBottom: 22 },
   amountDisplayLabel: {
-    fontFamily: fonts.heading,
+    fontFamily: fonts.button,
     fontSize: 11,
     letterSpacing: 1.5,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.4)",
     marginBottom: 8,
   },
   amountDisplayNumber: {
     fontFamily: fonts.numbers,
     fontSize: 46,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
     lineHeight: 50,
   },
   amountCurrencyPrefix: {
     fontSize: 22,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.4)",
   },
   presetsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 9,
-    marginBottom: 24,
+    marginBottom: 22,
   },
   presetChip: {
     flex: 1,
     minWidth: 56,
     height: 44,
     borderRadius: 12,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255,215,0,0.2)",
     alignItems: "center",
     justifyContent: "center",
   },
   presetChipActiveGold: {
-    backgroundColor: "rgba(231, 200, 119, 0.14)",
-    borderColor: colors.gold,
+    backgroundColor: "rgba(255,215,0,0.15)",
+    borderColor: "#FFD700",
   },
-  presetChipActiveBlue: {
-    backgroundColor: "rgba(76, 141, 255, 0.14)",
-    borderColor: colors.blue,
+  presetChipActivePurple: {
+    backgroundColor: "rgba(122,0,184,0.2)",
+    borderColor: "#7a00b8",
   },
   presetChipText: {
     fontFamily: fonts.numbers,
     fontSize: 14,
-    color: colors.textSecondary,
+    color: "rgba(255,255,255,0.6)",
   },
   presetChipTextActiveGold: {
-    color: colors.gold,
+    color: "#FFD700",
     fontWeight: "700",
   },
-  presetChipTextActiveBlue: {
-    color: colors.blueLight,
+  presetChipTextActivePurple: {
+    color: "#c084fc",
     fontWeight: "700",
   },
   fieldLabel: {
-    fontFamily: fonts.heading,
+    fontFamily: fonts.button,
     fontSize: 11,
     letterSpacing: 1,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.4)",
     marginBottom: 9,
   },
   textInputCard: {
     height: 54,
     borderRadius: 14,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255,215,0,0.25)",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
@@ -749,60 +898,79 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fonts.numbersRegular,
     fontSize: 16,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
   },
   registeredTag: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
-    backgroundColor: "rgba(148, 163, 208, 0.1)",
+    backgroundColor: "rgba(255,255,255,0.07)",
   },
   registeredTagText: {
     fontFamily: fonts.body,
     fontSize: 11,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.4)",
   },
   limitRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 2,
-    marginBottom: 26,
+    marginBottom: 24,
   },
   limitText: {
     fontFamily: fonts.body,
     fontSize: 12,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.35)",
   },
   primaryGoldBtn: {
     height: 56,
     borderRadius: 15,
-    backgroundColor: colors.gold,
+    backgroundColor: "#FFD700",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: colors.gold,
+    shadowColor: "#FFD700",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 6,
   },
   primaryGoldBtnText: {
     fontFamily: fonts.heading,
     fontSize: 16,
-    color: "#1A1206",
+    color: "#1a0033",
   },
   secondaryBorderBtn: {
     height: 56,
     borderRadius: 15,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 208, 0.3)",
-    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255,215,0,0.4)",
+    backgroundColor: "#7a00b8",
     alignItems: "center",
     justifyContent: "center",
   },
   secondaryBorderBtnText: {
     fontFamily: fonts.heading,
     fontSize: 16,
-    color: colors.textPrimary,
+    color: "#FFFFFF",
+  },
+  inputPrefix: {
+    fontFamily: fonts.button,
+    fontSize: 14,
+    color: "#FFD700",
+    marginRight: 8,
+    letterSpacing: 0.5,
+  },
+  cancelLink: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    marginTop: 6,
+  },
+  cancelLinkText: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.5)",
+    textDecorationLine: "underline",
   },
   securedFooter: {
     flexDirection: "row",
@@ -814,9 +982,7 @@ const styles = StyleSheet.create({
   securedText: {
     fontFamily: fonts.body,
     fontSize: 11.5,
-    color: colors.textDim,
+    color: "rgba(255,255,255,0.35)",
   },
-  btnDisabled: {
-    opacity: 0.6,
-  },
+  btnDisabled: { opacity: 0.6 },
 });

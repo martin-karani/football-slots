@@ -41,7 +41,7 @@ export function BottomNavigation({ tabBarProps }: BottomNavigationProps) {
                 activeOpacity={0.85}
               >
                 <View style={styles.playBtn}>
-                  <Ionicons name="play" size={22} color="#070A12" />
+                  <Ionicons name="play" size={22} color="#1a0033" />
                 </View>
                 <Text style={styles.playLabel}>{item.label}</Text>
               </TouchableOpacity>
@@ -58,7 +58,7 @@ export function BottomNavigation({ tabBarProps }: BottomNavigationProps) {
               <Ionicons
                 name={isActive ? (item.activeIcon as any) : (item.icon as any)}
                 size={22}
-                color={isActive ? theme.colors.gold : theme.colors.textDim}
+                color={isActive ? "#FFD700" : "rgba(255,255,255,0.4)"}
               />
               <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
                 {item.label}
@@ -71,13 +71,13 @@ export function BottomNavigation({ tabBarProps }: BottomNavigationProps) {
   );
 }
 
-const { colors, fonts } = theme;
+const { fonts } = theme;
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(148,163,208,0.12)",
+    backgroundColor: "#1e0430",
+    borderTopWidth: 1.5,
+    borderTopColor: "rgba(255, 215, 0, 0.3)",
     // Safe-area padding is handled by Tab.Navigator on iOS
   },
   bar: {
@@ -99,11 +99,11 @@ const styles = StyleSheet.create({
   navLabel: {
     fontFamily: fonts.body,
     fontSize: 10,
-    color: colors.textDim,
+    color: "rgba(255, 255, 255, 0.4)",
     marginTop: 4,
   },
   navLabelActive: {
-    color: colors.gold,
+    color: "#FFD700",
     fontFamily: fonts.bodyMedium,
   },
 
@@ -118,19 +118,21 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.gold,
+    backgroundColor: "#FFD700",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: colors.gold,
+    shadowColor: "#FFD700",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    elevation: 10,
+    shadowOpacity: 0.6,
+    shadowRadius: 18,
+    elevation: 12,
+    borderWidth: 2,
+    borderColor: "rgba(255, 230, 100, 0.5)",
   },
   playLabel: {
     fontFamily: fonts.bodyBold,
     fontSize: 10,
-    color: colors.gold,
+    color: "#FFD700",
     fontWeight: "700",
     marginTop: 5,
     letterSpacing: 0.8,

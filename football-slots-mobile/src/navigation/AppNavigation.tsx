@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { LoginScreen } from '../screens/LoginScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { WalletScreen } from '../screens/WalletScreen';
 import { HistoryScreen } from '../screens/HistoryScreen';
+import { TransactionsScreen } from '../screens/TransactionsScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { PaytableScreen } from '../screens/PaytableScreen';
 import { useGameStore } from '../store/GameProvider';
 import { authApi, authStorage } from '../api/client';
 import { ToastProvider } from '../components/Toast';
-import { BottomNavigation } from '../components/BottomNavigation';
 import { theme } from '../components/theme';
 
 const Stack = createStackNavigator();
-const Tab = createBottomTabNavigator();
 
 export function AppNavigation() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -53,11 +52,38 @@ export function AppNavigation() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
           <>
-            <Stack.Screen name="Main" component={MainTabNavigator} />
-            {/* Stack screens for GameScreen dropdown navigation */}
-            <Stack.Screen name="Wallet" component={WalletScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="History" component={HistoryScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Settings" component={SettingsScreen} options={{ presentation: 'modal' }} />
+            {/* Game is the root / default screen */}
+            <Stack.Screen name="Game" component={GameScreen} />
+            {/* Profile hub — accessed from game menu */}
+            <Stack.Screen
+              name="Profile"
+              component={SettingsScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            {/* Wallet — accessible from Profile */}
+            <Stack.Screen
+              name="Wallet"
+              component={WalletScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            {/* Transactions — accessible from Wallet */}
+            <Stack.Screen
+              name="Transactions"
+              component={TransactionsScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            {/* Bet History — accessible from Profile */}
+            <Stack.Screen
+              name="History"
+              component={HistoryScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            {/* Paytable & Rules — accessible from Game menu & Profile */}
+            <Stack.Screen
+              name="Paytable"
+              component={PaytableScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} />
@@ -67,32 +93,10 @@ export function AppNavigation() {
   );
 }
 
-/**
- * Main tab navigator with custom bottom navigation bar.
- */
-function MainTabNavigator() {
-  return (
-    <Tab.Navigator
-      initialRouteName="Home"
-      screenOptions={{
-        headerShown: false,
-        lazy: true,
-      }}
-      tabBar={(props) => <BottomNavigation tabBarProps={props} />}
-    >
-      <Tab.Screen name="Home" component={SettingsScreen} />
-      <Tab.Screen name="WalletTab" component={WalletScreen} />
-      <Tab.Screen name="Game" component={GameScreen} />
-      <Tab.Screen name="Activity" component={HistoryScreen} />
-      <Tab.Screen name="SettingsTab" component={SettingsScreen} />
-    </Tab.Navigator>
-  );
-}
-
 const styles = StyleSheet.create({
   loading: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#2a0048',
     justifyContent: 'center',
     alignItems: 'center',
   },

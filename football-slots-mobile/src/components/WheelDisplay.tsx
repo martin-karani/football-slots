@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Dimensions } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -8,6 +8,8 @@ import Animated, {
   withSequence,
   Easing,
   useSharedValue,
+  interpolateColor,
+  cancelAnimation,
 } from "react-native-reanimated";
 import { WHEEL_POSITIONS, SYMBOLS, getGridCoords, fromMinor } from "../types";
 import { useGameStore } from "../store/GameProvider";
@@ -24,8 +26,8 @@ const COLS = 7;
 const ROWS = 7;
 
 const windowWidth = Dimensions.get("window").width;
-const FRAME_PADDING = 8;
-const OUTER_PADDING = 12;
+const FRAME_PADDING = 7;
+const OUTER_PADDING = 18;
 const GRID_WIDTH = windowWidth - OUTER_PADDING * 2 - FRAME_PADDING * 2;
 const CELL_SIZE = Math.floor(GRID_WIDTH / COLS);
 const GRID_HEIGHT = CELL_SIZE * ROWS;
@@ -219,6 +221,55 @@ export function WheelDisplay({ step, isSpinning }: Props) {
   const currency = useGameStore((state) => state.currency);
   const lastTeam = lastSpin ? getTeamInfo(lastSpin.symbol) : null;
 
+  const winPulse = useSharedValue(0);
+  const winPulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (winPulseTimer.current) {
+      clearTimeout(winPulseTimer.current);
+      winPulseTimer.current = null;
+    }
+
+    if (lastSpin?.is_win && !isSpinning) {
+      const FLASH_ON = 200;
+      const FLASH_OFF = 760;
+      const CYCLE = FLASH_ON + FLASH_OFF;
+
+      winPulse.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: FLASH_ON }),
+          withTiming(0, { duration: FLASH_OFF })
+        ),
+        -1,
+        false
+      );
+
+      // Stop after 3 seconds — same as the outer rail dots
+      winPulseTimer.current = setTimeout(() => {
+        cancelAnimation(winPulse);
+        winPulse.value = withTiming(0, { duration: 400 });
+      }, 3000);
+    } else {
+      cancelAnimation(winPulse);
+      winPulse.value = withTiming(0, { duration: 300 });
+    }
+
+    return () => {
+      if (winPulseTimer.current) clearTimeout(winPulseTimer.current);
+    };
+  }, [lastSpin?.is_win, isSpinning, winPulse]);
+
+  const animatedRivetStyle = useAnimatedStyle(() => {
+    return {
+      backgroundColor: interpolateColor(winPulse.value, [0, 1], ["#FFD700", "#FFFFFF"]),
+      borderColor: interpolateColor(winPulse.value, [0, 1], ["#8B6508", "#FFF9C4"]),
+      shadowColor: interpolateColor(winPulse.value, [0, 1], ["#000000", "#FFD700"]),
+      shadowOpacity: 0.6 + winPulse.value * 0.4,
+      shadowRadius: 1 + winPulse.value * 7,
+      transform: [{ scale: 1 + winPulse.value * 0.4 }],
+    };
+  });
+
   const centerLeft = CELL_SIZE;
   const centerTop = CELL_SIZE;
   const centerWidth = CELL_SIZE * 5;
@@ -269,10 +320,10 @@ export function WheelDisplay({ step, isSpinning }: Props) {
             {/* Sleek Gold Metallic Frame matching reference image */}
             <View style={styles.marqueeGoldFrame}>
               {/* Corner metallic rivets in the 4 rounded corners */}
-              <View style={[styles.cornerRivet, styles.rivetTL]} />
-              <View style={[styles.cornerRivet, styles.rivetTR]} />
-              <View style={[styles.cornerRivet, styles.rivetBL]} />
-              <View style={[styles.cornerRivet, styles.rivetBR]} />
+              <Animated.View style={[styles.cornerRivet, styles.rivetTL, animatedRivetStyle]} />
+              <Animated.View style={[styles.cornerRivet, styles.rivetTR, animatedRivetStyle]} />
+              <Animated.View style={[styles.cornerRivet, styles.rivetBL, animatedRivetStyle]} />
+              <Animated.View style={[styles.cornerRivet, styles.rivetBR, animatedRivetStyle]} />
 
               {/* Inner deep purple marquee display */}
               <View style={styles.marqueeInner}>
@@ -327,8 +378,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#60000a",
     padding: FRAME_PADDING,
     marginHorizontal: OUTER_PADDING,
-    marginTop: 8,
-    marginBottom: 8,
+    marginTop: 10,
+    marginBottom: 10,
     borderRadius: 14,
     borderWidth: 3,
     borderTopColor: "#c08a48",

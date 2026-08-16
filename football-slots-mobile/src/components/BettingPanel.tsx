@@ -75,8 +75,19 @@ export function BettingPanel() {
             const betAmountMinor = currentBets[sym.key] || 0;
             const betAmountDisplay = fromMinor(betAmountMinor, currency);
             return (
-              <View key={sym.key} style={styles.symbolCard}>
-                <View style={styles.symbolIconContainer}>
+              <View
+                key={sym.key}
+                style={[
+                  styles.symbolCard,
+                  betAmountMinor > 0 && styles.symbolCardSelected,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.symbolIconContainer,
+                    betAmountMinor > 0 && styles.symbolIconContainerSelected,
+                  ]}
+                >
                   {(() => {
                     const Icon = getSymbolIcon(sym.key);
                     return Icon ? <Icon width={28} height={28} /> : null;
@@ -185,8 +196,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
   },
+  symbolCardSelected: {
+    borderWidth: 0,
+  },
   symbolIconContainer: {
     marginBottom: 4,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "transparent",
+  },
+  symbolIconContainerSelected: {
+    backgroundColor: "#2d1b4e",
+    borderWidth: 0,
+    borderColor: "transparent",
   },
   symbolName: {
     color: "#aaa",

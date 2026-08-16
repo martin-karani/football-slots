@@ -7,15 +7,20 @@ import {
   RefreshControl,
   StatusBar,
   TouchableOpacity,
+  Pressable,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { gameApi } from "../api/client";
-import { GameRound, formatMinor } from "../types";
+import { GameRound, SYMBOLS } from "../types";
 import { useGameStore } from "../store/GameProvider";
 import { theme } from "../components/theme";
 import { EmptyState } from "../components/EmptyState";
-import { BetHistoryCard } from "../components/BetHistoryCard";
 
 export function HistoryScreen() {
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
   const [rounds, setRounds] = useState<GameRound[]>([]);
   const [_loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -48,11 +53,18 @@ export function HistoryScreen() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMin / 60);
+
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+
     return date.toLocaleDateString("en-KE", {
       day: "2-digit",
       month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
@@ -71,101 +83,173 @@ export function HistoryScreen() {
       ? Math.round((wins / activeRounds.length) * 100)
       : 0;
 
-  const clubColors: Record<string, string> = {
-    barcelona: "#003DA5",
-    real_madrid: "#7c6c3e",
-    man_city: "#6CABDD",
-    liverpool: "#C8102E",
-    paris: "#004170",
-    arsenal: "#EF0107",
-    bayern: "#DC052D",
-    ucl_trophy: "#1B3A6E",
-  };
+  const isRealFilter = filter === "real";
 
   const renderItem = ({ item }: { item: GameRound }) => {
-    const clubInfo = item.result_symbol.replace(/_/g, " ");
-    const clubName = clubInfo.charAt(0).toUpperCase() + clubInfo.slice(1);
-    const clubColor = clubColors[item.result_symbol] || theme.colors.card;
-    const netValue = item.net_result_minor;
-    const netPositive = netValue >= 0;
+    const symbolDef = SYMBOLS.find((s) => s.key === item.result_symbol);
+    const ClubIcon = symbolDef?.icon;
+    const clubName = symbolDef?.name || item.result_symbol.replace(/_/g, " ");
+    const clubColor = symbolDef?.color || "#FFD700";
+
+    const isWin = item.is_win;
+    const netValueMinor = item.net_result_minor;
+    const isNetPositive = netValueMinor >= 0;
+    const netFormatted = `${isNetPositive ? "+" : "−"}${(
+      Math.abs(netValueMinor) / 100
+    ).toLocaleString()}`;
+    const stakeFormatted = `KES ${(item.total_stake_minor / 100).toLocaleString()}`;
+    const payoutFormatted = `KES ${(item.gross_payout_minor / 100).toLocaleString()}`;
 
     return (
-      <BetHistoryCard
-        clubName={clubName}
-        clubColor={clubColor}
-        multiplier={item.result_multiplier}
-        isWin={item.is_win}
-        stake={formatMinor(item.total_stake_minor, item.currency)}
-        payout={formatMinor(item.gross_payout_minor, item.currency)}
-        net={`${netPositive ? "+" : ""}${formatMinor(netValue, item.currency)}`}
-        time={formatDate(item.created_at)}
-      />
+      <View style={styles.betCard}>
+        {/* Top row */}
+        <View style={styles.cardTopRow}>
+          <View
+            style={[
+              styles.clubIconBox,
+              {
+                backgroundColor: clubColor + "22",
+                borderColor: clubColor + "55",
+              },
+            ]}
+          >
+            {ClubIcon ? (
+              <ClubIcon width={24} height={24} />
+            ) : (
+              <Text style={styles.clubIconFallback}>
+                {item.result_symbol.slice(0, 3).toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <View style={styles.clubMeta}>
+            <Text style={styles.clubName}>{clubName}</Text>
+            <Text style={styles.clubMult}>×{item.result_multiplier}</Text>
+          </View>
+          <View
+            style={[
+              styles.statusBadge,
+              isWin ? styles.statusBadgeWin : styles.statusBadgeLoss,
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusBadgeText,
+                isWin ? styles.statusBadgeTextWin : styles.statusBadgeTextLoss,
+              ]}
+            >
+              {isWin ? "WIN" : "LOSS"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Divider */}
+        <View style={styles.cardDivider} />
+
+        {/* Bottom row */}
+        <View style={styles.cardBottomRow}>
+          <View style={styles.statsLeft}>
+            <View>
+              <Text style={styles.statLabel}>Stake</Text>
+              <Text style={styles.statValue}>{stakeFormatted}</Text>
+            </View>
+            <View>
+              <Text style={styles.statLabel}>Payout</Text>
+              <Text style={styles.statValue}>{payoutFormatted}</Text>
+            </View>
+          </View>
+
+          <View style={styles.statsRight}>
+            <Text style={styles.timeText}>{formatDate(item.created_at)}</Text>
+            <Text
+              style={[
+                styles.netValue,
+                isNetPositive ? styles.netPositive : styles.netNegative,
+              ]}
+            >
+              {netFormatted}
+            </Text>
+          </View>
+        </View>
+      </View>
     );
   };
 
-  const isRealFilter = filter === "real";
-
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+      <StatusBar barStyle="light-content" backgroundColor="#5c0090" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Bet History</Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.tabRow}>
+      {/* Header with Back + REAL/DEMO Toggle */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
-          style={[styles.tab, isRealFilter && styles.tabActiveReal]}
-          onPress={() => setFilter("real")}
+          style={styles.headerBack}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Game"))}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, isRealFilter && styles.tabTextActiveReal]}>
-            REAL
-          </Text>
+          <Ionicons name="chevron-back" size={22} color="rgba(255,255,255,0.85)" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, !isRealFilter && styles.tabActiveDemo]}
-          onPress={() => setFilter("demo")}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.tabText, !isRealFilter && styles.tabTextActiveDemo]}>
-            DEMO
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Summary Strip */}
-      {activeRounds.length > 0 && (
-        <View style={styles.summaryStrip}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Staked</Text>
-            <Text style={styles.summaryValue}>
-              {formatMinor(totalStaked, isRealFilter ? "real" : "virtual")}
-            </Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Net</Text>
+        <Text style={styles.headerTitle}>BET HISTORY</Text>
+        <View style={styles.modeToggleGroup}>
+          <Pressable
+            style={[styles.toggleBtn, isRealFilter && styles.toggleBtnActiveReal]}
+            onPress={() => setFilter("real")}
+            hitSlop={8}
+          >
             <Text
               style={[
-                styles.summaryValue,
-                totalNet >= 0 ? styles.summaryPositive : styles.summaryNegative,
+                styles.toggleText,
+                isRealFilter && styles.toggleTextActiveReal,
               ]}
             >
-              {totalNet >= 0 ? "+" : ""}
-              {formatMinor(totalNet, isRealFilter ? "real" : "virtual")}
+              REAL
             </Text>
-          </View>
-          <View style={styles.summaryDivider} />
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Win rate</Text>
-            <Text style={styles.summaryValue}>{winRate}%</Text>
-          </View>
+          </Pressable>
+          <Pressable
+            style={[styles.toggleBtn, !isRealFilter && styles.toggleBtnActiveDemo]}
+            onPress={() => setFilter("demo")}
+            hitSlop={8}
+          >
+            <Text
+              style={[
+                styles.toggleText,
+                !isRealFilter && styles.toggleTextActiveDemo,
+              ]}
+            >
+              DEMO
+            </Text>
+          </Pressable>
         </View>
-      )}
+      </View>
 
+      {/* Summary Strip (3 Columns) */}
+      <View style={styles.summaryStrip}>
+        <View style={[styles.summaryCol, styles.summaryColBorder]}>
+          <Text style={styles.summaryValue}>
+            {(totalStaked / 100).toLocaleString()}
+          </Text>
+          <Text style={styles.summaryLabel}>Staked</Text>
+        </View>
+        <View style={[styles.summaryCol, styles.summaryColBorder]}>
+          <Text
+            style={[
+              styles.summaryValue,
+              totalNet >= 0 ? styles.netPositive : styles.netNegative,
+            ]}
+          >
+            {totalNet >= 0 ? "+" : "−"}
+            {(Math.abs(totalNet) / 100).toLocaleString()}
+          </Text>
+          <Text style={styles.summaryLabel}>Net</Text>
+        </View>
+        <View style={styles.summaryCol}>
+          <Text style={[styles.summaryValue, { color: "#FFD700" }]}>
+            {winRate}%
+          </Text>
+          <Text style={styles.summaryLabel}>Win rate</Text>
+        </View>
+      </View>
+
+      {/* List */}
       <FlatList
         data={activeRounds}
         keyExtractor={(item) => item.id}
@@ -178,14 +262,16 @@ export function HistoryScreen() {
               setRefreshing(true);
               fetchHistory();
             }}
-            tintColor={theme.colors.gold}
+            tintColor="#FFD700"
           />
         }
         ListEmptyComponent={
           <EmptyState
             icon="football-outline"
             title={`No ${isRealFilter ? "REAL" : "DEMO"} spins yet`}
-            message={`Spin in ${isRealFilter ? "REAL" : "DEMO"} mode to see your history here`}
+            message={`Spin in ${
+              isRealFilter ? "REAL" : "DEMO"
+            } mode to see your bet history here.`}
           />
         }
       />
@@ -193,92 +279,235 @@ export function HistoryScreen() {
   );
 }
 
-const { colors, radius, spacing, fonts } = theme;
+const { fonts } = theme;
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
-
+  root: {
+    flex: 1,
+    backgroundColor: "#2a0048",
+  },
   header: {
-    paddingHorizontal: spacing.md,
-    paddingTop: 56,
-    paddingBottom: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#5c0090",
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 3,
+    borderBottomColor: "#8b5a2b",
+    shadowColor: "#8800dd",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.6,
+    shadowRadius: 6,
+    elevation: 8,
+    zIndex: 100,
+  },
+  headerBack: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerTitle: {
-    fontFamily: fonts.heading,
-    color: colors.textPrimary,
-    fontSize: 22,
-    letterSpacing: 0.5,
+    fontFamily: fonts.marquee,
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
-
-  /* Filter Tabs */
-  tabRow: {
+  modeToggleGroup: {
     flexDirection: "row",
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    padding: 4,
+    padding: 3,
+    borderRadius: 10,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255, 215, 0, 0.25)",
+    zIndex: 10,
+    elevation: 10,
   },
-  tab: {
-    flex: 1,
-    alignItems: "center",
-    paddingVertical: 9,
-    borderRadius: radius.sm,
+  toggleBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
   },
-  tabActiveReal: {
-    backgroundColor: colors.realLight,
-    borderWidth: 1,
-    borderColor: colors.realBorder,
+  toggleBtnActiveReal: {
+    backgroundColor: "rgba(255, 215, 0, 0.18)",
   },
-  tabActiveDemo: {
-    backgroundColor: colors.demoLight,
-    borderWidth: 1,
-    borderColor: colors.demoBorder,
+  toggleBtnActiveDemo: {
+    backgroundColor: "rgba(34, 197, 94, 0.18)",
   },
-  tabText: {
-    fontFamily: fonts.bodyMedium,
-    fontSize: 12,
-    letterSpacing: 1,
-    color: colors.textDim,
+  toggleText: {
+    fontFamily: fonts.button,
+    fontWeight: "700",
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.4)",
   },
-  tabTextActiveReal: { color: colors.gold },
-  tabTextActiveDemo: { color: colors.success },
+  toggleTextActiveReal: {
+    color: "#FFD700",
+  },
+  toggleTextActiveDemo: {
+    color: "#22c55e",
+  },
 
-  /* Summary Strip */
+  /* 3-Column Summary Strip */
   summaryStrip: {
     flexDirection: "row",
-    marginHorizontal: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.surfaceElevated,
-    borderRadius: radius.md,
+    marginHorizontal: 16,
+    marginTop: 14,
+    marginBottom: 12,
+    borderRadius: 16,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255, 215, 0, 0.25)",
     overflow: "hidden",
   },
-  summaryItem: {
+  summaryCol: {
     flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: "center",
-    paddingVertical: 12,
+    justifyContent: "center",
   },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: colors.borderMuted,
-  },
-  summaryLabel: {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.textDim,
-    marginBottom: 3,
+  summaryColBorder: {
+    borderRightWidth: 1,
+    borderRightColor: "rgba(255, 215, 0, 0.15)",
   },
   summaryValue: {
     fontFamily: fonts.numbers,
-    fontSize: 14,
-    color: colors.textPrimary,
+    fontWeight: "700",
+    fontSize: 17,
+    color: "#FFFFFF",
   },
-  summaryPositive: { color: colors.success },
-  summaryNegative: { color: colors.error },
+  summaryLabel: {
+    fontFamily: fonts.body,
+    fontSize: 10.5,
+    color: "rgba(255, 255, 255, 0.45)",
+    marginTop: 3,
+  },
 
-  list: { paddingHorizontal: spacing.md, gap: 10, paddingBottom: 40, paddingTop: 4 },
+  /* List */
+  list: {
+    paddingHorizontal: 16,
+    paddingBottom: 36,
+    gap: 8,
+  },
+
+  /* Bet Card */
+  betCard: {
+    borderRadius: 16,
+    backgroundColor: "#220538",
+    borderWidth: 1,
+    borderColor: "rgba(255, 215, 0, 0.2)",
+    padding: 12,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 9,
+  },
+  clubIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  clubIconFallback: {
+    fontFamily: fonts.heading,
+    fontWeight: "800",
+    fontSize: 12,
+    color: "#FFFFFF",
+  },
+  clubMeta: {
+    flex: 1,
+  },
+  clubName: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+  clubMult: {
+    fontFamily: fonts.numbers,
+    fontWeight: "600",
+    fontSize: 12,
+    color: "#FFD700",
+    marginTop: 1,
+  },
+  statusBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  statusBadgeWin: {
+    backgroundColor: "rgba(34, 197, 94, 0.18)",
+  },
+  statusBadgeLoss: {
+    backgroundColor: "rgba(255, 102, 102, 0.18)",
+  },
+  statusBadgeText: {
+    fontFamily: fonts.button,
+    fontWeight: "800",
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  statusBadgeTextWin: {
+    color: "#22c55e",
+  },
+  statusBadgeTextLoss: {
+    color: "#ff6666",
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 215, 0, 0.1)",
+    marginVertical: 4,
+  },
+  cardBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 8,
+  },
+  statsLeft: {
+    flexDirection: "row",
+    gap: 18,
+  },
+  statLabel: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.45)",
+  },
+  statValue: {
+    fontFamily: fonts.numbers,
+    fontWeight: "600",
+    fontSize: 13,
+    color: "rgba(255, 255, 255, 0.7)",
+    marginTop: 2,
+  },
+  statsRight: {
+    alignItems: "flex-end",
+  },
+  timeText: {
+    fontFamily: fonts.body,
+    fontSize: 10,
+    color: "rgba(255, 255, 255, 0.45)",
+  },
+  netValue: {
+    fontFamily: fonts.numbers,
+    fontWeight: "700",
+    fontSize: 16,
+    marginTop: 2,
+  },
+  netPositive: {
+    color: "#22c55e",
+  },
+  netNegative: {
+    color: "#ff6666",
+  },
 });

@@ -18,6 +18,19 @@ import { useToast } from "../components/Toast";
 import { theme } from "../components/theme";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 
+/** Strip any prefix the user typed and return the raw 9-digit local number e.g. "712345678" */
+function normalizeLocal(raw: string): string {
+  let n = raw.trim().replace(/\s+/g, "").replace(/[^0-9]/g, "");
+  if (n.startsWith("254")) n = n.slice(3);
+  if (n.startsWith("0")) n = n.slice(1);
+  return n; // e.g. "712345678"
+}
+
+/** Full E.164 number sent to the backend */
+function toE164(raw: string): string {
+  return "254" + normalizeLocal(raw);
+}
+
 export function LoginScreen() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -29,14 +42,14 @@ export function LoginScreen() {
   const inputRef = useRef<TextInput>(null);
 
   const sendOtp = async () => {
-    const cleanPhone = phone.trim().replace(/\s+/g, "");
-    if (cleanPhone.length < 9) {
-      showError("Enter a valid phone number");
+    const local = normalizeLocal(phone);
+    if (local.length !== 9) {
+      showError("Enter a valid 9-digit Kenyan number (e.g. 712 345 678)");
       return;
     }
     setLoading(true);
     try {
-      await authApi.sendOtp(cleanPhone);
+      await authApi.sendOtp(toE164(phone));
       setStep("code");
       setResendTimer(24);
       const timer = setInterval(() => {
@@ -62,8 +75,7 @@ export function LoginScreen() {
     }
     setLoading(true);
     try {
-      const cleanPhone = phone.trim().replace(/\s+/g, "");
-      const res = await authApi.verifyOtp(cleanPhone, code);
+      const res = await authApi.verifyOtp(toE164(phone), code);
       const { token, phone_number, kyc_status } = res.data;
       await authStorage.setToken(token);
       setAuth(phone_number, kyc_status);
@@ -78,8 +90,7 @@ export function LoginScreen() {
     if (resendTimer > 0) return;
     setLoading(true);
     try {
-      const cleanPhone = phone.trim().replace(/\s+/g, "");
-      await authApi.sendOtp(cleanPhone);
+      await authApi.sendOtp(toE164(phone));
       setResendTimer(24);
       const timer = setInterval(() => {
         setResendTimer((prev) => {
@@ -106,7 +117,7 @@ export function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <StatusBar barStyle="light-content" backgroundColor={theme.colors.background} />
+        <StatusBar barStyle="light-content" backgroundColor="#2a0048" />
 
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -187,13 +198,13 @@ export function LoginScreen() {
                 style={styles.backButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="chevron-back" size={20} color={theme.colors.textSecondary} />
+                <Ionicons name="chevron-back" size={20} color="rgba(255,255,255,0.7)" />
               </TouchableOpacity>
 
               <Text style={styles.otpHeading}>Verify your number</Text>
               <Text style={styles.otpSubheading}>
-                Enter the 5-digit code we sent to{"\n"}
-                <Text style={styles.otpPhoneHighlight}>+254 {phone}</Text>
+                Enter the 6-digit code we sent to{"\n"}
+                <Text style={styles.otpPhoneHighlight}>+254 {normalizeLocal(phone)}</Text>
               </Text>
 
               {/* OTP Digit Boxes */}
@@ -267,12 +278,12 @@ export function LoginScreen() {
   );
 }
 
-const { colors, radius, spacing, fonts } = theme;
+const { fonts } = theme;
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: "#2a0048",
   },
   keyboardView: {
     flex: 1,
@@ -280,7 +291,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 28,
-    paddingBottom: 28,
+    paddingBottom: 36,
   },
   container: {
     flex: 1,
@@ -288,74 +299,82 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
 
-  /* Brand Center */
+  /* ── Brand Centre ── */
   brandCenter: {
     alignItems: "center",
-    marginTop: 36,
+    marginTop: 40,
   },
   logoBadge: {
-    width: 92,
-    height: 92,
+    width: 96,
+    height: 96,
     borderRadius: 28,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: "rgba(231,200,119,0.35)",
+    backgroundColor: "#220538",
+    borderWidth: 2,
+    borderColor: "rgba(255, 215, 0, 0.45)",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.6,
-    shadowRadius: 24,
-    elevation: 8,
+    marginBottom: 22,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
   },
   brandTitle: {
-    fontFamily: fonts.headingBold,
-    fontSize: 28,
-    color: colors.textPrimary,
-    letterSpacing: 1.2,
+    fontFamily: fonts.marquee,
+    fontSize: 26,
+    color: "#FFFFFF",
+    letterSpacing: 2,
     lineHeight: 32,
     textAlign: "center",
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 12,
   },
   brandSubtitle: {
     fontFamily: fonts.heading,
-    fontSize: 12,
-    letterSpacing: 4,
-    color: colors.gold,
+    fontSize: 11,
+    letterSpacing: 5,
+    color: "#FFD700",
     marginTop: 6,
     marginBottom: 16,
   },
   brandDescription: {
     fontFamily: fonts.body,
-    fontSize: 14.5,
-    color: colors.textMuted,
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.55)",
     lineHeight: 22,
     textAlign: "center",
     maxWidth: 290,
   },
 
-  /* Form section */
+  /* ── Form ── */
   formBottom: {
     marginTop: 40,
     marginBottom: 16,
   },
   fieldLabel: {
     fontFamily: fonts.heading,
-    fontSize: 11.5,
-    letterSpacing: 1,
-    color: colors.textDim,
-    marginBottom: 9,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: "rgba(255, 215, 0, 0.7)",
+    marginBottom: 10,
   },
   phoneInputCard: {
-    height: 58,
-    borderRadius: 15,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.borderMuted,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#220538",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 215, 0, 0.3)",
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     marginBottom: 18,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 3,
   },
   countryCodeGroup: {
     flexDirection: "row",
@@ -363,7 +382,7 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingRight: 14,
     borderRightWidth: 1,
-    borderRightColor: colors.borderMuted,
+    borderRightColor: "rgba(255, 215, 0, 0.25)",
   },
   flagMini: {
     width: 22,
@@ -377,66 +396,71 @@ const styles = StyleSheet.create({
   countryCodeText: {
     fontFamily: fonts.numbers,
     fontSize: 15,
-    color: colors.textPrimary,
+    fontWeight: "700",
+    color: "#FFD700",
   },
   phoneInput: {
     flex: 1,
     fontFamily: fonts.numbersRegular,
-    fontSize: 17,
-    color: colors.textPrimary,
+    fontSize: 18,
+    color: "#FFFFFF",
     paddingLeft: 14,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
 
-  /* Buttons */
+  /* ── CTA Buttons ── */
   primaryGoldBtn: {
-    height: 56,
-    borderRadius: 15,
-    backgroundColor: colors.gold,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: "#FFD700",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: colors.gold,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
+    shadowColor: "#FFD700",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 8,
   },
   primaryGoldBtnText: {
     fontFamily: fonts.heading,
     fontSize: 16,
-    color: "#1A1206",
-    letterSpacing: 0.5,
+    fontWeight: "800",
+    color: "#1A0A00",
+    letterSpacing: 1,
   },
   primaryBlueBtn: {
-    height: 56,
-    borderRadius: 15,
-    backgroundColor: colors.blue,
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: "#5c0090",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 215, 0, 0.4)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: colors.blue,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
+    shadowColor: "#8800dd",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
     shadowRadius: 16,
-    elevation: 6,
+    elevation: 8,
     marginTop: 24,
   },
   primaryBlueBtnText: {
     fontFamily: fonts.heading,
     fontSize: 16,
+    fontWeight: "800",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   btnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
 
-  /* Trust footer */
+  /* ── Trust footer ── */
   trustRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 20,
-    marginTop: 22,
+    gap: 24,
+    marginTop: 24,
   },
   trustItem: {
     flexDirection: "row",
@@ -445,53 +469,57 @@ const styles = StyleSheet.create({
   },
   trustText: {
     fontFamily: fonts.body,
-    fontSize: 11.5,
-    color: colors.textDim,
+    fontSize: 11,
+    color: "rgba(255, 255, 255, 0.35)",
   },
   ageCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.textDim,
+    borderColor: "rgba(255, 255, 255, 0.3)",
     alignItems: "center",
     justifyContent: "center",
   },
   ageText: {
     fontFamily: fonts.heading,
     fontSize: 9,
-    color: colors.textDim,
+    color: "rgba(255, 255, 255, 0.35)",
   },
 
-  /* OTP Screen styles */
+  /* ── OTP Screen ── */
   backButton: {
     width: 42,
     height: 42,
     borderRadius: 13,
-    backgroundColor: colors.surfaceElevated,
+    backgroundColor: "#220538",
     borderWidth: 1,
-    borderColor: colors.borderMuted,
+    borderColor: "rgba(255, 215, 0, 0.25)",
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 28,
   },
   otpHeading: {
-    fontFamily: fonts.headingBold,
-    fontSize: 28,
-    color: colors.textPrimary,
-    lineHeight: 32,
+    fontFamily: fonts.marquee,
+    fontSize: 24,
+    color: "#FFFFFF",
+    lineHeight: 30,
     marginBottom: 10,
+    textShadowColor: "#FFD700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   otpSubheading: {
     fontFamily: fonts.body,
-    fontSize: 14.5,
-    color: colors.textMuted,
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.55)",
     lineHeight: 22,
     marginBottom: 32,
   },
   otpPhoneHighlight: {
     fontFamily: fonts.numbers,
-    color: colors.textPrimary,
+    fontWeight: "700",
+    color: "#FFD700",
     fontSize: 15,
   },
   otpBoxesRow: {
@@ -501,32 +529,33 @@ const styles = StyleSheet.create({
   },
   otpBox: {
     flex: 1,
-    height: 66,
-    borderRadius: 15,
-    backgroundColor: colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: colors.borderMuted,
+    height: 68,
+    borderRadius: 16,
+    backgroundColor: "#220538",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 215, 0, 0.2)",
     alignItems: "center",
     justifyContent: "center",
     position: "relative",
   },
   otpBoxActive: {
-    borderColor: colors.blue,
+    borderColor: "#FFD700",
     borderWidth: 2,
-    backgroundColor: "rgba(76,141,255,0.08)",
+    backgroundColor: "rgba(255, 215, 0, 0.07)",
   },
   otpBoxFilled: {
-    borderColor: colors.borderLight,
+    borderColor: "rgba(255, 215, 0, 0.5)",
   },
   otpDigitText: {
     fontFamily: fonts.numbers,
     fontSize: 26,
-    color: colors.textPrimary,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
   cursorBlink: {
     width: 2,
     height: 26,
-    backgroundColor: colors.blue,
+    backgroundColor: "#FFD700",
     borderRadius: 1,
   },
   hiddenInput: {
@@ -544,15 +573,16 @@ const styles = StyleSheet.create({
   resendTimerText: {
     fontFamily: fonts.body,
     fontSize: 13,
-    color: colors.textDim,
+    color: "rgba(255, 255, 255, 0.45)",
   },
   timerBold: {
     fontFamily: fonts.numbers,
-    color: colors.textSecondary,
+    fontWeight: "700",
+    color: "#FFD700",
   },
   resendActiveText: {
     fontFamily: fonts.bodyBold,
     fontSize: 13,
-    color: colors.blueLight,
+    color: "#FFD700",
   },
 });
