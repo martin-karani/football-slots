@@ -72,6 +72,20 @@ export interface WithdrawResponse {
   message: string;
 }
 
+export interface PaymentProviderInfo {
+  code: string;
+  display_name: string;
+  enabled: boolean;
+  supports_deposit: boolean;
+  supports_withdrawal: boolean;
+}
+
+// Provider branding (presentation-only; availability comes from the backend).
+export const PROVIDER_BRANDING: Record<string, { color: string }> = {
+  mpesa: { color: "#4CAF50" },
+  airtel_money: { color: "#FF0000" },
+};
+
 // ============================================================
 // Symbols — 7 UCL teams + the trophy (jackpot).
 // Keys MUST match the backend Symbol::name() values exactly.

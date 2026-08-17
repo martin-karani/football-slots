@@ -1,12 +1,12 @@
 use axum::{
     extract::{Query, State},
-    http::{Request, StatusCode},
+    http::Request,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::adapters::web::handlers::auth::extract_claims;
+use crate::adapters::web::errors::{AppResult, require_claims};
 use crate::adapters::web::router::AppState;
 use crate::domain::models::wallet::CurrencyType;
 use crate::domain::services::wallet_service::WalletService;
@@ -23,19 +23,17 @@ pub struct BalanceResponse {
     pub balance_formatted: String,
 }
 
-#[axum::debug_handler]
 pub async fn balance(
     State(state): State<Arc<AppState>>,
     Query(query): Query<BalanceQuery>,
     req: Request<axum::body::Body>,
-) -> Result<Json<BalanceResponse>, StatusCode> {
-    let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
+) -> AppResult<Json<BalanceResponse>> {
+    let claims = require_claims(&req)?;
 
     let balance = state
         .wallet_service
         .get_balance(claims.sub, query.currency)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(BalanceResponse {
         currency: query.currency,
@@ -57,42 +55,37 @@ pub struct LedgerResponse {
     pub total: i64,
 }
 
-#[axum::debug_handler]
 pub async fn ledger(
     State(state): State<Arc<AppState>>,
     Query(query): Query<LedgerQuery>,
     req: Request<axum::body::Body>,
-) -> Result<Json<LedgerResponse>, StatusCode> {
-    let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
+) -> AppResult<Json<LedgerResponse>> {
+    let claims = require_claims(&req)?;
 
     let wallet_id = state
         .wallet_service
         .get_wallet(claims.sub, query.currency)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let entries = state
         .wallet_service
         .get_ledger_entries(wallet_id, query.limit.unwrap_or(20), query.offset.unwrap_or(0))
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     let total = entries.len() as i64;
     Ok(Json(LedgerResponse { entries, total }))
 }
 
-#[axum::debug_handler]
 pub async fn topup_virtual(
     State(state): State<Arc<AppState>>,
     req: Request<axum::body::Body>,
-) -> Result<Json<BalanceResponse>, StatusCode> {
-    let claims = extract_claims(&req).ok_or(StatusCode::UNAUTHORIZED)?;
+) -> AppResult<Json<BalanceResponse>> {
+    let claims = require_claims(&req)?;
 
     let wallet = state
         .wallet_service
         .topup_virtual(claims.sub)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?;
 
     Ok(Json(BalanceResponse {
         currency: CurrencyType::Virtual,

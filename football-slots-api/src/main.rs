@@ -1,19 +1,27 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Context;
 use football_slots_api::{
     adapters::{
-        persistence::repositories::{
-            PgGameRepository, PgMpesaRepository, PgUserRepository, PgWalletRepository,
+        payments::mpesa::MpesaAdapter,
+        persistence::{
+            payment_repository::{PgMpesaOpsRepository, PgPaymentRepository},
+            repositories::{PgGameRepository, PgUserRepository, PgWalletRepository},
         },
         web::router::create_router,
     },
     config::Config,
+    domain::models::payment::PaymentProvider,
     domain::services::{
         game_engine::GameEngineImpl,
-        mpesa_service::MpesaServiceImpl,
+        payment_gateway::PaymentGateway,
         rng::ProvablyFairRng,
         wallet_service::WalletServiceImpl,
+    },
+    ports::{
+        payments::PaymentProviderPort,
+        repositories::{MpesaOpsRepository, PaymentRepository},
     },
 };
 use sqlx::PgPool;
@@ -22,9 +30,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+    // Initialize tracing — defaults to 'info' level for development.
+    // Override with RUST_LOG=debug for verbose output, or RUST_LOG=trace for everything.
     tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")))
         .with(tracing_subscriber::fmt::layer())
         .init();
 
@@ -44,11 +54,12 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to run migrations")?;
     tracing::info!("Database migrations applied");
 
-    // Create adapters
+    // Create repositories
     let user_repo = Arc::new(PgUserRepository::new(pool.clone()));
     let wallet_repo = Arc::new(PgWalletRepository::new(pool.clone()));
     let game_repo = Arc::new(PgGameRepository::new(pool.clone()));
-    let mpesa_repo = Arc::new(PgMpesaRepository::new(pool.clone()));
+    let payment_repo: Arc<dyn PaymentRepository> = Arc::new(PgPaymentRepository::new(pool.clone()));
+    let mpesa_ops_repo: Arc<dyn MpesaOpsRepository> = Arc::new(PgMpesaOpsRepository::new(pool.clone()));
 
     // Create domain services
     let rng = Arc::new(ProvablyFairRng::new());
@@ -57,10 +68,28 @@ async fn main() -> anyhow::Result<()> {
         wallet_repo.clone(),
     ));
     let wallet_service = Arc::new(WalletServiceImpl::new(wallet_repo.clone()));
-    let mpesa_service = Arc::new(MpesaServiceImpl::new(
-        mpesa_repo.clone(),
+
+    // Create M-Pesa adapter
+    let mpesa_adapter = Arc::new(MpesaAdapter::new(
+        config.payments.mpesa.clone(),
+        config.app_base_url.clone(),
+        payment_repo.clone(),
+        mpesa_ops_repo.clone(),
+        user_repo.clone(),
+    ));
+
+    // Build adapter registry (only register enabled providers)
+    let mut adapters: HashMap<PaymentProvider, Arc<dyn PaymentProviderPort>> = HashMap::new();
+    if config.payments.mpesa.enabled {
+        adapters.insert(PaymentProvider::Mpesa, mpesa_adapter.clone());
+    }
+
+    // Create Payment Gateway
+    let payment_gateway = Arc::new(PaymentGateway::new(
+        payment_repo.clone(),
         wallet_repo.clone(),
         user_repo.clone(),
+        adapters,
         config.clone(),
     ));
 
@@ -69,10 +98,11 @@ async fn main() -> anyhow::Result<()> {
         user_repo,
         wallet_repo,
         game_repo,
-        mpesa_repo,
+        payment_repo,
+        payment_gateway,
+        mpesa_adapter,
         game_engine,
         wallet_service,
-        mpesa_service,
         rng,
         &config,
     );

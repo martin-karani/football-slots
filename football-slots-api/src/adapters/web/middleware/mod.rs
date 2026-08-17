@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{Request, StatusCode},
+    http::{Request, HeaderValue, StatusCode},
     middleware::Next,
     response::Response,
     body::Body,
@@ -12,9 +12,54 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
+use tracing::Instrument;
 use uuid::Uuid;
 
 use crate::adapters::web::router::AppState;
+
+// ============================================================
+// Request Context Middleware — adds request ID + tracing span
+// ============================================================
+
+// Silence dead-code warning: the field is stored in request extensions
+// and read back by handlers, but never directly accessed in this file.
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+struct RequestId(Uuid);
+
+/// Top-level middleware that adds a request ID, tracing span, and logs
+/// every request with status/elapsed time. This is the fix for "I get
+//  an error on the frontend but see nothing on the backend": every
+//  request now gets a span with request_id/method/path, and errors are
+//  logged at error! level with full context.
+pub async fn request_context_middleware(mut req: Request<Body>, next: Next) -> Response {
+    let request_id = Uuid::new_v4();
+    req.extensions_mut().insert(RequestId(request_id));
+
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
+    let start = Instant::now();
+
+    let span = tracing::info_span!("request", %request_id, %method, %path);
+    let mut response = next.run(req).instrument(span.clone()).await;
+
+    let _enter = span.enter();
+    let status = response.status();
+    let elapsed_ms = start.elapsed().as_millis();
+    if status.is_server_error() {
+        tracing::error!(%status, elapsed_ms, "request failed");
+    } else if status.is_client_error() {
+        tracing::warn!(%status, elapsed_ms, "request rejected");
+    } else {
+        tracing::info!(%status, elapsed_ms, "request completed");
+    }
+
+    // Expose request ID in response header for frontend correlation.
+    if let Ok(hv) = HeaderValue::from_str(&request_id.to_string()) {
+        response.headers_mut().insert("x-request-id", hv);
+    }
+    response
+}
 
 // ============================================================
 // Rate Limiter — simple in-memory token bucket per key
@@ -167,19 +212,31 @@ fn ip_to_bytes(ip: &str) -> Vec<u8> {
         .collect()
 }
 
-/// Middleware that rejects requests from non-whitelisted IPs.
-/// Used on M-Pesa callback endpoints to prevent forged callbacks.
-pub async fn ip_whitelist_middleware(
+/// Per-provider IP whitelist middleware for payment webhooks.
+/// Extracts the provider code from the request path (e.g. /mpesa/...) and
+/// validates against the provider-specific allowlist in config.
+/// Empty allowlist = allow all (dev mode).
+pub async fn provider_ip_whitelist_middleware(
     State(state): State<Arc<AppState>>,
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, (StatusCode, String)> {
     let client_ip = extract_client_ip(&req).unwrap_or_else(|| "unknown".to_string());
 
-    if !ip_is_allowed(&client_ip, &state.config.mpesa_callback_allowed_ips) {
+    // Extract provider from path: /api/v1/payments/{provider}/{webhook}
+    let provider = req.uri().path()
+        .split('/')
+        .enumerate()
+        .filter_map(|(i, s)| if i >= 4 { Some(s) } else { None }) // skip /api/v1/payments/
+        .next()
+        .unwrap_or("");
+
+    let allowed_ips = state.config.payments.webhook_ip_allowlist.get(provider);
+
+    if !ip_is_allowed(&client_ip, allowed_ips.map(|v| v.as_slice()).unwrap_or(&[])) {
         tracing::warn!(
-            "Rejected M-Pesa callback from unauthorized IP: {}",
-            client_ip
+            "Rejected {} webhook from unauthorized IP: {}",
+            provider, client_ip
         );
         return Err((
             StatusCode::FORBIDDEN,

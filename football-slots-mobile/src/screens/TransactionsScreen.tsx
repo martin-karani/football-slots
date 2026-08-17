@@ -50,7 +50,7 @@ export function TransactionsScreen() {
   const filteredEntries = entries.filter((item) => {
     const type = item.entry_type;
     if (filter === "deposits") {
-      return type === "mpesa_deposit" || type === "deposit";
+      return type === "mpesa_deposit" || type === "deposit" || type === "manual_deposit";
     }
     if (filter === "withdrawals") {
       return type === "mpesa_withdraw" || type === "withdrawal";
@@ -69,7 +69,7 @@ export function TransactionsScreen() {
   const renderItem = ({ item }: { item: LedgerEntry }) => {
     const isCredit = item.amount_minor > 0;
     const isDeposit =
-      item.entry_type === "mpesa_deposit" || item.entry_type === "deposit";
+      item.entry_type === "mpesa_deposit" || item.entry_type === "deposit" || item.entry_type === "manual_deposit";
     const isWithdrawal =
       item.entry_type === "mpesa_withdraw" || item.entry_type === "withdrawal";
     const isBet =
@@ -119,9 +119,9 @@ export function TransactionsScreen() {
     });
 
     const sub = isDeposit
-      ? `M-Pesa · ${dateStr}`
+      ? `Payment · ${dateStr}`
       : isWithdrawal
-      ? `M-Pesa · registered line`
+      ? `Payment · registered line`
       : isBet || isWin
       ? `Football Slots · ${dateStr}`
       : dateStr;

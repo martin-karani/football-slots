@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from "react";
-import { walletApi, mpesaApi } from "../api/client";
+import { walletApi, paymentsApi } from "../api/client";
 import { useGameStore } from "../store/GameProvider";
 import { CurrencyType, toMinor } from "../types";
 import { useToast } from "../components/Toast";
@@ -24,13 +24,22 @@ export function useWallet(currency?: CurrencyType) {
     }
   }, [targetCurrency, setBalance, isAuthenticated]);
 
+  // Generate an idempotency key per user action.
+  const generateIdempotencyKey = useCallback((action: string) => {
+    const phone = useGameStore.getState().phoneNumber || "anon";
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).slice(2, 8);
+    return `${action}:${phone}:${timestamp}:${random}`;
+  }, []);
+
   const deposit = useCallback(
-    async (phoneNumber: string, amountKES: number) => {
+    async (provider: string, phoneNumber: string, amountKES: number) => {
       try {
         const amountMinor = toMinor(amountKES, "real");
-        await mpesaApi.deposit(phoneNumber, amountMinor);
+        const idempotencyKey = generateIdempotencyKey("deposit");
+        await paymentsApi.deposit(provider, phoneNumber, amountMinor, idempotencyKey);
         showInfo(
-          "STK Push sent to your phone. Complete the payment.",
+          "Payment request sent to your phone. Complete the payment.",
           "Deposit",
         );
       } catch (error: any) {
@@ -40,20 +49,21 @@ export function useWallet(currency?: CurrencyType) {
         );
       }
     },
-    [showInfo, showError],
+    [showInfo, showError, generateIdempotencyKey],
   );
 
   const withdraw = useCallback(
-    async (phoneNumber: string, amountKES: number) => {
+    async (provider: string, phoneNumber: string, amountKES: number) => {
       try {
         const amountMinor = toMinor(amountKES, "real");
-        await mpesaApi.withdraw(phoneNumber, amountMinor);
+        const idempotencyKey = generateIdempotencyKey("withdraw");
+        await paymentsApi.withdraw(provider, phoneNumber, amountMinor, idempotencyKey);
         showInfo(
-          "Withdrawal submitted. Funds are on the way to your M-Pesa.",
+          "Withdrawal submitted. Funds are on the way.",
           "Withdrawal",
         );
         // The balance drops the moment the backend holds the funds, so
-        // refresh right away, then again once the B2C result usually lands.
+        // refresh right away, then again once the result usually lands.
         fetchBalance();
         setTimeout(fetchBalance, 8000);
       } catch (error: any) {
@@ -63,7 +73,7 @@ export function useWallet(currency?: CurrencyType) {
         );
       }
     },
-    [showInfo, showError, fetchBalance],
+    [showInfo, showError, fetchBalance, generateIdempotencyKey],
   );
 
   const topupVirtual = useCallback(async () => {

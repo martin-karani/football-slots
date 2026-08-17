@@ -29,7 +29,7 @@ pub enum LedgerEntryType {
     Deposit,
     Withdrawal,
     WithdrawalReversal, // funds given back after a failed/timed-out payout
-    C2bManual, // C2B manual Paybill deposit (non-STK-Push)
+    ManualDeposit, // Manual/unsolicited provider deposit (non-STK-Push)
 }
 
 impl std::fmt::Display for LedgerEntryType {
@@ -40,7 +40,7 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::Deposit => write!(f, "deposit"),
             LedgerEntryType::Withdrawal => write!(f, "withdrawal"),
             LedgerEntryType::WithdrawalReversal => write!(f, "withdrawal_reversal"),
-            LedgerEntryType::C2bManual => write!(f, "c2b_manual"),
+            LedgerEntryType::ManualDeposit => write!(f, "manual_deposit"),
         }
     }
 }

@@ -2,7 +2,8 @@ pub mod admin;
 pub mod auth;
 pub mod game;
 pub mod wallet;
-pub mod mpesa;
+pub mod payments;
+pub mod mpesa_admin;
 pub mod health;
 
 use axum::body::Body;

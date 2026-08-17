@@ -1,11 +1,10 @@
 use async_trait::async_trait;
-
 use uuid::Uuid;
 
 use crate::domain::models::{
     errors::DomainResult,
     game::GameRound,
-    mpesa::{MpesaAccountBalanceQuery, MpesaTransaction, TransactionStatus, UnmatchedC2bDeposit},
+    payment::{PaymentTransaction, ProviderInfo, UnmatchedDeposit, MpesaBalanceQuery},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
 };
@@ -109,59 +108,132 @@ pub trait GameRepository: Send + Sync {
     async fn find_seed_by_hash(&self, user_id: Uuid, seed_hash: &str) -> DomainResult<Option<String>>;
 }
 
-/// M-Pesa transaction repository trait.
-#[async_trait]
-pub trait MpesaRepository: Send + Sync {
-    async fn create_transaction(&self, tx: &MpesaTransaction) -> DomainResult<MpesaTransaction>;
-    async fn find_by_checkout_request_id(
-        &self,
-        checkout_id: &str,
-    ) -> DomainResult<Option<MpesaTransaction>>;
+// ============================================================
+// Payment Repository — provider-agnostic
+// ============================================================
 
-    async fn update_status(
+/// Outcome of an atomic settlement operation.
+#[derive(Debug)]
+pub enum SettlementOutcome {
+    /// The settlement was applied: status updated, wallet mutated, ledger written.
+    Applied { payment_id: Uuid, user_id: Uuid, amount_minor: i64 },
+    /// Duplicate/stale callback; no money moved. Benign.
+    AlreadySettled,
+    /// Transition not allowed from the current state (e.g. callback against a
+    /// non-processing withdrawal). Investigate; do not apply.
+    InvalidState,
+}
+
+#[async_trait]
+pub trait PaymentRepository: Send + Sync {
+    // registry
+    async fn list_enabled_providers(&self) -> DomainResult<Vec<ProviderInfo>>;
+
+    // creation & lookup
+    async fn find_by_idempotency_key(&self, user_id: Uuid, key: &str) -> DomainResult<Option<PaymentTransaction>>;
+    async fn create_deposit_pending(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction>;
+
+    /// FIX #2: INSERT the withdrawal row (status='processing') AND debit the
+    /// wallet AND write the ledger entry in ONE transaction. The in-flight
+    /// partial unique index guards concurrency; the balance guard prevents
+    /// overdraft. On insufficient balance the whole transaction rolls back and
+    /// NO payment row is created.
+    async fn create_withdrawal_and_hold(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction>;
+
+    async fn find_by_checkout_id(&self, provider: &str, checkout_id: &str) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_conversation_id(&self, provider: &str, conversation_id: &str) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_receipt(&self, provider: &str, receipt: &str) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_id(&self, id: Uuid) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_user(&self, user_id: Uuid, limit: i64) -> DomainResult<Vec<PaymentTransaction>>;
+    async fn set_provider_checkout_ids(&self, id: Uuid, checkout_id: Option<String>, merchant_id: Option<String>) -> DomainResult<()>;
+
+    // ── ATOMIC SETTLEMENT (each = ONE DB transaction) ─────────────────────
+
+    /// Deposit transitions pending → completed only.
+    async fn complete_checkout_deposit(
         &self,
-        id: Uuid,
-        status: TransactionStatus,
+        payment_id: Uuid,
         receipt: Option<String>,
+        result_code: Option<i32>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<SettlementOutcome>;
+
+    /// Manual/unsolicited deposit: INSERT payment(completed) + credit wallet +
+    /// ledger, atomically. Provider amount is authoritative. Duplicate receipt
+    /// ⇒ AlreadySettled (unique constraint).
+    async fn complete_manual_deposit(
+        &self,
+        user_id: Uuid,
+        provider: &str,
+        amount_minor: i64,
+        currency: &str,
+        receipt: &str,
+        reference: Option<&str>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<SettlementOutcome>;
+
+    /// Deposit failure: pending → failed, no money movement.
+    async fn fail_deposit(
+        &self,
+        payment_id: Uuid,
         result_code: Option<i32>,
         result_desc: Option<String>,
         raw_callback: Option<serde_json::Value>,
-    ) -> DomainResult<MpesaTransaction>;
+    ) -> DomainResult<SettlementOutcome>;
 
-    async fn update_provider_ids(
+    /// Withdrawal callbacks transition ONLY processing → completed.
+    async fn complete_withdrawal(
         &self,
-        id: Uuid,
-        checkout_request_id: Option<String>,
-        merchant_request_id: Option<String>,
-    ) -> DomainResult<MpesaTransaction>;
+        payment_id: Uuid,
+        receipt: Option<String>,
+        result_code: Option<i32>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<SettlementOutcome>;
 
-    async fn find_pending_by_user(&self, user_id: Uuid) -> DomainResult<Vec<MpesaTransaction>>;
-
-    /// Atomically returns the existing OriginatorConversationID for this
-    /// withdrawal if one was already minted, or generates and persists a new
-    /// one if not. Safe to call concurrently for the same tx_id.
-    async fn get_or_create_originator_conversation_id(&self, tx_id: Uuid) -> DomainResult<String>;
-
-    /// Marks a withdrawal as accepted by Safaricom (ResponseCode 0).
-    /// Guarded by originator_conversation_id so a stale caller can't flip a
-    /// different attempt's status.
-    async fn mark_transaction_submitted(
+    /// processing → reversed AND credit wallet back + ledger, atomically.
+    async fn reverse_withdrawal(
         &self,
-        tx_id: Uuid,
-        originator_conversation_id: &str,
+        payment_id: Uuid,
+        result_code: Option<i32>,
+        result_desc: Option<String>,
+        raw_callback: Option<serde_json::Value>,
+    ) -> DomainResult<SettlementOutcome>;
+
+    // webhook event log
+    async fn record_webhook_event(&self, provider: &str, webhook: &str, payload: serde_json::Value) -> DomainResult<Uuid>;
+    async fn update_webhook_event(
+        &self,
+        event_id: Uuid,
+        payment_transaction_id: Option<Uuid>,
+        external_event_id: Option<String>,
+        event_type: Option<String>,
+        processing_status: &str,
+        processing_error: Option<String>,
     ) -> DomainResult<()>;
 
-    /// Find a transaction by its OriginatorConversationID (B2C v3 idempotency).
-    async fn find_by_originator_conversation_id(
+    // quarantine
+    async fn record_unmatched_deposit(
         &self,
-        originator_id: &str,
-    ) -> DomainResult<Option<MpesaTransaction>>;
+        provider: &str,
+        receipt: &str,
+        reference: Option<&str>,
+        masked_msisdn: Option<&str>,
+        currency: &str,
+        amount_minor: i64,
+        raw_callback: serde_json::Value,
+    ) -> DomainResult<bool>;
+    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedDeposit>>;
+    async fn resolve_unmatched_deposit(&self, deposit_id: Uuid, user_id: Uuid) -> DomainResult<UnmatchedDeposit>;
 
-    // --- Account Balance API ---
+    fn pool(&self) -> sqlx::PgPool;
+}
 
-    async fn create_account_balance_query(&self, originator_id: &str) -> DomainResult<MpesaAccountBalanceQuery>;
-
-    async fn update_account_balance_result(
+/// M-Pesa-only operational tables (float monitoring). Kept separate so the
+/// generic gateway never knows about provider-specific features.
+#[async_trait]
+pub trait MpesaOpsRepository: Send + Sync {
+    async fn create_balance_query(&self, originator_id: &str) -> DomainResult<MpesaBalanceQuery>;
+    async fn update_balance_result(
         &self,
         originator_id: &str,
         status: &str,
@@ -169,32 +241,7 @@ pub trait MpesaRepository: Send + Sync {
         utility: Option<i64>,
         merchant: Option<i64>,
         charges: Option<i64>,
-        raw_callback: Option<serde_json::Value>,
-    ) -> DomainResult<MpesaAccountBalanceQuery>;
-
-    async fn get_latest_account_balance(&self) -> DomainResult<Option<MpesaAccountBalanceQuery>>;
-
-    // --- Unmatched C2B Deposits ---
-
-    /// Records a C2B payment that couldn't be matched to a user account.
-    /// Returns `true` if this created a new row, `false` if already quarantined.
-    async fn record_unmatched_c2b_deposit(
-        &self,
-        mpesa_receipt_number: &str,
-        bill_ref_number: &str,
-        masked_msisdn: &str,
-        amount_minor: i64,
-        raw_callback: serde_json::Value,
-    ) -> DomainResult<bool>;
-
-    /// List unresolved unmatched deposits.
-    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedC2bDeposit>>;
-
-    /// Resolve an unmatched deposit by crediting a user's wallet.
-    async fn resolve_unmatched_deposit(
-        &self,
-        deposit_id: Uuid,
-        user_id: Uuid,
-    ) -> DomainResult<UnmatchedC2bDeposit>;
+        raw: Option<serde_json::Value>,
+    ) -> DomainResult<()>;
+    async fn get_latest_balance(&self) -> DomainResult<Option<MpesaBalanceQuery>>;
 }
-

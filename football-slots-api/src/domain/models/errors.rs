@@ -76,6 +76,21 @@ pub enum DomainError {
 
     #[error("validation error: {0}")]
     Validation(String),
+
+    #[error("payment provider '{0}' is not enabled")]
+    ProviderNotEnabled(String),
+
+    #[error("amount mismatch: provider charged {provider}, expected {expected}")]
+    AmountMismatch { provider: i64, expected: i64 },
+
+    #[error("idempotency conflict: same key used for different request parameters")]
+    IdempotencyConflict,
+
+    #[error("provider rejected: {0}")]
+    ProviderRejected(String),
+
+    #[error("provider outcome unknown: {0}")]
+    ProviderOutcomeUnknown(String),
 }
 
 pub type DomainResult<T> = Result<T, DomainError>;

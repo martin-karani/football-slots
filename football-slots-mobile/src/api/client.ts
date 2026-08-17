@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
-import { AuthResponse, SpinResult, PaytableResponse, WalletBalance, LedgerEntry, GameRound, WithdrawResponse } from '../types';
+import { AuthResponse, SpinResult, PaytableResponse, WalletBalance, LedgerEntry, GameRound, WithdrawResponse, PaymentProviderInfo } from '../types';
 
 // Android Emulator uses 10.0.2.2 to reach the host machine's localhost
 const DEV_HOST = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
@@ -93,15 +93,20 @@ export const walletApi = {
 };
 
 // ============================================================
-// M-Pesa API
+// Payments API (provider-agnostic)
 // ============================================================
 
-export const mpesaApi = {
-  deposit: (phoneNumber: string, amountMinor: number) =>
-    client.post('/mpesa/deposit', { phone_number: phoneNumber, amount_minor: amountMinor }),
+export const paymentsApi = {
+  providers: () =>
+    client.get('/payments/providers') as Promise<{ data: { providers: PaymentProviderInfo[] } }>,
 
-  withdraw: (phoneNumber: string, amountMinor: number) =>
-    client.post('/mpesa/withdraw', { phone_number: phoneNumber, amount_minor: amountMinor }) as Promise<{ data: WithdrawResponse }>,
+  deposit: (provider: string, phoneNumber: string, amountMinor: number, idempotencyKey?: string) =>
+    client.post('/payments/deposit', { provider, phone_number: phoneNumber, amount_minor: amountMinor },
+      { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+
+  withdraw: (provider: string, phoneNumber: string, amountMinor: number, idempotencyKey?: string) =>
+    client.post('/payments/withdraw', { provider, phone_number: phoneNumber, amount_minor: amountMinor },
+      { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }) as Promise<{ data: WithdrawResponse }>,
 };
 
 // ============================================================

@@ -13,12 +13,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
-import { formatMinor } from "../types";
+import { formatMinor, PaymentProviderInfo, PROVIDER_BRANDING } from "../types";
 import { useToast } from "../components/Toast";
 import { theme } from "../components/theme";
 import { AmountSelector } from "../components/AmountSelector";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
-import { walletApi } from "../api/client";
+import { walletApi, paymentsApi } from "../api/client";
 import { LedgerEntry } from "../types";
 
 type WalletTab = "overview" | "deposit" | "withdraw";
@@ -41,8 +41,23 @@ export function WalletScreen() {
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+  const [providers, setProviders] = useState<PaymentProviderInfo[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>("mpesa");
 
   const isReal = currency === "real";
+
+  // Fetch providers on mount
+  useEffect(() => {
+    paymentsApi.providers()
+      .then((res) => {
+        const enabled = res.data.providers.filter((p) => p.enabled);
+        setProviders(enabled);
+        if (enabled.length > 0 && !enabled.find((p) => p.code === selectedProvider)) {
+          setSelectedProvider(enabled[0].code);
+        }
+      })
+      .catch(() => { /* fallback to default mpesa */ });
+  }, []);
 
   // Fetch ledger whenever currency changes
   useEffect(() => {
@@ -60,13 +75,14 @@ export function WalletScreen() {
     }
     const phone = (depositPhone || phoneNumber || "").trim().replace(/\s+/g, "");
     if (!phone || phone.length < 9) {
-      showError("Enter a valid M-Pesa phone number");
+      showError("Enter a valid phone number");
       return;
     }
     setDepositLoading(true);
     try {
-      await deposit(phone, amount);
-      showSuccess(`STK Push sent to ${phone}! Check your phone.`);
+      await deposit(selectedProvider, phone, amount);
+      const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
+      showSuccess(`Payment request sent to ${phone} via ${providerName}! Check your phone.`);
       setTimeout(() => {
         fetchBalance();
         setActiveTab("overview");
@@ -86,7 +102,7 @@ export function WalletScreen() {
     }
     const phone = (withdrawPhone || phoneNumber || "").trim().replace(/\s+/g, "");
     if (!phone || phone.length < 9) {
-      showError("Enter a valid M-Pesa phone number");
+      showError("Enter a valid phone number");
       return;
     }
     if (amount * 100 > balances.real) {
@@ -95,8 +111,9 @@ export function WalletScreen() {
     }
     setWithdrawLoading(true);
     try {
-      await withdraw(phone, amount);
-      showSuccess(`KES ${amount} withdrawn successfully to M-Pesa!`);
+      await withdraw(selectedProvider, phone, amount);
+      const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
+      showSuccess(`KES ${amount} withdrawn successfully to ${providerName}!`);
       setTimeout(() => {
         fetchBalance();
         setActiveTab("overview");
@@ -206,7 +223,7 @@ export function WalletScreen() {
               ) : (
                 ledgerEntries.slice(0, 5).map((entry) => {
                   const isCredit = entry.amount_minor > 0;
-                  const isDeposit = entry.entry_type === "mpesa_deposit" || entry.entry_type === "deposit";
+                  const isDeposit = entry.entry_type === "mpesa_deposit" || entry.entry_type === "deposit" || entry.entry_type === "manual_deposit";
                   const isWithdrawal = entry.entry_type === "mpesa_withdraw" || entry.entry_type === "withdrawal";
                   const isBet = entry.entry_type === "bet" || entry.entry_type === "spin_debit";
                   const isWin = entry.entry_type === "win" || entry.entry_type === "payout";
@@ -240,7 +257,7 @@ export function WalletScreen() {
                     : entry.entry_type.replace(/_/g, " ");
 
                   const sub = isDeposit || isWithdrawal
-                    ? "M-Pesa · instant"
+                    ? "Payment · instant"
                     : isBet || isWin
                     ? "Football Slots"
                     : "";
@@ -272,16 +289,35 @@ export function WalletScreen() {
         {/* ── DEPOSIT TAB ── */}
         {activeTab === "deposit" && (
           <View style={styles.formContainer}>
-            {/* M-Pesa Badge Card */}
+            {/* Provider Badge Card */}
             <View style={styles.mpesaInfoCard}>
-              <View style={styles.mpesaLogoBox}>
-                <Text style={styles.mpesaLogoText}>M-PESA</Text>
+              <View style={[styles.mpesaLogoBox, { backgroundColor: PROVIDER_BRANDING[selectedProvider]?.color || "#4CAF50" }]}>
+                <Text style={styles.mpesaLogoText}>{providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider.toUpperCase()}</Text>
               </View>
               <View style={styles.mpesaInfoText}>
-                <Text style={styles.mpesaInfoTitle}>Instant M-Pesa STK Push</Text>
+                <Text style={styles.mpesaInfoTitle}>Instant Deposit</Text>
                 <Text style={styles.mpesaInfoSub}>A prompt appears on your phone to confirm</Text>
               </View>
             </View>
+
+            {/* Provider Selector */}
+            {providers.length > 1 && (
+              <View style={styles.providerSelectorRow}>
+                {providers.map((p) => (
+                  <TouchableOpacity
+                    key={p.code}
+                    style={[styles.providerPill, selectedProvider === p.code && styles.providerPillActive]}
+                    onPress={() => setSelectedProvider(p.code)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.providerDot, { backgroundColor: PROVIDER_BRANDING[p.code]?.color || "#4CAF50" }]} />
+                    <Text style={[styles.providerPillText, selectedProvider === p.code && styles.providerPillTextActive]}>
+                      {p.display_name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {/* Custom Deposit Amount Input */}
             <Text style={styles.fieldLabel}>CUSTOM DEPOSIT AMOUNT (KES)</Text>
@@ -957,4 +993,40 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.35)",
   },
   btnDisabled: { opacity: 0.6 },
+
+  // Provider selector
+  providerSelectorRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  providerPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  providerPillActive: {
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderColor: "rgba(255,215,0,0.4)",
+  },
+  providerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  providerPillText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+  },
+  providerPillTextActive: {
+    color: "#FFFFFF",
+    fontFamily: fonts.bodyBold,
+  },
 });

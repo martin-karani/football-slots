@@ -5,26 +5,28 @@ use axum::{
 };
 use std::sync::Arc;
 
-use crate::adapters::web::handlers::{admin, auth, game, health, mpesa, not_found, wallet};
-use crate::adapters::web::middleware::{auth_middleware, ip_whitelist_middleware, RateLimiter};
+use crate::adapters::payments::mpesa::MpesaAdapter;
+use crate::adapters::web::handlers::{admin, auth, game, health, mpesa_admin, not_found, payments, wallet};
+use crate::adapters::web::middleware::{auth_middleware, provider_ip_whitelist_middleware, request_context_middleware, RateLimiter};
 use crate::config::Config;
 use crate::domain::services::{
-    game_engine::GameEngineImpl, mpesa_service::MpesaServiceImpl,
-    rng::ProvablyFairRng, wallet_service::WalletServiceImpl,
+    game_engine::GameEngineImpl,
+    payment_gateway::PaymentGateway,
+    rng::ProvablyFairRng,
+    wallet_service::WalletServiceImpl,
 };
-use crate::ports::repositories::{
-    GameRepository, MpesaRepository, UserRepository, WalletRepository,
-};
+use crate::ports::repositories::{GameRepository, PaymentRepository, UserRepository, WalletRepository};
 
 /// Application state shared across all handlers.
 pub struct AppState {
     pub user_repo: Arc<dyn UserRepository>,
     pub wallet_repo: Arc<dyn WalletRepository>,
     pub game_repo: Arc<dyn GameRepository>,
-    pub mpesa_repo: Arc<dyn MpesaRepository>,
+    pub payment_repo: Arc<dyn PaymentRepository>,
+    pub payment_gateway: Arc<PaymentGateway>,
+    pub mpesa_adapter: Arc<MpesaAdapter>,
     pub game_engine: Arc<GameEngineImpl>,
     pub wallet_service: Arc<WalletServiceImpl>,
-    pub mpesa_service: Arc<MpesaServiceImpl>,
     pub rng: Arc<ProvablyFairRng>,
     pub rate_limiter: Arc<RateLimiter>,
     pub config: Config,
@@ -34,10 +36,11 @@ pub fn create_router(
     user_repo: Arc<dyn UserRepository>,
     wallet_repo: Arc<dyn WalletRepository>,
     game_repo: Arc<dyn GameRepository>,
-    mpesa_repo: Arc<dyn MpesaRepository>,
+    payment_repo: Arc<dyn PaymentRepository>,
+    payment_gateway: Arc<PaymentGateway>,
+    mpesa_adapter: Arc<MpesaAdapter>,
     game_engine: Arc<GameEngineImpl>,
     wallet_service: Arc<WalletServiceImpl>,
-    mpesa_service: Arc<MpesaServiceImpl>,
     rng: Arc<ProvablyFairRng>,
     config: &Config,
 ) -> Router {
@@ -45,10 +48,11 @@ pub fn create_router(
         user_repo,
         wallet_repo,
         game_repo,
-        mpesa_repo,
+        payment_repo,
+        payment_gateway,
+        mpesa_adapter,
         game_engine,
         wallet_service,
-        mpesa_service,
         rng,
         rate_limiter: Arc::new(RateLimiter::new()),
         config: config.clone(),
@@ -88,32 +92,26 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // M-Pesa routes (authenticated): deposit & withdrawal initiation.
-    let mpesa_auth_routes = Router::new()
-        .route("/deposit", post(mpesa::initiate_deposit))
-        .route("/withdraw", post(mpesa::initiate_withdrawal))
+    // ── Payment routes (authenticated): deposit & withdrawal initiation ──
+    let payments_auth_routes = Router::new()
+        .route("/deposit", post(payments::initiate_deposit))
+        .route("/withdraw", post(payments::initiate_withdrawal))
+        .route("/providers", get(payments::list_providers))
+        .route("/history", get(payments::history))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    // M-Pesa callback routes (public webhooks): Safaricom posts to these.
-    // Protected by IP whitelist middleware — only Safaricom IPs allowed in prod.
-    let mpesa_callback_routes = Router::new()
-        .route("/callback", post(mpesa::handle_callback))                        // STK Push
-        .route("/b2c/result", post(mpesa::handle_b2c_result))                    // B2C withdrawal result
-        .route("/b2c/timeout", post(mpesa::handle_b2c_timeout))                  // B2C withdrawal timeout
-        .route("/c2b/confirmation", post(mpesa::handle_c2b_confirmation))        // C2B manual deposit
-        .route("/c2b/validation", post(mpesa::handle_c2b_validation))            // C2B validation
-        .route("/accountbalance/result", post(mpesa::handle_account_balance_result))  // Account balance result
-        .route("/accountbalance/timeout", post(mpesa::handle_account_balance_timeout)) // Account balance timeout
-        .route("/b2b/result", post(mpesa::handle_b2b_result))                    // B2B payment result
-        .route("/b2b/timeout", post(mpesa::handle_b2b_timeout))                  // B2B payment timeout
+    // ── Payment webhook routes (public) — provider callbacks ──
+    // Protected by per-provider IP whitelist middleware.
+    let payments_webhook_routes = Router::new()
+        .route("/{provider}/{webhook}", post(payments::provider_webhook))
         .route_layer(axum_mw::from_fn_with_state(
             state.clone(),
-            ip_whitelist_middleware,
+            provider_ip_whitelist_middleware,
         ))
         .with_state(state.clone());
 
-    let mpesa_routes = mpesa_auth_routes.merge(mpesa_callback_routes);
+    let payments_routes = payments_auth_routes.merge(payments_webhook_routes);
 
     // Admin routes (authenticated) — wallet investigation, reconciliation, M-Pesa ops
     let admin_routes = Router::new()
@@ -121,16 +119,22 @@ pub fn create_router(
         .route("/wallets/:user_id/ledger", get(admin::get_user_ledger))
         .route("/wallets/:wallet_id/freeze", post(admin::freeze_wallet))
         .route("/wallets/:wallet_id/unfreeze", post(admin::unfreeze_wallet))
-        // M-Pesa Admin operations
-        .route("/mpesa/account-balance/check", post(mpesa::trigger_account_balance_check))
-        .route("/mpesa/account-balance/latest", get(mpesa::get_latest_account_balance))
-        .route("/mpesa/reconcile", post(mpesa::trigger_reconciliation))
-        .route("/mpesa/unmatched-deposits", get(mpesa::list_unmatched_deposits))
-        .route("/mpesa/c2b/register", post(mpesa::register_c2b_urls))
-        .route("/mpesa/pull/register", post(mpesa::register_pull_transactions))
-        .route("/mpesa/b2b/pay", post(mpesa::initiate_business_pay_bill))
+        .with_state(state.clone());
+
+    // M-Pesa admin operations
+    let mpesa_admin_routes = Router::new()
+        .route("/account-balance/check", post(mpesa_admin::trigger_account_balance_check))
+        .route("/account-balance/latest", get(mpesa_admin::get_latest_account_balance))
+        .route("/reconcile", post(mpesa_admin::trigger_reconciliation))
+        .route("/unmatched-deposits", get(mpesa_admin::list_unmatched_deposits))
+        .route("/unmatched-deposits/:deposit_id/resolve", post(mpesa_admin::resolve_unmatched_deposit))
+        .route("/c2b/register", post(mpesa_admin::register_c2b_urls))
+        .route("/pull/register", post(mpesa_admin::register_pull_transactions))
+        .route("/b2b/pay", post(mpesa_admin::initiate_business_pay_bill))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
+
+    let admin_merged = admin_routes.nest("/payments/mpesa", mpesa_admin_routes);
 
     // Health checks
     let health_routes = Router::new()
@@ -142,7 +146,9 @@ pub fn create_router(
         .nest("/api/v1/auth", auth_routes.merge(auth_protected_routes))
         .nest("/api/v1/game", game_routes.merge(game_public_routes))
         .nest("/api/v1/wallet", wallet_routes)
-        .nest("/api/v1/mpesa", mpesa_routes)
-        .nest("/api/v1/admin", admin_routes)
+        .nest("/api/v1/payments", payments_routes)
+        .nest("/api/v1/admin", admin_merged)
         .fallback(not_found)
+        // Global middleware: every request gets a request ID + tracing span + status logging.
+        .layer(axum_mw::from_fn_with_state(state.clone(), request_context_middleware))
 }
