@@ -34,7 +34,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(rows)
     }
 
-    async fn find_by_idempotency_key(&self, user_id: Uuid, key: &str) -> DomainResult<Option<PaymentTransaction>> {
+    async fn find_by_idempotency_key(
+        &self,
+        user_id: Uuid,
+        key: &str,
+    ) -> DomainResult<Option<PaymentTransaction>> {
         let tx: Option<PaymentTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, provider, direction, status, currency, amount_minor,
                phone_number, client_idempotency_key, request_fingerprint,
@@ -51,7 +55,10 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(tx)
     }
 
-    async fn create_deposit_pending(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction> {
+    async fn create_deposit_pending(
+        &self,
+        tx: &PaymentTransaction,
+    ) -> DomainResult<PaymentTransaction> {
         let result: PaymentTransaction = sqlx::query_as(
             r#"INSERT INTO payment_transactions
                (id, user_id, provider, direction, status, currency, amount_minor,
@@ -79,7 +86,10 @@ impl PaymentRepository for PgPaymentRepository {
     }
 
     /// FIX #2: Single atomic transaction — INSERT(processing) + debit + ledger.
-    async fn create_withdrawal_and_hold(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction> {
+    async fn create_withdrawal_and_hold(
+        &self,
+        tx: &PaymentTransaction,
+    ) -> DomainResult<PaymentTransaction> {
         let mut db_tx = self.pool.begin().await?;
 
         // 1. INSERT the payment row with status='processing'
@@ -161,7 +171,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(payment)
     }
 
-    async fn find_by_checkout_id(&self, provider: &str, checkout_id: &str) -> DomainResult<Option<PaymentTransaction>> {
+    async fn find_by_checkout_id(
+        &self,
+        provider: &str,
+        checkout_id: &str,
+    ) -> DomainResult<Option<PaymentTransaction>> {
         let tx: Option<PaymentTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, provider, direction, status, currency, amount_minor,
                phone_number, client_idempotency_key, request_fingerprint,
@@ -178,7 +192,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(tx)
     }
 
-    async fn find_by_conversation_id(&self, provider: &str, conversation_id: &str) -> DomainResult<Option<PaymentTransaction>> {
+    async fn find_by_conversation_id(
+        &self,
+        provider: &str,
+        conversation_id: &str,
+    ) -> DomainResult<Option<PaymentTransaction>> {
         let tx: Option<PaymentTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, provider, direction, status, currency, amount_minor,
                phone_number, client_idempotency_key, request_fingerprint,
@@ -195,7 +213,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(tx)
     }
 
-    async fn find_by_receipt(&self, provider: &str, receipt: &str) -> DomainResult<Option<PaymentTransaction>> {
+    async fn find_by_receipt(
+        &self,
+        provider: &str,
+        receipt: &str,
+    ) -> DomainResult<Option<PaymentTransaction>> {
         let tx: Option<PaymentTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, provider, direction, status, currency, amount_minor,
                phone_number, client_idempotency_key, request_fingerprint,
@@ -227,7 +249,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(tx)
     }
 
-    async fn find_by_user(&self, user_id: Uuid, limit: i64) -> DomainResult<Vec<PaymentTransaction>> {
+    async fn find_by_user(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+    ) -> DomainResult<Vec<PaymentTransaction>> {
         let rows: Vec<PaymentTransaction> = sqlx::query_as(
             r#"SELECT id, user_id, provider, direction, status, currency, amount_minor,
                phone_number, client_idempotency_key, request_fingerprint,
@@ -244,7 +270,12 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(rows)
     }
 
-    async fn set_provider_checkout_ids(&self, id: Uuid, checkout_id: Option<String>, merchant_id: Option<String>) -> DomainResult<()> {
+    async fn set_provider_checkout_ids(
+        &self,
+        id: Uuid,
+        checkout_id: Option<String>,
+        merchant_id: Option<String>,
+    ) -> DomainResult<()> {
         sqlx::query(
             r#"UPDATE payment_transactions
                SET provider_checkout_id = COALESCE($1, provider_checkout_id),
@@ -375,7 +406,11 @@ impl PaymentRepository for PgPaymentRepository {
         );
         // #endregion
 
-        Ok(SettlementOutcome::Applied { payment_id, user_id, amount_minor })
+        Ok(SettlementOutcome::Applied {
+            payment_id,
+            user_id,
+            amount_minor,
+        })
     }
 
     /// Manual/unsolicited deposit: INSERT payment(completed) + credit wallet + ledger.
@@ -448,7 +483,11 @@ impl PaymentRepository for PgPaymentRepository {
         .await?;
 
         tx.commit().await?;
-        Ok(SettlementOutcome::Applied { payment_id, user_id, amount_minor })
+        Ok(SettlementOutcome::Applied {
+            payment_id,
+            user_id,
+            amount_minor,
+        })
     }
 
     /// Deposit failure: pending → failed, no money movement.
@@ -582,12 +621,21 @@ impl PaymentRepository for PgPaymentRepository {
         .await?;
 
         tx.commit().await?;
-        Ok(SettlementOutcome::Applied { payment_id, user_id, amount_minor })
+        Ok(SettlementOutcome::Applied {
+            payment_id,
+            user_id,
+            amount_minor,
+        })
     }
 
     // ── Webhook event log ────────────────────────────────────────
 
-    async fn record_webhook_event(&self, provider: &str, webhook: &str, payload: serde_json::Value) -> DomainResult<Uuid> {
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        webhook: &str,
+        payload: serde_json::Value,
+    ) -> DomainResult<Uuid> {
         let (id,): (Uuid,) = sqlx::query_as(
             r#"INSERT INTO payment_webhook_events (provider, webhook, payload)
                VALUES ($1, $2, $3)
@@ -657,12 +705,18 @@ impl PaymentRepository for PgPaymentRepository {
 
         match result {
             Ok(_) => Ok(true),
-            Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => Ok(false),
+            Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+                Ok(false)
+            }
             Err(e) => Err(DomainError::from(e)),
         }
     }
 
-    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedDeposit>> {
+    async fn list_unmatched_deposits(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<UnmatchedDeposit>> {
         let rows: Vec<UnmatchedDeposit> = sqlx::query_as(
             r#"SELECT id, provider, provider_receipt, provider_reference, masked_msisdn,
                currency, amount_minor, raw_callback, status, resolved_user_id, resolved_at, created_at
@@ -676,7 +730,11 @@ impl PaymentRepository for PgPaymentRepository {
         Ok(rows)
     }
 
-    async fn resolve_unmatched_deposit(&self, deposit_id: Uuid, user_id: Uuid) -> DomainResult<UnmatchedDeposit> {
+    async fn resolve_unmatched_deposit(
+        &self,
+        deposit_id: Uuid,
+        user_id: Uuid,
+    ) -> DomainResult<UnmatchedDeposit> {
         let deposit: UnmatchedDeposit = sqlx::query_as(
             r#"UPDATE unmatched_deposits
                SET status = 'resolved', resolved_user_id = $1, resolved_at = now()

@@ -4,7 +4,7 @@ use uuid::Uuid;
 use crate::domain::models::{
     errors::DomainResult,
     game::GameRound,
-    payment::{PaymentTransaction, ProviderInfo, UnmatchedDeposit, MpesaBalanceQuery},
+    payment::{MpesaBalanceQuery, PaymentTransaction, ProviderInfo, UnmatchedDeposit},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
 };
@@ -26,7 +26,12 @@ pub trait UserRepository: Send + Sync {
     // ── OTP ──
     /// Store a hashed OTP code for the given phone number.
     /// Old unexpired codes for the same phone are marked as used (invalidated).
-    async fn store_otp(&self, phone: &str, code_hash: &str, expires_at: chrono::DateTime<chrono::Utc>) -> DomainResult<()>;
+    async fn store_otp(
+        &self,
+        phone: &str,
+        code_hash: &str,
+        expires_at: chrono::DateTime<chrono::Utc>,
+    ) -> DomainResult<()>;
 
     /// Verify a plaintext OTP code against the stored hash and mark it as used.
     /// Returns `true` if the code is valid and unexpired.
@@ -114,7 +119,11 @@ pub trait GameRepository: Send + Sync {
     async fn get_active_server_seed(&self, user_id: Uuid) -> DomainResult<(String, String, i64)>;
 
     /// Look up the actual server seed by its hash (for reveal endpoint).
-    async fn find_seed_by_hash(&self, user_id: Uuid, seed_hash: &str) -> DomainResult<Option<String>>;
+    async fn find_seed_by_hash(
+        &self,
+        user_id: Uuid,
+        seed_hash: &str,
+    ) -> DomainResult<Option<String>>;
 }
 
 // ============================================================
@@ -125,7 +134,11 @@ pub trait GameRepository: Send + Sync {
 #[derive(Debug)]
 pub enum SettlementOutcome {
     /// The settlement was applied: status updated, wallet mutated, ledger written.
-    Applied { payment_id: Uuid, user_id: Uuid, amount_minor: i64 },
+    Applied {
+        payment_id: Uuid,
+        user_id: Uuid,
+        amount_minor: i64,
+    },
     /// Duplicate/stale callback; no money moved. Benign.
     AlreadySettled,
     /// Transition not allowed from the current state (e.g. callback against a
@@ -139,22 +152,53 @@ pub trait PaymentRepository: Send + Sync {
     async fn list_enabled_providers(&self) -> DomainResult<Vec<ProviderInfo>>;
 
     // creation & lookup
-    async fn find_by_idempotency_key(&self, user_id: Uuid, key: &str) -> DomainResult<Option<PaymentTransaction>>;
-    async fn create_deposit_pending(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction>;
+    async fn find_by_idempotency_key(
+        &self,
+        user_id: Uuid,
+        key: &str,
+    ) -> DomainResult<Option<PaymentTransaction>>;
+    async fn create_deposit_pending(
+        &self,
+        tx: &PaymentTransaction,
+    ) -> DomainResult<PaymentTransaction>;
 
     /// FIX #2: INSERT the withdrawal row (status='processing') AND debit the
     /// wallet AND write the ledger entry in ONE transaction. The in-flight
     /// partial unique index guards concurrency; the balance guard prevents
     /// overdraft. On insufficient balance the whole transaction rolls back and
     /// NO payment row is created.
-    async fn create_withdrawal_and_hold(&self, tx: &PaymentTransaction) -> DomainResult<PaymentTransaction>;
+    async fn create_withdrawal_and_hold(
+        &self,
+        tx: &PaymentTransaction,
+    ) -> DomainResult<PaymentTransaction>;
 
-    async fn find_by_checkout_id(&self, provider: &str, checkout_id: &str) -> DomainResult<Option<PaymentTransaction>>;
-    async fn find_by_conversation_id(&self, provider: &str, conversation_id: &str) -> DomainResult<Option<PaymentTransaction>>;
-    async fn find_by_receipt(&self, provider: &str, receipt: &str) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_checkout_id(
+        &self,
+        provider: &str,
+        checkout_id: &str,
+    ) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_conversation_id(
+        &self,
+        provider: &str,
+        conversation_id: &str,
+    ) -> DomainResult<Option<PaymentTransaction>>;
+    async fn find_by_receipt(
+        &self,
+        provider: &str,
+        receipt: &str,
+    ) -> DomainResult<Option<PaymentTransaction>>;
     async fn find_by_id(&self, id: Uuid) -> DomainResult<Option<PaymentTransaction>>;
-    async fn find_by_user(&self, user_id: Uuid, limit: i64) -> DomainResult<Vec<PaymentTransaction>>;
-    async fn set_provider_checkout_ids(&self, id: Uuid, checkout_id: Option<String>, merchant_id: Option<String>) -> DomainResult<()>;
+    async fn find_by_user(
+        &self,
+        user_id: Uuid,
+        limit: i64,
+    ) -> DomainResult<Vec<PaymentTransaction>>;
+    async fn set_provider_checkout_ids(
+        &self,
+        id: Uuid,
+        checkout_id: Option<String>,
+        merchant_id: Option<String>,
+    ) -> DomainResult<()>;
 
     // ── ATOMIC SETTLEMENT (each = ONE DB transaction) ─────────────────────
 
@@ -209,7 +253,12 @@ pub trait PaymentRepository: Send + Sync {
     ) -> DomainResult<SettlementOutcome>;
 
     // webhook event log
-    async fn record_webhook_event(&self, provider: &str, webhook: &str, payload: serde_json::Value) -> DomainResult<Uuid>;
+    async fn record_webhook_event(
+        &self,
+        provider: &str,
+        webhook: &str,
+        payload: serde_json::Value,
+    ) -> DomainResult<Uuid>;
     async fn update_webhook_event(
         &self,
         event_id: Uuid,
@@ -231,8 +280,16 @@ pub trait PaymentRepository: Send + Sync {
         amount_minor: i64,
         raw_callback: serde_json::Value,
     ) -> DomainResult<bool>;
-    async fn list_unmatched_deposits(&self, limit: i64, offset: i64) -> DomainResult<Vec<UnmatchedDeposit>>;
-    async fn resolve_unmatched_deposit(&self, deposit_id: Uuid, user_id: Uuid) -> DomainResult<UnmatchedDeposit>;
+    async fn list_unmatched_deposits(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> DomainResult<Vec<UnmatchedDeposit>>;
+    async fn resolve_unmatched_deposit(
+        &self,
+        deposit_id: Uuid,
+        user_id: Uuid,
+    ) -> DomainResult<UnmatchedDeposit>;
 
     fn pool(&self) -> sqlx::PgPool;
 }
