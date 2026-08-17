@@ -1,7 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { theme } from "./theme";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
+import { useGoBack } from "../navigation/types";
 
 interface ScreenHeaderProps {
   title: string;
@@ -18,20 +18,14 @@ export function ScreenHeader({
   showBack = true,
   transparent = false,
 }: ScreenHeaderProps) {
-  const navigation = useNavigation<any>();
+  const goBack = useGoBack();
 
   return (
     <View style={[styles.header, transparent && styles.headerTransparent]}>
       {showBack ? (
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={
-            onBack ??
-            (() =>
-              navigation.canGoBack()
-                ? navigation.goBack()
-                : navigation.navigate("Game"))
-          }
+          onPress={onBack ?? goBack}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >

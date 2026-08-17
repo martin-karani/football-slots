@@ -111,6 +111,61 @@ impl UserRepository for PgUserRepository {
         })
         .await
     }
+
+    async fn store_otp(&self, phone: &str, code_hash: &str, expires_at: chrono::DateTime<chrono::Utc>) -> DomainResult<()> {
+        // Invalidate any existing unused codes for this phone
+        sqlx::query(
+            r#"UPDATE otp_codes SET used = TRUE WHERE phone_number = $1 AND NOT used AND expires_at > now()"#,
+        )
+        .bind(phone)
+        .execute(&self.pool)
+        .await?;
+
+        // Insert the new OTP code
+        sqlx::query(
+            r#"INSERT INTO otp_codes (phone_number, code_hash, expires_at) VALUES ($1, $2, $3)"#,
+        )
+        .bind(phone)
+        .bind(code_hash)
+        .bind(expires_at)
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!(phone = %phone, "OTP code stored in database");
+        Ok(())
+    }
+
+    async fn verify_and_consume_otp(&self, phone: &str, code: &str) -> DomainResult<bool> {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(code.as_bytes());
+        let code_hash = hex::encode(hasher.finalize());
+
+        // Find the most recent unused, unexpired OTP for this phone and mark it as used.
+        // PostgreSQL doesn't support ORDER BY in UPDATE, so we use a CTE.
+        let row: Option<(String,)> = sqlx::query_as(
+            r#"WITH target AS (
+                   SELECT id, code_hash FROM otp_codes
+                   WHERE phone_number = $1 AND code_hash = $2 AND NOT used AND expires_at > now()
+                   ORDER BY created_at DESC LIMIT 1
+               )
+               UPDATE otp_codes SET used = TRUE
+               FROM target WHERE otp_codes.id = target.id
+               RETURNING otp_codes.code_hash"#,
+        )
+        .bind(phone)
+        .bind(&code_hash)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let valid = row.is_some();
+        if valid {
+            tracing::info!(phone = %phone, "OTP code verified successfully");
+        } else {
+            tracing::warn!(phone = %phone, "OTP code verification failed (wrong code or expired)");
+        }
+        Ok(valid)
+    }
 }
 
 // ============================================================
@@ -163,6 +218,12 @@ impl WalletRepository for PgWalletRepository {
         } else {
             0i64
         };
+        tracing::debug!(
+            user_id = %user_id,
+            currency = ?currency,
+            initial_balance,
+            "Wallet get_or_create"
+        );
         let wallet: Wallet = sqlx::query_as(
             r#"INSERT INTO wallets (user_id, currency, balance_minor) VALUES ($1, $2::currency_type, $3)
                ON CONFLICT (user_id, currency) DO UPDATE SET updated_at = now()
@@ -172,7 +233,21 @@ impl WalletRepository for PgWalletRepository {
         .bind(currency)
         .bind(initial_balance)
         .fetch_one(&self.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!(
+                user_id = %user_id,
+                currency = ?currency,
+                error = %e,
+                "Failed to get or create wallet"
+            );
+            DomainError::Database(e)
+        })?;
+        tracing::debug!(
+            wallet_id = %wallet.id,
+            balance = wallet.balance_minor,
+            "Wallet retrieved or created"
+        );
         Ok(wallet)
     }
 
@@ -371,7 +446,7 @@ impl WalletRepository for PgWalletRepository {
 
     async fn get_today_deposits(&self, user_id: Uuid) -> DomainResult<i64> {
         let row = sqlx::query(
-            r#"SELECT COALESCE(SUM(l.amount_minor), 0) as total FROM wallet_ledger l
+            r#"SELECT COALESCE(SUM(l.amount_minor), 0)::bigint as total FROM wallet_ledger l
                JOIN wallets w ON l.wallet_id = w.id
                WHERE w.user_id = $1 AND l.entry_type IN ('deposit', 'manual_deposit')
                AND l.created_at >= CURRENT_DATE"#,
@@ -386,7 +461,7 @@ impl WalletRepository for PgWalletRepository {
 
     async fn get_today_withdrawals(&self, user_id: Uuid) -> DomainResult<i64> {
         let row = sqlx::query(
-            r#"SELECT COALESCE(-SUM(l.amount_minor), 0) as total FROM wallet_ledger l
+            r#"SELECT COALESCE(-SUM(l.amount_minor), 0)::bigint as total FROM wallet_ledger l
                JOIN wallets w ON l.wallet_id = w.id
                WHERE w.user_id = $1 AND l.entry_type IN ('withdrawal', 'withdrawal_reversal')
                AND l.created_at >= CURRENT_DATE"#,

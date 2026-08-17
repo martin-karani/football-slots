@@ -10,17 +10,18 @@ import {
   Pressable,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { gameApi } from "../api/client";
 import { GameRound, SYMBOLS } from "../types";
 import { useGameStore } from "../store/GameProvider";
 import { theme } from "../components/theme";
 import { EmptyState } from "../components/EmptyState";
+import { useAppNavigation, useGoBack } from "../navigation/types";
 
 export function HistoryScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
+  const goBack = useGoBack();
   const [rounds, setRounds] = useState<GameRound[]>([]);
   const [_loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -182,7 +183,7 @@ export function HistoryScreen() {
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
           style={styles.headerBack}
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Game"))}
+          onPress={goBack}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >

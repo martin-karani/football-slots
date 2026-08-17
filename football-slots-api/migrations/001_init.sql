@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Closed enums (these sets are stable)
-CREATE TYPE currency_type AS ENUM ('virtual', 'real');
+CREATE TYPE currency_type AS ENUM ('virtual', 'real', 'bonus');
 CREATE TYPE kyc_status    AS ENUM ('none', 'pending', 'verified', 'rejected');
 
 -- provider + payment status are deliberately TEXT (not PG enums) so adding a

@@ -34,46 +34,39 @@ export function useWallet(currency?: CurrencyType) {
 
   const deposit = useCallback(
     async (provider: string, phoneNumber: string, amountKES: number) => {
-      try {
-        const amountMinor = toMinor(amountKES, "real");
-        const idempotencyKey = generateIdempotencyKey("deposit");
-        await paymentsApi.deposit(provider, phoneNumber, amountMinor, idempotencyKey);
-        showInfo(
-          "Payment request sent to your phone. Complete the payment.",
-          "Deposit",
-        );
-      } catch (error: any) {
-        console.error("Deposit failed:", error);
-        showError(
-          error.response?.data?.message || "Deposit failed. Try again.",
-        );
-      }
+      const amountMinor = toMinor(amountKES, "real");
+      const idempotencyKey = generateIdempotencyKey("deposit");
+      const res = await paymentsApi.deposit(
+        provider,
+        phoneNumber,
+        amountMinor,
+        idempotencyKey,
+      );
+      // Initiate background balance refresh
+      fetchBalance();
+      setTimeout(fetchBalance, 8000);
+      return res.data;
     },
-    [showInfo, showError, generateIdempotencyKey],
+    [generateIdempotencyKey, fetchBalance],
   );
 
   const withdraw = useCallback(
     async (provider: string, phoneNumber: string, amountKES: number) => {
-      try {
-        const amountMinor = toMinor(amountKES, "real");
-        const idempotencyKey = generateIdempotencyKey("withdraw");
-        await paymentsApi.withdraw(provider, phoneNumber, amountMinor, idempotencyKey);
-        showInfo(
-          "Withdrawal submitted. Funds are on the way.",
-          "Withdrawal",
-        );
-        // The balance drops the moment the backend holds the funds, so
-        // refresh right away, then again once the result usually lands.
-        fetchBalance();
-        setTimeout(fetchBalance, 8000);
-      } catch (error: any) {
-        console.error("Withdrawal failed:", error);
-        showError(
-          error.response?.data?.message || "Withdrawal failed. Try again.",
-        );
-      }
+      const amountMinor = toMinor(amountKES, "real");
+      const idempotencyKey = generateIdempotencyKey("withdraw");
+      const res = await paymentsApi.withdraw(
+        provider,
+        phoneNumber,
+        amountMinor,
+        idempotencyKey,
+      );
+      // The balance drops the moment the backend holds the funds, so
+      // refresh right away, then again once the result usually lands.
+      fetchBalance();
+      setTimeout(fetchBalance, 8000);
+      return res.data;
     },
-    [showInfo, showError, fetchBalance, generateIdempotencyKey],
+    [fetchBalance, generateIdempotencyKey],
   );
 
   const topupVirtual = useCallback(async () => {

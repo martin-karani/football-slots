@@ -4,6 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use football_slots_api::{
     adapters::{
+        notifications::celcom_sms::CelcomAfricaSmsGateway,
+        notifications::smtp_mailer::SmtpMailer,
         payments::mpesa::MpesaAdapter,
         persistence::{
             payment_repository::{PgMpesaOpsRepository, PgPaymentRepository},
@@ -93,6 +95,12 @@ async fn main() -> anyhow::Result<()> {
         config.clone(),
     ));
 
+    // Build notification gateways
+    let email_gateway: Arc<dyn football_slots_api::ports::notifications::EmailGatewayPort> =
+        Arc::new(SmtpMailer::new(config.smtp.clone()));
+    let sms_gateway: Arc<dyn football_slots_api::ports::notifications::SmsGatewayPort> =
+        Arc::new(CelcomAfricaSmsGateway::new(config.sms.clone()));
+
     // Build router
     let app = create_router(
         user_repo,
@@ -104,6 +112,8 @@ async fn main() -> anyhow::Result<()> {
         game_engine,
         wallet_service,
         rng,
+        email_gateway,
+        sms_gateway,
         &config,
     );
 

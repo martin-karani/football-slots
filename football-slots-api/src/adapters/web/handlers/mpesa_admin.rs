@@ -118,8 +118,9 @@ pub async fn resolve_unmatched_deposit(
     req: axum::http::Request<axum::body::Body>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     let path = req.uri().path().to_string();
-    let deposit_id = path.strip_prefix("/api/v1/admin/payments/mpesa/unmatched-deposits/")
-        .and_then(|p| p.strip_suffix("/resolve"))
+    let deposit_id = path
+        .strip_suffix("/resolve")
+        .and_then(|p| p.split('/').last())
         .and_then(|p| p.parse::<uuid::Uuid>().ok())
         .ok_or((StatusCode::BAD_REQUEST, Json(ErrorResponse {
             error: "bad_request".into(),

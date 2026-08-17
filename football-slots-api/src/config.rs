@@ -36,6 +36,34 @@ pub struct AirtelConfig {
     pub callback_allowed_ips: Vec<String>,
 }
 
+// ── Notification config ──────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct SmtpConfig {
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub password: Secret<String>,
+    pub use_tls: bool,
+    pub from_address: String,
+    pub from_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SmsConfig {
+    /// Provider identifier: "celcomafrica" (extend later)
+    pub provider: String,
+    /// Base URL for the SMS gateway.
+    /// Dev: http://buggregator:8000/sms or http://localhost:8000/sms
+    /// Prod: https://isms.celcomafrica.com/api/services/sendsms/
+    pub base_url: String,
+    pub api_key: Secret<String>,
+    pub partner_id: String,
+    pub shortcode: String,
+    /// "plain" or "bm5" (base64-encoded message body)
+    pub pass_type: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct PaymentsConfig {
     pub deposit_rate_limit_seconds: u64,
@@ -70,12 +98,16 @@ pub struct Config {
     // provider callback/result/timeout URLs.
     pub app_base_url: String,
 
-    // OTP
+    // OTP (legacy — SMS gateway handles OTP delivery now)
     pub otp_api_key: Option<Secret<String>>,
     pub otp_from_number: Option<String>,
 
     // Payment configuration
     pub payments: PaymentsConfig,
+
+    // Notification configuration
+    pub smtp: SmtpConfig,
+    pub sms: SmsConfig,
 }
 
 impl Config {
@@ -194,6 +226,41 @@ impl Config {
             otp_api_key: std::env::var("OTP_API_KEY").ok().map(Secret::from),
             otp_from_number: std::env::var("OTP_FROM_NUMBER").ok(),
             payments,
+
+            // SMTP config (dev: Buggregator fake SMTP, prod: real relay)
+            smtp: SmtpConfig {
+                host: std::env::var("SMTP_HOST").unwrap_or_else(|_| "localhost".to_string()),
+                port: std::env::var("SMTP_PORT")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(1025),
+                username: std::env::var("SMTP_USERNAME").unwrap_or_default(),
+                password: Secret::from(std::env::var("SMTP_PASSWORD").unwrap_or_default()),
+                use_tls: std::env::var("SMTP_USE_TLS")
+                    .ok()
+                    .and_then(|v| v.parse().ok())
+                    .unwrap_or(false),
+                from_address: std::env::var("SMTP_FROM_ADDRESS")
+                    .unwrap_or_else(|_| "noreply@footballslots.local".to_string()),
+                from_name: std::env::var("SMTP_FROM_NAME")
+                    .unwrap_or_else(|_| "Football Slots".to_string()),
+            },
+
+            // SMS config (dev: Buggregator SMS capture, prod: Celcom Africa)
+            sms: SmsConfig {
+                provider: std::env::var("SMS_PROVIDER")
+                    .ok()
+                    .unwrap_or_else(|| "celcomafrica".to_string()),
+                base_url: std::env::var("SMS_BASE_URL")
+                    .unwrap_or_else(|_| "http://localhost:8000/sms".to_string()),
+                api_key: Secret::from(std::env::var("SMS_API_KEY").unwrap_or_default()),
+                partner_id: std::env::var("SMS_PARTNER_ID").unwrap_or_default(),
+                shortcode: std::env::var("SMS_SHORTCODE")
+                    .unwrap_or_else(|_| "FootballSlots".to_string()),
+                pass_type: std::env::var("SMS_PASS_TYPE")
+                    .ok()
+                    .unwrap_or_else(|| "plain".to_string()),
+            },
         })
     }
 }

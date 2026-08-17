@@ -223,17 +223,48 @@ pub async fn provider_ip_whitelist_middleware(
 ) -> Result<Response, (StatusCode, String)> {
     let client_ip = extract_client_ip(&req).unwrap_or_else(|| "unknown".to_string());
 
-    // Extract provider from path: /api/v1/payments/{provider}/{webhook}
-    let provider = req.uri().path()
-        .split('/')
-        .enumerate()
-        .filter_map(|(i, s)| if i >= 4 { Some(s) } else { None }) // skip /api/v1/payments/
-        .next()
-        .unwrap_or("");
+    // Extract provider from path:
+    // 1) /api/v1/payments/callbacks/{webhook} -> maps to "mpesa"
+    // 2) /api/v1/payments/{provider}/{webhook} -> extracts provider code
+    let path = req.uri().path();
+    let provider = if path.contains("/callbacks/") {
+        "mpesa"
+    } else {
+        path.split('/')
+            .enumerate()
+            .filter_map(|(i, s)| if i >= 4 { Some(s) } else { None }) // skip /api/v1/payments/
+            .next()
+            .unwrap_or("")
+    };
 
     let allowed_ips = state.config.payments.webhook_ip_allowlist.get(provider);
 
+    // #region debug-point H3:ip-whitelist-check
+    tracing::info!(
+        debug_session = "mpesa-deposit-balance",
+        hypothesis = "H3",
+        location = "middleware/mod.rs:provider_ip_whitelist_middleware",
+        client_ip = %client_ip,
+        provider = %provider,
+        allowlist_configured = allowed_ips.is_some(),
+        allowlist = ?allowed_ips,
+        allowlist_empty = allowed_ips.map(|v| v.is_empty()).unwrap_or(true),
+        msg = "[DEBUG] IP whitelist check for webhook callback"
+    );
+    // #endregion
+
     if !ip_is_allowed(&client_ip, allowed_ips.map(|v| v.as_slice()).unwrap_or(&[])) {
+        // #region debug-point H3:ip-whitelist-blocked
+        tracing::error!(
+            debug_session = "mpesa-deposit-balance",
+            hypothesis = "H3",
+            location = "middleware/mod.rs:provider_ip_whitelist_middleware:blocked",
+            client_ip = %client_ip,
+            provider = %provider,
+            http_status = %StatusCode::FORBIDDEN,
+            msg = "[DEBUG] IP WHITELIST BLOCKED webhook callback — webhook will NOT process"
+        );
+        // #endregion
         tracing::warn!(
             "Rejected {} webhook from unauthorized IP: {}",
             provider, client_ip
@@ -243,6 +274,18 @@ pub async fn provider_ip_whitelist_middleware(
             format!("Unauthorized IP: {}", client_ip),
         ));
     }
+
+    // #region debug-point H3:ip-whitelist-passed
+    tracing::info!(
+        debug_session = "mpesa-deposit-balance",
+        hypothesis = "H3",
+        location = "middleware/mod.rs:provider_ip_whitelist_middleware:passed",
+        client_ip = %client_ip,
+        provider = %provider,
+        msg = "[DEBUG] IP whitelist PASSED — webhook proceeding to handler"
+    );
+    // #endregion
+
 
     // Inject the client IP into request extensions for downstream use
     req.extensions_mut().insert(client_ip);

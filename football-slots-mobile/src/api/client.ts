@@ -102,11 +102,51 @@ export const paymentsApi = {
 
   deposit: (provider: string, phoneNumber: string, amountMinor: number, idempotencyKey?: string) =>
     client.post('/payments/deposit', { provider, phone_number: phoneNumber, amount_minor: amountMinor },
-      { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }),
+      { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }) as Promise<{
+        data: { transaction_id: string; status: string; message: string };
+      }>,
 
   withdraw: (provider: string, phoneNumber: string, amountMinor: number, idempotencyKey?: string) =>
     client.post('/payments/withdraw', { provider, phone_number: phoneNumber, amount_minor: amountMinor },
       { headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {} }) as Promise<{ data: WithdrawResponse }>,
+
+  status: (transactionId: string) =>
+    client.get(`/payments/status/${transactionId}`) as Promise<{
+      data: {
+        id: string;
+        provider: string;
+        direction: 'deposit' | 'withdrawal';
+        status: 'pending' | 'settled' | 'failed';
+        currency: string;
+        amount_minor: number;
+        phone_number: string;
+        provider_receipt?: string;
+        result_code?: number;
+        result_desc?: string;
+        created_at: string;
+        updated_at: string;
+      };
+    }>,
+
+  history: (limit = 20) =>
+    client.get('/payments/history', { params: { limit } }) as Promise<{
+      data: {
+        transactions: Array<{
+          id: string;
+          provider: string;
+          direction: 'deposit' | 'withdrawal';
+          status: 'pending' | 'settled' | 'failed';
+          currency: string;
+          amount_minor: number;
+          phone_number: string;
+          provider_receipt?: string;
+          result_code?: number;
+          result_desc?: string;
+          created_at: string;
+          updated_at: string;
+        }>;
+      };
+    }>,
 };
 
 // ============================================================

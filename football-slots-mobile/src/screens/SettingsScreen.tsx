@@ -8,8 +8,8 @@ import {
   StatusBar,
   Animated,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
+import { useAppNavigation, useGoBack } from "../navigation/types";
 import { useWallet } from "../hooks/useWallet";
 import { authStorage } from "../api/client";
 import { useState, useRef, useEffect } from "react";
@@ -57,7 +57,8 @@ function ToggleSwitch({
 }
 
 export function SettingsScreen() {
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
+  const goBack = useGoBack();
   const insets = useSafeAreaInsets();
   const currency = useGameStore((state) => state.currency);
   const clearAuth = useGameStore((state) => state.clearAuth);
@@ -104,7 +105,7 @@ export function SettingsScreen() {
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Game"))}
+          onPress={goBack}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >

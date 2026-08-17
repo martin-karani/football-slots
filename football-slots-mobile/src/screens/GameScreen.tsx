@@ -20,7 +20,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useAppNavigation } from "../navigation/types";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { theme } from "../components/theme";
 import { useGameStore } from "../store/GameProvider";
@@ -184,7 +184,7 @@ export function GameScreen() {
   const { spin, step } = useGame({ onStakeDeducted, onWin });
   const { fetchBalance } = useWallet();
   const { play: playSound } = useSound();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
 
   useEffect(() => {
     fetchBalance();
@@ -218,29 +218,10 @@ export function GameScreen() {
           <Text style={st.headerTxt}>FOOTBALL SLOTS</Text>
           <View style={{ flexDirection: "row", gap: 10, alignItems: "center" }}>
             <TouchableOpacity
-              ref={menuBtnRef}
               style={st.menuBtn}
               hitSlop={{ top: 12, bottom: 12, left: 10, right: 10 }}
               activeOpacity={0.7}
-              onPress={() => {
-                if (menuBtnRef.current) {
-                  menuBtnRef.current.measure(
-                    (
-                      _x: number,
-                      _y: number,
-                      width: number,
-                      height: number,
-                      pageX: number,
-                      pageY: number
-                    ) => {
-                      setDropdownPos({ top: pageY + height + 6, right: 12 });
-                      setShowDropdownMenu(true);
-                    }
-                  );
-                } else {
-                  setShowDropdownMenu(!showDropdownMenu);
-                }
-              }}
+              onPress={() => setShowDropdownMenu(true)}
             >
               <Ionicons name="menu-outline" size={22} color="#FFE566" />
             </TouchableOpacity>
@@ -601,106 +582,121 @@ export function GameScreen() {
         </TouchableWithoutFeedback>
       </Modal>
 
-      {/* ── Settings Dropdown Modal ── */}
+      {/* ── Game Menu Bottom Sheet Modal (Design from HTML Section 05) ── */}
       <Modal
         visible={showDropdownMenu}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={() => setShowDropdownMenu(false)}
       >
         <TouchableWithoutFeedback onPress={() => setShowDropdownMenu(false)}>
-          <View style={st.dropdownOverlay}>
+          <View style={st.menuSheetOverlay}>
             <TouchableWithoutFeedback>
-              <View
-                style={[
-                  st.dropdownCard,
-                  {
-                    position: "absolute",
-                    top: dropdownPos.top,
-                    right: dropdownPos.right,
-                  },
-                ]}
-              >
-                {/* Popover Header */}
-                <Text style={st.dropdownMenuTitle}>GAME MENU</Text>
-                <View style={st.dropdownDivider} />
+              <View style={st.menuSheetContainer}>
+                {/* Pull handle indicator */}
+                <View style={st.menuSheetHandle} />
 
-                <TouchableOpacity
-                  style={st.dropdownItem}
-                  onPress={() => {
-                    setShowDropdownMenu(false);
-                    navigation.navigate("Wallet");
-                  }}
-                >
-                  <Text style={st.dropdownItemIcon}>👛</Text>
-                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Wallet</Text>
-                  <Text style={st.dropdownItemArrow}>›</Text>
-                </TouchableOpacity>
+                {/* Title */}
+                <Text style={st.menuSheetTitle}>Menu</Text>
 
-                <TouchableOpacity
-                  style={st.dropdownItem}
-                  onPress={() => {
-                    setShowDropdownMenu(false);
-                    navigation.navigate("History");
-                  }}
-                >
-                  <Text style={st.dropdownItemIcon}>📜</Text>
-                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Bet History</Text>
-                  <Text style={st.dropdownItemArrow}>›</Text>
-                </TouchableOpacity>
+                {/* Menu items list */}
+                <View style={st.menuSheetList}>
+                  {/* 1. Wallet */}
+                  <TouchableOpacity
+                    style={st.menuSheetItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowDropdownMenu(false);
+                      navigation.navigate("Wallet");
+                    }}
+                  >
+                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(255, 229, 102, 0.18)" }]}>
+                      <Ionicons name="wallet-outline" size={20} color="#FFE566" />
+                    </View>
+                    <Text style={st.menuItemTitle}>Wallet</Text>
+                    <Text style={st.menuItemWalletBalance}>
+                      KES {formatMinor(balances.real, "real")}
+                    </Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={st.dropdownItem}
-                  onPress={() => {
-                    setShowDropdownMenu(false);
-                    navigation.navigate("Paytable");
-                  }}
-                >
-                  <Text style={st.dropdownItemIcon}>📋</Text>
-                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Rules &amp; Paytable</Text>
-                  <Text style={st.dropdownItemArrow}>›</Text>
-                </TouchableOpacity>
+                  {/* 2. Bet History */}
+                  <TouchableOpacity
+                    style={st.menuSheetItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowDropdownMenu(false);
+                      navigation.navigate("History");
+                    }}
+                  >
+                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
+                      <Ionicons name="stats-chart-outline" size={20} color="#D0A0FF" />
+                    </View>
+                    <Text style={st.menuItemTitle}>Bet history</Text>
+                    <Text style={st.menuItemChevron}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={st.dropdownItem}
-                  onPress={() => {
-                    setShowDropdownMenu(false);
-                    navigation.navigate("Profile");
-                  }}
-                >
-                  <Text style={st.dropdownItemIcon}>⚙️</Text>
-                  <Text style={[st.dropdownItemTxt, { flex: 1 }]}>Profile &amp; Settings</Text>
-                  <Text style={st.dropdownItemArrow}>›</Text>
-                </TouchableOpacity>
+                  {/* 3. Rules & Paytable */}
+                  <TouchableOpacity
+                    style={st.menuSheetItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowDropdownMenu(false);
+                      navigation.navigate("Paytable");
+                    }}
+                  >
+                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
+                      <Ionicons name="trophy-outline" size={20} color="#D0A0FF" />
+                    </View>
+                    <Text style={st.menuItemTitle}>Rules &amp; paytable</Text>
+                    <Text style={st.menuItemChevron}>›</Text>
+                  </TouchableOpacity>
 
-                <View style={st.dropdownDivider} />
+                  {/* 4. Profile & Settings */}
+                  <TouchableOpacity
+                    style={st.menuSheetItem}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowDropdownMenu(false);
+                      navigation.navigate("Profile");
+                    }}
+                  >
+                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
+                      <Ionicons name="settings-outline" size={20} color="#D0A0FF" />
+                    </View>
+                    <Text style={st.menuItemTitle}>Profile &amp; settings</Text>
+                    <Text style={st.menuItemChevron}>›</Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[st.dropdownItem, st.dropdownLogoutItem]}
-                  onPress={() => {
-                    setShowDropdownMenu(false);
-                    Alert.alert(
-                      "Log Out",
-                      "Are you sure you want to log out?",
-                      [
-                        { text: "Cancel", style: "cancel" },
-                        {
-                          text: "Log Out",
-                          style: "destructive",
-                          onPress: async () => {
-                            await authStorage.clearToken();
-                            clearAuth();
+                  {/* 5. Log out */}
+                  <TouchableOpacity
+                    style={[st.menuSheetItem, st.menuLogoutItem]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setShowDropdownMenu(false);
+                      Alert.alert(
+                        "Log Out",
+                        "Are you sure you want to log out?",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Log Out",
+                            style: "destructive",
+                            onPress: async () => {
+                              await authStorage.clearToken();
+                              clearAuth();
+                            },
                           },
-                        },
-                      ]
-                    );
-                  }}
-                >
-                  <Text style={st.dropdownItemIcon}>🚪</Text>
-                  <Text style={[st.dropdownItemTxt, { color: "#ff6666", flex: 1 }]}>
-                    Log Out
-                  </Text>
-                </TouchableOpacity>
+                        ]
+                      );
+                    }}
+                  >
+                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(255, 84, 104, 0.18)" }]}>
+                      <Ionicons name="log-out-outline" size={20} color="#FF5468" />
+                    </View>
+                    <Text style={[st.menuItemTitle, { color: "#FF5468" }]}>Log out</Text>
+                    <Text style={[st.menuItemChevron, { color: "#FF5468" }]}>›</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1508,31 +1504,85 @@ const st = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.5,
   },
-  dropdownOverlay: {
+  menuSheetOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    backgroundColor: "rgba(20, 0, 40, 0.85)",
+    justifyContent: "flex-end",
   },
-  dropdownCard: {
-    width: 270,
-    backgroundColor: "#1e0430",
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "rgba(255, 215, 0, 0.45)",
-    padding: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.75,
-    shadowRadius: 18,
-    elevation: 18,
+  menuSheetContainer: {
+    backgroundColor: "#1e0438",   // deep purple matching root bg
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderTopWidth: 2,
+    borderTopColor: "#8b5a2b",    // same wood-gold border as header
+    paddingHorizontal: 20,
+    paddingTop: 14,
+    paddingBottom: 34,
+    shadowColor: "#8800dd",
+    shadowOffset: { width: 0, height: -12 },
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    elevation: 24,
   },
-  dropdownMenuTitle: {
-    fontFamily: theme.fonts.marquee,
-    color: "#FFE566",
-    fontSize: 12,
-    fontWeight: "900",
-    letterSpacing: 1.5,
-    textAlign: "center",
-    marginBottom: 4,
+  menuSheetHandle: {
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 229, 102, 0.35)",  // gold tint handle
+    alignSelf: "center",
+    marginBottom: 18,
+  },
+  menuSheetTitle: {
+    fontFamily: theme.fonts.heading,
+    fontSize: 18,
+    color: "#FFE566",             // same gold as header text
+    letterSpacing: 2,
+    textShadowColor: "#ffd700",
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+    marginBottom: 16,
+    paddingHorizontal: 2,
+  },
+  menuSheetList: {
+    gap: 8,
+  },
+  menuSheetItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: "#2e0550",   // slightly lighter purple card
+    borderWidth: 1,
+    borderColor: "rgba(139, 90, 43, 0.5)",  // wood-gold border
+  },
+  menuItemIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuItemTitle: {
+    flex: 1,
+    fontFamily: theme.fonts.bodyBold,
+    fontSize: 15,
+    color: "#F0E0FF",             // soft lavender-white
+  },
+  menuItemWalletBalance: {
+    fontFamily: theme.fonts.numbers,
+    fontSize: 14,
+    color: "#FFE566",             // gold
+  },
+  menuItemChevron: {
+    fontFamily: theme.fonts.body,
+    fontSize: 20,
+    color: "rgba(255, 229, 102, 0.45)",  // dim gold chevron
+  },
+  menuLogoutItem: {
+    backgroundColor: "rgba(255, 84, 104, 0.12)",
+    borderColor: "rgba(255, 84, 104, 0.35)",
+    marginTop: 4,
   },
   dropdownSectionHeader: {
     fontFamily: theme.fonts.button,

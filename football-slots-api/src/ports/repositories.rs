@@ -22,6 +22,15 @@ pub trait UserRepository: Send + Sync {
         until: Option<chrono::DateTime<chrono::Utc>>,
     ) -> DomainResult<User>;
     async fn get_or_create_by_phone(&self, phone: &str) -> DomainResult<User>;
+
+    // ── OTP ──
+    /// Store a hashed OTP code for the given phone number.
+    /// Old unexpired codes for the same phone are marked as used (invalidated).
+    async fn store_otp(&self, phone: &str, code_hash: &str, expires_at: chrono::DateTime<chrono::Utc>) -> DomainResult<()>;
+
+    /// Verify a plaintext OTP code against the stored hash and mark it as used.
+    /// Returns `true` if the code is valid and unexpired.
+    async fn verify_and_consume_otp(&self, phone: &str, code: &str) -> DomainResult<bool>;
 }
 
 /// Wallet repository trait.

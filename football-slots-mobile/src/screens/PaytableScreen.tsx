@@ -8,17 +8,18 @@ import {
   StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { SYMBOLS, PaytableRow as PaytableRowType, formatMinor } from "../types";
 import { gameApi } from "../api/client";
 import { theme } from "../components/theme";
 import { PaytableRow } from "../components/PaytableRow";
 import { useGameStore } from "../store/GameProvider";
+import { useAppNavigation, useGoBack } from "../navigation/types";
 
 export function PaytableScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
+  const goBack = useGoBack();
   const [rows, setRows] = useState<PaytableRowType[]>([]);
   const balances = useGameStore((state) => state.balances);
   const currency = useGameStore((state) => state.currency);
@@ -39,7 +40,7 @@ export function PaytableScreen() {
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
           style={styles.backBtn}
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Game"))}
+          onPress={goBack}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}
         >

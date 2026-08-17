@@ -8,7 +8,6 @@ import {
   RefreshControl,
   StatusBar,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { walletApi } from "../api/client";
@@ -16,12 +15,14 @@ import { LedgerEntry } from "../types";
 import { useGameStore } from "../store/GameProvider";
 import { theme } from "../components/theme";
 import { EmptyState } from "../components/EmptyState";
+import { useAppNavigation, useGoBack } from "../navigation/types";
 
 type FilterType = "all" | "deposits" | "withdrawals" | "bets";
 
 export function TransactionsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
+  const goBack = useGoBack("Wallet");
   const currency = useGameStore((state) => state.currency);
   const isReal = currency === "real";
 
@@ -178,7 +179,7 @@ export function TransactionsScreen() {
       {/* Marquee Header */}
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
-          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Wallet"))}
+          onPress={goBack}
           style={styles.backBtn}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
           activeOpacity={0.7}

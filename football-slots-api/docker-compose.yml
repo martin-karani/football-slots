@@ -17,5 +17,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # Local email/SMS capture for development.
+  # Start with: docker compose --profile dev up -d
+  # Web UI: http://localhost:8000
+  buggregator:
+    image: ghcr.io/buggregator/server:latest
+    container_name: football-slots-buggregator
+    restart: unless-stopped
+    profiles: ["dev"]
+    ports:
+      - "8000:8000" # Web UI + SMS capture (POST /sms)
+      - "1026:1025" # Fake SMTP server (email capture)
+    volumes:
+      - ./buggregator.yaml:/buggregator.yaml
+    environment:
+      CLIENT_SUPPORTED_EVENTS: "smtp,sms,http-dump"
+
 volumes:
   postgres_data:

@@ -15,6 +15,7 @@ use crate::domain::services::{
     rng::ProvablyFairRng,
     wallet_service::WalletServiceImpl,
 };
+use crate::ports::notifications::{EmailGatewayPort, SmsGatewayPort};
 use crate::ports::repositories::{GameRepository, PaymentRepository, UserRepository, WalletRepository};
 
 /// Application state shared across all handlers.
@@ -30,6 +31,9 @@ pub struct AppState {
     pub rng: Arc<ProvablyFairRng>,
     pub rate_limiter: Arc<RateLimiter>,
     pub config: Config,
+    // Notification gateways
+    pub email_gateway: Arc<dyn EmailGatewayPort>,
+    pub sms_gateway: Arc<dyn SmsGatewayPort>,
 }
 
 pub fn create_router(
@@ -42,6 +46,8 @@ pub fn create_router(
     game_engine: Arc<GameEngineImpl>,
     wallet_service: Arc<WalletServiceImpl>,
     rng: Arc<ProvablyFairRng>,
+    email_gateway: Arc<dyn EmailGatewayPort>,
+    sms_gateway: Arc<dyn SmsGatewayPort>,
     config: &Config,
 ) -> Router {
     let state = Arc::new(AppState {
@@ -56,6 +62,8 @@ pub fn create_router(
         rng,
         rate_limiter: Arc::new(RateLimiter::new()),
         config: config.clone(),
+        email_gateway,
+        sms_gateway,
     });
 
     // Auth routes (public)
@@ -98,13 +106,15 @@ pub fn create_router(
         .route("/withdraw", post(payments::initiate_withdrawal))
         .route("/providers", get(payments::list_providers))
         .route("/history", get(payments::history))
+        .route("/status/:id", get(payments::get_payment_status))
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
     // ── Payment webhook routes (public) — provider callbacks ──
     // Protected by per-provider IP whitelist middleware.
     let payments_webhook_routes = Router::new()
-        .route("/{provider}/{webhook}", post(payments::provider_webhook))
+        .route("/callbacks/:webhook", post(payments::callback_webhook))
+        .route("/:provider/:webhook", post(payments::provider_webhook))
         .route_layer(axum_mw::from_fn_with_state(
             state.clone(),
             provider_ip_whitelist_middleware,
@@ -113,7 +123,7 @@ pub fn create_router(
 
     let payments_routes = payments_auth_routes.merge(payments_webhook_routes);
 
-    // Admin routes (authenticated) — wallet investigation, reconciliation, M-Pesa ops
+    // Admin routes (authenticated) — wallet investigation, reconciliation, payment ops
     let admin_routes = Router::new()
         .route("/wallets/reconcile", post(admin::reconcile_wallets))
         .route("/wallets/:user_id/ledger", get(admin::get_user_ledger))
@@ -121,8 +131,8 @@ pub fn create_router(
         .route("/wallets/:wallet_id/unfreeze", post(admin::unfreeze_wallet))
         .with_state(state.clone());
 
-    // M-Pesa admin operations
-    let mpesa_admin_routes = Router::new()
+    // Payment operations admin routes (provider-agnostic)
+    let payment_ops_admin_routes = Router::new()
         .route("/account-balance/check", post(mpesa_admin::trigger_account_balance_check))
         .route("/account-balance/latest", get(mpesa_admin::get_latest_account_balance))
         .route("/reconcile", post(mpesa_admin::trigger_reconciliation))
@@ -134,7 +144,7 @@ pub fn create_router(
         .route_layer(axum_mw::from_fn_with_state(state.clone(), auth_middleware))
         .with_state(state.clone());
 
-    let admin_merged = admin_routes.nest("/payments/mpesa", mpesa_admin_routes);
+    let admin_merged = admin_routes.nest("/payments/ops", payment_ops_admin_routes);
 
     // Health checks
     let health_routes = Router::new()

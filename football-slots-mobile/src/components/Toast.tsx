@@ -120,7 +120,7 @@ export function ToastProvider({ children }: ToastProviderProps) {
       value={{ showToast, showSuccess, showError, showInfo, showWarning }}
     >
       {children}
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} pointerEvents="box-none">
         <View style={styles.toastContainer} pointerEvents="none">
           {toasts.map((toast, index) => {
             const anim = animations.current.get(toast.id);

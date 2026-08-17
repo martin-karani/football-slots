@@ -270,14 +270,29 @@ impl PaymentRepository for PgPaymentRepository {
         result_code: Option<i32>,
         raw_callback: Option<serde_json::Value>,
     ) -> DomainResult<SettlementOutcome> {
+        // #region debug-point H5:settlement-entry
+        tracing::info!(
+            debug_session = "mpesa-deposit-balance",
+            hypothesis = "H5",
+            location = "payment_repository.rs:complete_checkout_deposit:entry",
+            payment_id = %payment_id,
+            receipt = ?receipt,
+            msg = "[DEBUG] complete_checkout_deposit called — starting DB transaction"
+        );
+        // #endregion
+
         let mut tx = self.pool.begin().await?;
 
-        // Conditional UPDATE: pending → completed only
+        // Conditional UPDATE: pending OR failed → completed.
+        // We accept 'failed' too so that:
+        //  (a) sandbox: real Daraja 1037 callback arrives before the simulated success;
+        //  (b) production race: timeout callback beats the success callback.
+        // This is safe because we guard idempotency via AlreadySettled on duplicates.
         let payment: Option<(Uuid, i64)> = sqlx::query_as(
             r#"UPDATE payment_transactions
                SET status = 'completed', provider_receipt = $2, result_code = $3,
                    raw_callback = $4, updated_at = now()
-               WHERE id = $1 AND status = 'pending'
+               WHERE id = $1 AND status IN ('pending', 'failed')
                RETURNING user_id, amount_minor"#,
         )
         .bind(payment_id)
@@ -286,6 +301,19 @@ impl PaymentRepository for PgPaymentRepository {
         .bind(&raw_callback)
         .fetch_optional(&mut *tx)
         .await?;
+
+        // #region debug-point H5:tx-status-update
+        tracing::info!(
+            debug_session = "mpesa-deposit-balance",
+            hypothesis = "H5",
+            location = "payment_repository.rs:complete_checkout_deposit:tx_updated",
+            payment_id = %payment_id,
+            payment_row_found = payment.is_some(),
+            payment_user_id = ?payment.map(|p| p.0),
+            payment_amount = ?payment.map(|p| p.1),
+            msg = "[DEBUG] Payment transaction status update result (pending|failed → completed)"
+        );
+        // #endregion
 
         let Some((user_id, amount_minor)) = payment else {
             tx.rollback().await.ok();
@@ -306,6 +334,20 @@ impl PaymentRepository for PgPaymentRepository {
         .fetch_one(&mut *tx)
         .await?;
 
+        // #region debug-point H5:wallet-credited
+        tracing::info!(
+            debug_session = "mpesa-deposit-balance",
+            hypothesis = "H5",
+            location = "payment_repository.rs:complete_checkout_deposit:wallet_credit",
+            payment_id = %payment_id,
+            user_id = %user_id,
+            wallet_id = %wallet_id,
+            credit_amount_minor = %amount_minor,
+            new_wallet_balance_after = %balance_after,
+            msg = "[DEBUG] WALLET CREDITED — balance updated in DB transaction"
+        );
+        // #endregion
+
         sqlx::query(
             r#"INSERT INTO wallet_ledger
                (wallet_id, entry_type, amount_minor, balance_after_minor, reference_type, reference_id)
@@ -319,6 +361,20 @@ impl PaymentRepository for PgPaymentRepository {
         .await?;
 
         tx.commit().await?;
+
+        // #region debug-point H5:settlement-committed
+        tracing::info!(
+            debug_session = "mpesa-deposit-balance",
+            hypothesis = "H5",
+            location = "payment_repository.rs:complete_checkout_deposit:committed",
+            payment_id = %payment_id,
+            user_id = %user_id,
+            wallet_id = %wallet_id,
+            final_balance_minor = %balance_after,
+            msg = "[DEBUG] SETTLEMENT COMMITTED — transaction complete, balance should show in queries"
+        );
+        // #endregion
+
         Ok(SettlementOutcome::Applied { payment_id, user_id, amount_minor })
     }
 

@@ -125,11 +125,24 @@ pub async fn initiate_deposit(
         ));
     }
 
+    tracing::info!(
+        user_id = %claims.sub,
+        provider = %body.provider,
+        amount_minor = body.amount_minor,
+        "Deposit initiated"
+    );
+
     let tx = state
         .payment_gateway
         .deposit(claims.sub, provider, &body.phone_number, body.amount_minor, idempotency_key)
         .await
         .map_err(error_response)?;
+
+    tracing::info!(
+        transaction_id = %tx.id,
+        status = %tx.status,
+        "Deposit processed"
+    );
 
     Ok(Json(DepositResponse {
         transaction_id: tx.id,
@@ -182,11 +195,24 @@ pub async fn initiate_withdrawal(
     let provider = PaymentProvider::from_name(&body.provider)
         .ok_or((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Unknown provider".into() })))?;
 
+    tracing::info!(
+        user_id = %claims.sub,
+        provider = %body.provider,
+        amount_minor = body.amount_minor,
+        "Withdrawal initiated"
+    );
+
     let tx = state
         .payment_gateway
         .withdraw(claims.sub, provider, &body.phone_number, body.amount_minor, idempotency_key)
         .await
         .map_err(error_response)?;
+
+    tracing::info!(
+        transaction_id = %tx.id,
+        status = %tx.status,
+        "Withdrawal processed"
+    );
 
     Ok(Json(WithdrawResponse {
         transaction_id: tx.id,
@@ -214,11 +240,17 @@ pub async fn history(
     ))?;
 
     let limit: i64 = req.uri().query()
-        .and_then(|q| {
+        .map(|q| {
             url::form_urlencoded::parse(q.as_bytes())
-                .find_map(|(k, v)| if k == "limit" { Some(v) } else { None })
-                .and_then(|v| v.parse().ok())
+                .find_map(|(k, v)| {
+                    if k == "limit" {
+                        v.parse().ok()
+                    } else {
+                        None
+                    }
+                })
         })
+        .flatten()
         .unwrap_or(20);
 
     let transactions = state
@@ -245,16 +277,116 @@ pub async fn history(
     }))
 }
 
+pub async fn get_payment_status(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(tx_id): axum::extract::Path<uuid::Uuid>,
+    req: axum::http::Request<axum::body::Body>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    let claims = extract_claims(&req).ok_or((
+        StatusCode::UNAUTHORIZED,
+        Json(ErrorResponse { error: "unauthorized".into(), message: "Missing or invalid token".into() }),
+    ))?;
+
+    let tx = state
+        .payment_repo
+        .find_by_id(tx_id)
+        .await
+        .map_err(error_response)?
+        .ok_or_else(|| (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse { error: "not_found".into(), message: "Transaction not found".into() })
+        ))?;
+
+    if tx.user_id != claims.sub {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ErrorResponse { error: "forbidden".into(), message: "Forbidden".into() }),
+        ));
+    }
+
+    Ok(Json(serde_json::json!({
+        "id": tx.id,
+        "provider": tx.provider,
+        "direction": tx.direction,
+        "status": tx.status,
+        "currency": tx.currency,
+        "amount_minor": tx.amount_minor,
+        "phone_number": tx.phone_number,
+        "provider_receipt": tx.provider_receipt,
+        "result_code": tx.result_code,
+        "result_desc": tx.result_desc,
+        "created_at": tx.created_at,
+        "updated_at": tx.updated_at,
+    })))
+}
+
 // ============================================================
-// Generic webhook handler
+// Generic webhook handlers
 // ============================================================
+
+/// Provider-agnostic webhook callback handler (URL path: /api/v1/payments/callbacks/:webhook)
+pub async fn callback_webhook(
+    State(state): State<Arc<AppState>>,
+    Path(webhook): Path<String>,
+    Json(payload): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    // #region debug-point H2+H3:callback-entry
+    tracing::info!(
+        debug_session = "mpesa-deposit-balance",
+        hypothesis = "H2,H3",
+        location = "payments.rs:callback_webhook",
+        webhook_name = %webhook,
+        payload_keys = ?payload.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()),
+        stk_checkout_id = ?payload.get("Body").and_then(|b| b.get("stkCallback")).and_then(|s| s.get("CheckoutRequestID")).and_then(|v| v.as_str()),
+        msg = "[DEBUG] Webhook callback received — IP passed middleware if this log fires"
+    );
+    // #endregion
+
+    let provider = crate::domain::models::payment::PaymentProvider::Mpesa;
+    let provider_code = provider.as_str();
+
+    // 1. Persist FIRST so a processing failure never loses the callback.
+    let event_id = match state.payment_repo.record_webhook_event(provider_code, &webhook, payload.clone()).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to persist webhook event");
+            return Json(serde_json::json!({"result_code": 1, "result_desc": "internal error"}));
+        }
+    };
+
+    // 2. Process (atomic, idempotent). On error the stored event stays available for retry.
+    let result = state.payment_gateway.handle_webhook(provider, &webhook, payload, event_id).await;
+
+    // #region debug-point H2+H3:callback-result
+    tracing::info!(
+        debug_session = "mpesa-deposit-balance",
+        hypothesis = "H2,H3",
+        location = "payments.rs:callback_webhook:result",
+        webhook_name = %webhook,
+        event_id = %event_id,
+        result_is_ok = result.is_ok(),
+        result_err = ?result.as_ref().err(),
+        msg = "[DEBUG] Webhook callback processing completed"
+    );
+    // #endregion
+
+    match result {
+        Ok(()) => Json(serde_json::json!({"result_code": 0, "result_desc": "accepted"})),
+        Err(e) => {
+            tracing::error!(provider = %provider_code, webhook_name = %webhook, error = %e, "webhook processing failed");
+            state.payment_repo.update_webhook_event(event_id, None, None, None, "failed", Some(e.to_string())).await.ok();
+            Json(serde_json::json!({"result_code": 0, "result_desc": "accepted"}))
+        }
+    }
+}
 
 pub async fn provider_webhook(
     State(state): State<Arc<AppState>>,
     Path((provider_code, webhook)): Path<(String, String)>,
     Json(payload): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    let Some(provider) = PaymentProvider::from_name(&provider_code) else {
+    let Some(_provider) = crate::domain::models::payment::PaymentProvider::from_name(&provider_code) else {
+        tracing::warn!(provider = %provider_code, "Webhook for unknown provider");
         return Json(serde_json::json!({"result_code": 1, "result_desc": "unknown provider"}));
     };
 
@@ -262,16 +394,16 @@ pub async fn provider_webhook(
     let event_id = match state.payment_repo.record_webhook_event(&provider_code, &webhook, payload.clone()).await {
         Ok(id) => id,
         Err(e) => {
-            tracing::error!("failed to persist webhook event: {e}");
+            tracing::error!(error = %e, "failed to persist webhook event");
             return Json(serde_json::json!({"result_code": 1, "result_desc": "internal error"}));
         }
     };
 
     // 2. Process (atomic, idempotent). On error the stored event stays available for retry.
-    match state.payment_gateway.handle_webhook(provider, &webhook, payload, event_id).await {
+    match state.payment_gateway.handle_webhook(_provider, &webhook, payload, event_id).await {
         Ok(()) => Json(serde_json::json!({"result_code": 0, "result_desc": "accepted"})),
         Err(e) => {
-            tracing::error!("webhook {}/{} processing failed: {e}", provider_code, webhook);
+            tracing::error!(provider = %provider_code, webhook_name = %webhook, error = %e, "webhook processing failed");
             state.payment_repo.update_webhook_event(event_id, None, None, None, "failed", Some(e.to_string())).await.ok();
             Json(serde_json::json!({"result_code": 0, "result_desc": "accepted"}))
         }

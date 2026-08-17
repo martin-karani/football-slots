@@ -10,22 +10,25 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
 import { useGameStore } from "../store/GameProvider";
 import { useWallet } from "../hooks/useWallet";
 import { formatMinor, PaymentProviderInfo, PROVIDER_BRANDING } from "../types";
+import { useAppNavigation, useGoBack } from "../navigation/types";
 import { useToast } from "../components/Toast";
 import { theme } from "../components/theme";
 import { AmountSelector } from "../components/AmountSelector";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 import { walletApi, paymentsApi } from "../api/client";
 import { LedgerEntry } from "../types";
+import { MpesaDepositModal } from "../components/MpesaDepositModal";
+import { MpesaWithdrawalModal } from "../components/MpesaWithdrawalModal";
 
 type WalletTab = "overview" | "deposit" | "withdraw";
 
 export function WalletScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
+  const navigation = useAppNavigation();
+  const goBack = useGoBack();
   const balances = useGameStore((state) => state.balances);
   const currency = useGameStore((state) => state.currency);
   const { deposit, withdraw, fetchBalance, topupVirtual } = useWallet();
@@ -43,6 +46,18 @@ export function WalletScreen() {
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
   const [providers, setProviders] = useState<PaymentProviderInfo[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("mpesa");
+
+  // M-Pesa Interactive Deposit State
+  const [activeDepositTxId, setActiveDepositTxId] = useState<string | null>(null);
+  const [depositModalVisible, setDepositModalVisible] = useState(false);
+  const [activeDepositPhone, setActiveDepositPhone] = useState("");
+  const [activeDepositAmount, setActiveDepositAmount] = useState(0);
+
+  // M-Pesa Interactive Withdrawal State
+  const [activeWithdrawTxId, setActiveWithdrawTxId] = useState<string | null>(null);
+  const [withdrawModalVisible, setWithdrawModalVisible] = useState(false);
+  const [activeWithdrawPhone, setActiveWithdrawPhone] = useState("");
+  const [activeWithdrawAmount, setActiveWithdrawAmount] = useState(0);
 
   const isReal = currency === "real";
 
@@ -80,17 +95,38 @@ export function WalletScreen() {
     }
     setDepositLoading(true);
     try {
-      await deposit(selectedProvider, phone, amount);
-      const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
-      showSuccess(`Payment request sent to ${phone} via ${providerName}! Check your phone.`);
-      setTimeout(() => {
-        fetchBalance();
-        setActiveTab("overview");
-      }, 3000);
+      const data = await deposit(selectedProvider, phone, amount);
+      if (selectedProvider === "mpesa" && data?.transaction_id) {
+        setActiveDepositTxId(data.transaction_id);
+        setActiveDepositPhone(phone);
+        setActiveDepositAmount(amount);
+        setDepositModalVisible(true);
+      } else {
+        const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
+        showSuccess(`Payment request sent to ${phone} via ${providerName}! Check your phone.`);
+        setTimeout(() => {
+          fetchBalance();
+          setActiveTab("overview");
+        }, 3000);
+      }
     } catch (e: any) {
       showError(e?.response?.data?.message || "Failed to initiate deposit");
     } finally {
       setDepositLoading(false);
+    }
+  };
+
+  const handleDepositRetry = async (): Promise<string | null> => {
+    try {
+      const data = await deposit(selectedProvider, activeDepositPhone, activeDepositAmount);
+      if (data?.transaction_id) {
+        setActiveDepositTxId(data.transaction_id);
+        return data.transaction_id;
+      }
+      return null;
+    } catch (e: any) {
+      showError(e?.response?.data?.message || "Retry failed. Try again.");
+      return null;
     }
   };
 
@@ -111,13 +147,20 @@ export function WalletScreen() {
     }
     setWithdrawLoading(true);
     try {
-      await withdraw(selectedProvider, phone, amount);
-      const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
-      showSuccess(`KES ${amount} withdrawn successfully to ${providerName}!`);
-      setTimeout(() => {
-        fetchBalance();
-        setActiveTab("overview");
-      }, 2000);
+      const data = await withdraw(selectedProvider, phone, amount);
+      if (selectedProvider === "mpesa" && data?.transaction_id) {
+        setActiveWithdrawTxId(data.transaction_id);
+        setActiveWithdrawPhone(phone);
+        setActiveWithdrawAmount(amount);
+        setWithdrawModalVisible(true);
+      } else {
+        const providerName = providers.find((p) => p.code === selectedProvider)?.display_name || selectedProvider;
+        showSuccess(`KES ${amount} withdrawn successfully to ${providerName}!`);
+        setTimeout(() => {
+          fetchBalance();
+          setActiveTab("overview");
+        }, 2000);
+      }
     } catch (e: any) {
       showError(e?.response?.data?.message || "Failed to process withdrawal");
     } finally {
@@ -138,11 +181,7 @@ export function WalletScreen() {
       <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
         <TouchableOpacity
           onPress={() =>
-            activeTab !== "overview"
-              ? setActiveTab("overview")
-              : navigation.canGoBack()
-              ? navigation.goBack()
-              : navigation.navigate("Game")
+            activeTab !== "overview" ? setActiveTab("overview") : goBack()
           }
           style={styles.backBtn}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
@@ -514,6 +553,45 @@ export function WalletScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Interactive M-Pesa Deposit Flow Modal ── */}
+      <MpesaDepositModal
+        visible={depositModalVisible}
+        transactionId={activeDepositTxId}
+        phoneNumber={activeDepositPhone}
+        amountKES={activeDepositAmount}
+        onSuccess={(receipt) => {
+          fetchBalance();
+          showSuccess(
+            `KES ${activeDepositAmount.toLocaleString()} added to your Real Balance!${receipt ? ` (Receipt: ${receipt})` : ""}`,
+            "Deposit Confirmed"
+          );
+        }}
+        onRetry={handleDepositRetry}
+        onClose={() => {
+          setDepositModalVisible(false);
+          fetchBalance();
+        }}
+      />
+
+      {/* ── Interactive M-Pesa Withdrawal Flow Modal ── */}
+      <MpesaWithdrawalModal
+        visible={withdrawModalVisible}
+        transactionId={activeWithdrawTxId}
+        phoneNumber={activeWithdrawPhone}
+        amountKES={activeWithdrawAmount}
+        onSuccess={(receipt) => {
+          fetchBalance();
+          showSuccess(
+            `KES ${activeWithdrawAmount.toLocaleString()} sent to ${activeWithdrawPhone}!${receipt ? ` (Receipt: ${receipt})` : ""}`,
+            "Withdrawal Confirmed"
+          );
+        }}
+        onClose={() => {
+          setWithdrawModalVisible(false);
+          fetchBalance();
+        }}
+      />
     </View>
   );
 }
