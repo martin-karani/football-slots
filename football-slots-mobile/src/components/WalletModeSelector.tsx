@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { theme } from "./theme";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
 
-type WalletMode = "real" | "demo" | "bonus";
+type WalletMode = "real" | "demo";
 
 interface WalletModeSelectorProps {
   activeMode: WalletMode;
@@ -13,7 +13,6 @@ export function WalletModeSelector({ activeMode, onSelect }: WalletModeSelectorP
   const modes: { key: WalletMode; label: string; icon: any }[] = [
     { key: "real", label: "Real", icon: "cash-outline" },
     { key: "demo", label: "Demo", icon: "game-controller-outline" },
-    { key: "bonus", label: "Bonus", icon: "gift-outline" },
   ];
 
   return (
@@ -22,7 +21,7 @@ export function WalletModeSelector({ activeMode, onSelect }: WalletModeSelectorP
         const isActive = activeMode === mode.key;
         const accent = mode.key === "real" ? theme.colors.gold
           : mode.key === "demo" ? theme.colors.blue
-          : theme.colors.bonusAccent;
+          : theme.colors.gold;
 
         return (
           <TouchableOpacity

@@ -12,7 +12,6 @@ export function WalletHeader() {
   const currencies: { key: CurrencyType; label: string; icon: any; accent: string }[] = [
     { key: 'virtual', label: 'DEMO', icon: 'game-controller-outline', accent: theme.colors.blue },
     { key: 'real', label: 'KES', icon: 'cash-outline', accent: theme.colors.gold },
-    { key: 'bonus', label: 'BONUS', icon: 'gift-outline', accent: theme.colors.bonusAccent },
   ];
 
   const activeCurrency = currencies.find((c) => c.key === currency)!;

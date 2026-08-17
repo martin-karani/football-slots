@@ -2,7 +2,7 @@
 // Core Types
 // ============================================================
 
-export type CurrencyType = "virtual" | "real" | "bonus";
+export type CurrencyType = "virtual" | "real";
 
 export interface SpinResult {
   round_id: string;
@@ -18,24 +18,6 @@ export interface SpinResult {
   client_seed: string;
   nonce: number;
   paytable_version?: number;
-  bonus_claimed?: boolean;
-  bonus_progress_current?: number;
-  bonus_progress_target?: number;
-  bonus_grant_completed?: boolean;
-  bonus_grant_lost?: boolean;
-  bonus_converted_minor?: number;
-}
-
-export interface BonusStatusResponse {
-  meter_enabled: boolean;
-  meter_current: number;
-  meter_target: number;
-  reward_minor: number;
-  grant_active: boolean;
-  grant_wagered: number;
-  grant_wager_required: number;
-  grant_amount: number;
-  bonus_balance_minor: number;
 }
 
 export interface PaytableRow {
@@ -250,11 +232,10 @@ export interface BetMap {
  * All wallet/stake/bet values flowing through the backend are stored in
  * MINOR units. The ratio between the integer minor unit and what the
  * user sees on screen (DISPLAY units) is the SAME for every currency —
-   * switching between DEMO, KES, and BONUS behaves identically:
+   * switching between DEMO and KES behaves identically:
  *
    *   Virtual / DEMO  ->  1 minor  =  0.01 DISPLAY DEMO  (1 DEMO = 100 minor)
  *   Real    / KES  ->  1 minor  =  0.01 DISPLAY KES  (1 KES = 100 minor)
- *   Bonus   / BON  ->  1 minor  =  0.01 DISPLAY BON  (1 BON = 100 minor)
  *
  * This matches the backend's own convention (see config.rs comment
  * "Virtual currency defaults (in minor units = cents)") so the free
@@ -266,7 +247,6 @@ export interface BetMap {
 const MINOR_PER_DISPLAY: Record<CurrencyType, number> = {
   virtual: 100,
   real: 100,
-  bonus: 100,
 };
 
 /** Convert a DISPLAY-unit amount (what the user reads on a chip button) to the raw MINOR integer the API/stores work with. */
@@ -303,8 +283,7 @@ export function currencyLabel(currency: CurrencyType): string {
       return "KES";
     case "virtual":
       return "DEMO";
-    case "bonus":
-      return "BONUS";
+
   }
 }
 
@@ -315,9 +294,6 @@ export function currencyLabel(currency: CurrencyType): string {
  * *before* storing anything in the bet map / sending to the API.
  */
 export const CHIP_VALUES = [2, 5, 10, 15, 20, 30, 40, 120];
-
-// Reduced chip set for bonus mode (KES 1, 2, 5)
-export const BONUS_CHIP_VALUES = [1, 2, 5];
 
 // ============================================================
 // API

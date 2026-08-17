@@ -28,18 +28,6 @@ pub struct SpinResponse {
     pub client_seed: String,
     pub nonce: i64,
     pub paytable_version: i16,
-    #[serde(default)]
-    pub bonus_claimed: bool,
-    #[serde(default)]
-    pub bonus_progress_current: i32,
-    #[serde(default)]
-    pub bonus_progress_target: i32,
-    #[serde(default)]
-    pub bonus_grant_completed: bool,
-    #[serde(default)]
-    pub bonus_grant_lost: bool,
-    #[serde(default)]
-    pub bonus_converted_minor: i64,
 }
 
 #[axum::debug_handler]
@@ -53,7 +41,7 @@ pub async fn spin(
         .map_err(|_| StatusCode::BAD_REQUEST)
         .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_REQUEST))?;
 
-    // KYC check for real money and bonus
+    // KYC check for real money
     if body.currency.requires_kyc() {
         let user = state
             .user_repo
@@ -114,12 +102,6 @@ pub async fn spin(
         client_seed: result.client_seed,
         nonce: result.nonce,
         paytable_version: result.paytable_version,
-        bonus_claimed: result.bonus_claimed,
-        bonus_progress_current: result.bonus_progress_current,
-        bonus_progress_target: result.bonus_progress_target,
-        bonus_grant_completed: result.bonus_grant_completed,
-        bonus_grant_lost: result.bonus_grant_lost,
-        bonus_converted_minor: result.bonus_converted_minor,
     }))
 }
 

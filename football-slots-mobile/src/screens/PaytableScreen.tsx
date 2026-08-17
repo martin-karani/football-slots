@@ -22,7 +22,7 @@ export function PaytableScreen() {
   const [rows, setRows] = useState<PaytableRowType[]>([]);
   const balances = useGameStore((state) => state.balances);
   const currency = useGameStore((state) => state.currency);
-  const isReal = currency === "real" || currency === "bonus";
+  const isReal = currency === "real";
 
   useEffect(() => {
     gameApi
@@ -176,7 +176,7 @@ export function PaytableScreen() {
             "Spread your bets across multiple clubs to maximize hit frequency.",
             "Common clubs (Barca, Real, City, Liverpool) hit 19% each with ×5 payout.",
             "The UCL Trophy jackpot (×100) hits ~0.95% of the time.",
-            "Fill the Match Bonus meter during Real Mode spins for extra rewards.",
+            "Play responsibly. Check your bet history to track performance.",
           ].map((tip, i) => (
             <View key={i} style={styles.tipRow}>
               <Text style={styles.tipIcon}>•</Text>

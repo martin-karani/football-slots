@@ -96,7 +96,7 @@ export function useAuthWallet() {
 
   const fetchAllBalances = useCallback(async () => {
     if (useGameStore.getState().isSpinning) return;
-    for (const c of ["virtual", "real", "bonus"] as CurrencyType[]) {
+    for (const c of ["virtual", "real"] as CurrencyType[]) {
       try {
         const res = await walletApi.balance(c);
         if (useGameStore.getState().isSpinning) return;

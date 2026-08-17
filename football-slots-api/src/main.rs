@@ -3,7 +3,6 @@ use std::sync::Arc;
 use anyhow::Context;
 use football_slots_api::{
     adapters::{
-        persistence::bonus_repository::PgBonusRepository,
         persistence::repositories::{
             PgGameRepository, PgMpesaRepository, PgUserRepository, PgWalletRepository,
         },
@@ -11,7 +10,6 @@ use football_slots_api::{
     },
     config::Config,
     domain::services::{
-        bonus_service::BonusServiceImpl,
         game_engine::GameEngineImpl,
         mpesa_service::MpesaServiceImpl,
         rng::ProvablyFairRng,
@@ -54,16 +52,9 @@ async fn main() -> anyhow::Result<()> {
 
     // Create domain services
     let rng = Arc::new(ProvablyFairRng::new());
-    let bonus_repo = Arc::new(PgBonusRepository::new(pool.clone()));
-    let bonus_service = Arc::new(BonusServiceImpl::new(
-        bonus_repo.clone(),
-        game_repo.clone(),
-        wallet_repo.clone(),
-    ));
     let game_engine = Arc::new(GameEngineImpl::new(
         game_repo.clone(),
         wallet_repo.clone(),
-        bonus_service.clone(),
     ));
     let wallet_service = Arc::new(WalletServiceImpl::new(wallet_repo.clone()));
     let mpesa_service = Arc::new(MpesaServiceImpl::new(
@@ -82,7 +73,6 @@ async fn main() -> anyhow::Result<()> {
         game_engine,
         wallet_service,
         mpesa_service,
-        bonus_service,
         rng,
         &config,
     );

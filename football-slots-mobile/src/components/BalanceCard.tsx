@@ -5,7 +5,7 @@ interface BalanceCardProps {
   label: string;
   amount: string;
   subtext?: string;
-  variant?: "real" | "demo" | "bonus";
+  variant?: "real" | "demo";
 }
 
 /**
@@ -29,12 +29,6 @@ export function BalanceCard({
       border: "rgba(47, 212, 138, 0.28)",
       accent: theme.colors.success,
       dot: theme.colors.success,
-    },
-    bonus: {
-      bg: "rgba(20, 17, 39, 0.6)",
-      border: "rgba(196, 162, 255, 0.35)",
-      accent: theme.colors.bonusAccent,
-      dot: theme.colors.bonusAccent,
     },
   };
 

@@ -3,9 +3,8 @@ use async_trait::async_trait;
 use uuid::Uuid;
 
 use crate::domain::models::{
-    bonus::BonusGrant,
     errors::DomainResult,
-    game::{BonusProgress, GameRound},
+    game::GameRound,
     mpesa::{MpesaAccountBalanceQuery, MpesaTransaction, TransactionStatus, UnmatchedC2bDeposit},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
@@ -101,14 +100,6 @@ pub trait GameRepository: Send + Sync {
     ) -> DomainResult<Vec<GameRound>>;
     async fn reveal_server_seed(&self, round_id: Uuid, seed: &str) -> DomainResult<()>;
     async fn find_oldest_unrevealed_round(&self, user_id: Uuid) -> DomainResult<Option<GameRound>>;
-
-    async fn get_or_create_bonus_progress(&self, user_id: Uuid) -> DomainResult<BonusProgress>;
-    async fn increment_bonus_progress(
-        &self,
-        user_id: Uuid,
-        amount: i32,
-    ) -> DomainResult<BonusProgress>;
-    async fn reset_bonus_progress(&self, user_id: Uuid) -> DomainResult<BonusProgress>;
 
     /// Get the active server seed for a user, or generate a new one.
     /// Returns (seed, seed_hash, nonce).
@@ -207,20 +198,3 @@ pub trait MpesaRepository: Send + Sync {
     ) -> DomainResult<UnmatchedC2bDeposit>;
 }
 
-/// Bonus grant repository trait.
-#[async_trait]
-pub trait BonusRepository: Send + Sync {
-    async fn find_active_grant(&self, user_id: Uuid) -> DomainResult<Option<BonusGrant>>;
-    async fn create_grant(
-        &self,
-        user_id: Uuid,
-        amount_minor: i64,
-        wager_multiplier: i32,
-        expiry_hours: i64,
-    ) -> DomainResult<BonusGrant>;
-    async fn increment_wagered(&self, grant_id: Uuid, stake_minor: i64) -> DomainResult<BonusGrant>;
-    async fn mark_completed(&self, grant_id: Uuid) -> DomainResult<()>;
-    async fn mark_lost(&self, grant_id: Uuid) -> DomainResult<()>;
-    async fn mark_expired(&self, grant_id: Uuid) -> DomainResult<()>;
-    async fn count_today_grants(&self, user_id: Uuid) -> DomainResult<i64>;
-}

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { CurrencyType, BetMap, SpinResult, BonusStatusResponse } from "../types";
+import { CurrencyType, BetMap, SpinResult } from "../types";
 
 interface GameState {
   // Auth
@@ -33,17 +33,6 @@ interface GameState {
   setSpinning: (v: boolean) => void;
   setLastSpin: (result: SpinResult | null) => void;
 
-  // Bonus meter
-  bonusMeterEnabled: boolean;
-  bonusProgressCurrent: number;
-  bonusProgressTarget: number;
-  bonusRewardMinor: number;
-  bonusGrantActive: boolean;
-  bonusWageredMinor: number;
-  bonusWagerRequiredMinor: number;
-  setBonusStatus: (status: BonusStatusResponse) => void;
-  updateBonusFromSpin: (spin: SpinResult) => void;
-
   // Preferences
   soundEnabled: boolean;
   setSoundEnabled: (v: boolean) => void;
@@ -64,7 +53,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   setCurrency: (c) => set({ currency: c }),
 
   // Balances
-  balances: { virtual: 0, real: 0, bonus: 0 },
+  balances: { virtual: 0, real: 0 },
   updateBalance: (currency, amount) =>
     set((state) => {
       if (amount === 0) return state;
@@ -112,30 +101,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   lastSpin: null,
   setSpinning: (v) => set({ isSpinning: v }),
   setLastSpin: (result) => set({ lastSpin: result }),
-
-  // Bonus meter
-  bonusMeterEnabled: false,
-  bonusProgressCurrent: 0,
-  bonusProgressTarget: 50,
-  bonusRewardMinor: 0,
-  bonusGrantActive: false,
-  bonusWageredMinor: 0,
-  bonusWagerRequiredMinor: 0,
-  setBonusStatus: (status) =>
-    set({
-      bonusMeterEnabled: status.meter_enabled,
-      bonusProgressCurrent: status.meter_current,
-      bonusProgressTarget: status.meter_target,
-      bonusRewardMinor: status.reward_minor,
-      bonusGrantActive: status.grant_active,
-      bonusWageredMinor: status.grant_wagered,
-      bonusWagerRequiredMinor: status.grant_wager_required,
-    }),
-  updateBonusFromSpin: (spin) =>
-    set((state) => ({
-      bonusProgressCurrent: spin.bonus_progress_current ?? state.bonusProgressCurrent,
-      bonusProgressTarget: spin.bonus_progress_target ?? state.bonusProgressTarget,
-    })),
 
   // Preferences
   soundEnabled: true,

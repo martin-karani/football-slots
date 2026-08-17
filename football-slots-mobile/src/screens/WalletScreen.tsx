@@ -42,7 +42,7 @@ export function WalletScreen() {
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
 
-  const isReal = currency === "real" || currency === "bonus";
+  const isReal = currency === "real";
 
   // Fetch ledger whenever currency changes
   useEffect(() => {
@@ -113,8 +113,6 @@ export function WalletScreen() {
 
   const realBalanceDisplay = formatMinor(balances.real, "real");
   const demoBalanceDisplay = formatMinor(balances.virtual, "virtual");
-  const bonusBalanceDisplay = formatMinor(balances.bonus, "bonus");
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#5c0090" />
@@ -176,7 +174,7 @@ export function WalletScreen() {
               </View>
             </View>
 
-            {/* ── DEMO & BONUS CHIPS ── */}
+            {/* ── DEMO CHIP ── */}
             <View style={styles.chipsRow}>
               <View style={styles.demoChip}>
                 <Text style={styles.demoChipTag}>DEMO</Text>
@@ -186,11 +184,6 @@ export function WalletScreen() {
                 </TouchableOpacity>
               </View>
 
-              <View style={styles.bonusChip}>
-                <Text style={styles.bonusChipTag}>BONUS</Text>
-                <Text style={styles.chipBalanceValue}>{bonusBalanceDisplay}</Text>
-                <Text style={styles.chipSubtitle}>5× wagering</Text>
-              </View>
             </View>
 
             {/* ── RECENT ACTIVITY STRIP ── */}
@@ -217,9 +210,8 @@ export function WalletScreen() {
                   const isWithdrawal = entry.entry_type === "mpesa_withdraw" || entry.entry_type === "withdrawal";
                   const isBet = entry.entry_type === "bet" || entry.entry_type === "spin_debit";
                   const isWin = entry.entry_type === "win" || entry.entry_type === "payout";
-                  const isBonus = entry.entry_type === "bonus_credit";
 
-                  const glyph = isDeposit ? "↓" : isWithdrawal ? "↑" : isWin || isBonus ? "★" : "•";
+                  const glyph = isDeposit ? "↓" : isWithdrawal ? "↑" : isWin ? "★" : "•";
 
                   const glyphBg = isDeposit
                     ? "rgba(34, 197, 94, 0.18)"
@@ -227,8 +219,6 @@ export function WalletScreen() {
                     ? "rgba(255, 215, 0, 0.16)"
                     : isWin
                     ? "rgba(34, 197, 94, 0.18)"
-                    : isBonus
-                    ? "rgba(168, 85, 247, 0.18)"
                     : "rgba(255, 255, 255, 0.08)";
 
                   const glyphFg = isDeposit
@@ -237,8 +227,6 @@ export function WalletScreen() {
                     ? "#FFD700"
                     : isWin
                     ? "#22c55e"
-                    : isBonus
-                    ? "#a855f7"
                     : "rgba(255, 255, 255, 0.6)";
 
                   const title = isDeposit
@@ -249,8 +237,6 @@ export function WalletScreen() {
                     ? "Bet settled"
                     : isWin
                     ? "Win credited"
-                    : isBonus
-                    ? "Match bonus"
                     : entry.entry_type.replace(/_/g, " ");
 
                   const sub = isDeposit || isWithdrawal
@@ -657,21 +643,7 @@ const styles = StyleSheet.create({
     color: "#22c55e",
     marginBottom: 4,
   },
-  bonusChip: {
-    flex: 1,
-    borderRadius: 16,
-    backgroundColor: "#220538",
-    borderWidth: 1,
-    borderColor: "rgba(168,85,247,0.35)",
-    padding: 14,
-  },
-  bonusChipTag: {
-    fontFamily: fonts.button,
-    fontSize: 10,
-    letterSpacing: 1.2,
-    color: "#a855f7",
-    marginBottom: 4,
-  },
+
   chipBalanceValue: {
     fontFamily: fonts.numbers,
     fontSize: 18,

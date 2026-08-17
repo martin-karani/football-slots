@@ -316,16 +316,6 @@ pub struct GameRound {
     pub paytable_version: i16,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct BonusProgress {
-    pub user_id: Uuid,
-    pub meter_key: String,
-    pub current_value: i32,
-    pub target_value: i32,
-    pub last_claimed_at: Option<chrono::DateTime<chrono::Utc>>,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

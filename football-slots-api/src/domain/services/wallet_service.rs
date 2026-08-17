@@ -32,12 +32,6 @@ pub trait WalletService: Send + Sync {
         amount_minor: i64,
         reference_type: String,
     ) -> DomainResult<()>;
-    async fn credit_bonus(
-        &self,
-        wallet_id: Uuid,
-        amount_minor: i64,
-        reference_type: String,
-    ) -> DomainResult<()>;
     async fn credit_deposit(
         &self,
         wallet_id: Uuid,
@@ -110,25 +104,6 @@ impl WalletService for WalletServiceImpl {
                 wallet_id,
                 amount_minor,
                 LedgerEntryType::Win,
-                Some(reference_type),
-                None,
-                None,
-            )
-            .await?;
-        Ok(())
-    }
-
-    async fn credit_bonus(
-        &self,
-        wallet_id: Uuid,
-        amount_minor: i64,
-        reference_type: String,
-    ) -> DomainResult<()> {
-        self.wallet_repo
-            .credit(
-                wallet_id,
-                amount_minor,
-                LedgerEntryType::BonusCredit,
                 Some(reference_type),
                 None,
                 None,

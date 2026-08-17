@@ -59,9 +59,6 @@ pub enum DomainError {
     #[error("authentication required")]
     AuthenticationRequired,
 
-    #[error("bonus already claimed")]
-    BonusAlreadyClaimed,
-
     #[error("withdrawal phone must match your registered phone number")]
     WithdrawalPhoneMismatch,
 

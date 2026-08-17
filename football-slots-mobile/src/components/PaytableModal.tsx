@@ -157,7 +157,7 @@ export function PaytableModal({ visible, onClose }: Props) {
                 "Bet on multiple clubs to increase your chances",
                 "Common clubs (×5) hit more often but pay less",
                 "The UCL Trophy (×100) is rare but pays big",
-                "Bonus meter fills with every real KES spin",
+                "Play responsibly — check your balance before each spin",
               ].map((tip, i) => (
                 <Text key={i} style={styles.tip}>
                   • {tip}

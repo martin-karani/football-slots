@@ -26,14 +26,13 @@ import { theme } from "../components/theme";
 import { useGameStore } from "../store/GameProvider";
 import { useGame } from "../hooks/useGame";
 import { useWallet } from "../hooks/useWallet";
-import { useBonus } from "../hooks/useBonus";
+
 import { WheelDisplay } from "../components/WheelDisplay";
 // WinCelebration modal removed — replaced with rail-dot flash animation
 import { authStorage } from "../api/client";
 import {
   SYMBOLS,
   CHIP_VALUES,
-  BONUS_CHIP_VALUES,
   CurrencyType,
   toMinor,
   fromMinor,
@@ -113,23 +112,6 @@ export function GameScreen() {
   const removeBet = useGameStore((s) => s.removeBet);
   const clearAuth = useGameStore((s) => s.clearAuth);
   const setLastSpin = useGameStore((s) => s.setLastSpin);
-
-  // Bonus meter state
-  const bonusMeterEnabled = useGameStore((s) => s.bonusMeterEnabled);
-  const bonusProgressCurrent = useGameStore((s) => s.bonusProgressCurrent);
-  const bonusProgressTarget = useGameStore((s) => s.bonusProgressTarget);
-  const bonusRewardMinor = useGameStore((s) => s.bonusRewardMinor);
-  const bonusGrantActive = useGameStore((s) => s.bonusGrantActive);
-  const bonusWageredMinor = useGameStore((s) => s.bonusWageredMinor);
-  const bonusWagerRequiredMinor = useGameStore(
-    (s) => s.bonusWagerRequiredMinor
-  );
-  const { refreshBonus } = useBonus();
-
-  // Fetch authoritative bonus state on mount
-  useEffect(() => {
-    refreshBonus();
-  }, []);
 
   // winFlashTick increments on each win to trigger rail-dot chase flash
   const [winFlashTick, setWinFlashTick] = useState(0);
@@ -323,62 +305,6 @@ export function GameScreen() {
         </View>
 
         {/* ═══════════════════════════════════════════════════════════
-            BONUS METER / WAGERING BAR
-         ═══════════════════════════════════════════════════════════ */}
-        {/* Bonus Meter — only in real mode, no active grant */}
-        {bonusMeterEnabled && currency === "real" && !bonusGrantActive && (
-          <View style={st.bonusMeterBar}>
-            <View style={st.bonusMeterHeader}>
-              <Text style={st.bonusMeterLabel}>⚽ MATCH BONUS</Text>
-              <Text style={st.bonusMeterReward}>
-                KES {formatMinor(bonusRewardMinor, "bonus")}
-              </Text>
-            </View>
-            <View style={st.bonusMeterTrack}>
-              <View
-                style={[
-                  st.bonusMeterFill,
-                  {
-                    width: `${Math.min(
-                      100,
-                      (bonusProgressCurrent / Math.max(bonusProgressTarget, 1)) * 100
-                    )}%`,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={st.bonusMeterCount}>
-              {bonusProgressCurrent}/{bonusProgressTarget} spins
-            </Text>
-          </View>
-        )}
-
-        {/* Wagering Progress — when grant active */}
-        {bonusGrantActive && (
-          <View style={st.bonusWagerBar}>
-            <Text style={st.bonusWagerLabel}>
-              🎁 Wagering: KES {formatMinor(bonusWageredMinor, "bonus")} / KES{" "}
-              {formatMinor(bonusWagerRequiredMinor, "bonus")}
-            </Text>
-            <View style={st.bonusMeterTrack}>
-              <View
-                style={[
-                  st.bonusMeterFillBonus,
-                  {
-                    width: `${Math.min(
-                      100,
-                      (bonusWageredMinor /
-                        Math.max(bonusWagerRequiredMinor, 1)) *
-                      100
-                    )}%`,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════
             SLOT WHEEL BOARD
          ═══════════════════════════════════════════════════════════ */}
         <View style={st.wheelWrapper}>
@@ -474,7 +400,7 @@ export function GameScreen() {
           {/* -- ROW 3: CHIP SELECTORS SHELF -- */}
           <View style={st.chipShelf}>
             <View style={st.chipRow}>
-              {(currency === "bonus" ? BONUS_CHIP_VALUES : CHIP_VALUES)
+              {CHIP_VALUES
                 .slice()
                 .reverse()
                 .map((v, idx) => {
@@ -669,45 +595,6 @@ export function GameScreen() {
                   {isReal && <Text style={st.modeCheckmark}>✓</Text>}
                 </TouchableOpacity>
 
-                {/* Option 3: BONUS MODE */}
-                {(balances.bonus > 0 || bonusGrantActive) && (
-                  <TouchableOpacity
-                    style={[
-                      st.modeOptionItem,
-                      currency === "bonus" && st.modeOptionItemActiveBonus,
-                    ]}
-                    onPress={() => {
-                      setCurrency("bonus");
-                      setSelected(5); // bonus max stake is KES 5 — keep chip in range
-                      setShowModeDropdown(false);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={st.modeOptionLeft}>
-                      <Text style={st.modeOptionIcon}>🎁</Text>
-                      <View style={st.modeOptionTextGroup}>
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: 6,
-                          }}
-                        >
-                          <Text style={st.modeOptionName}>BONUS MODE</Text>
-                          {currency === "bonus" && (
-                            <Text style={st.modeActiveBadgeBonus}>ACTIVE</Text>
-                          )}
-                        </View>
-                        <Text style={st.modeOptionDesc}>
-                          Complete wagering to unlock withdrawal
-                        </Text>
-                      </View>
-                    </View>
-                    {currency === "bonus" && (
-                      <Text style={st.modeCheckmark}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -1815,83 +1702,4 @@ const st = StyleSheet.create({
     borderColor: "rgba(239, 68, 68, 0.2)",
   },
 
-  // ── Bonus Meter Styles ─────────────────────────────────────────────
-  bonusMeterBar: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: "#2a0048",
-    borderBottomWidth: 1,
-    borderBottomColor: "#4a2070",
-  },
-  bonusMeterHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 3,
-  },
-  bonusMeterLabel: {
-    fontFamily: theme.fonts.marquee,
-    color: "#FFE566",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  bonusMeterReward: {
-    fontFamily: theme.fonts.digitalRegular,
-    color: "#aaa",
-    fontSize: 10,
-    fontWeight: "700",
-  },
-  bonusMeterTrack: {
-    height: 6,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  bonusMeterFill: {
-    height: "100%",
-    backgroundColor: "#FFD700",
-    borderRadius: 3,
-  },
-  bonusMeterFillBonus: {
-    height: "100%",
-    backgroundColor: "#a855f7",
-    borderRadius: 3,
-  },
-  bonusMeterCount: {
-    fontFamily: theme.fonts.body,
-    color: "#888",
-    fontSize: 9,
-    marginTop: 2,
-    textAlign: "right",
-  },
-  bonusWagerBar: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: "#1a0033",
-    borderBottomWidth: 1,
-    borderBottomColor: "#3a1060",
-  },
-  bonusWagerLabel: {
-    fontFamily: theme.fonts.bodyBold,
-    color: "#c084fc",
-    fontSize: 10,
-    fontWeight: "700",
-    marginBottom: 3,
-  },
-
-  // ── Bonus Mode Dropdown Styles ─────────────────────────────────────
-  modeOptionItemActiveBonus: {
-    backgroundColor: "rgba(168, 85, 247, 0.12)",
-    borderColor: "rgba(168, 85, 247, 0.5)",
-  },
-  modeActiveBadgeBonus: {
-    fontFamily: theme.fonts.button,
-    backgroundColor: "#a855f7",
-    color: "#FFFFFF",
-    fontSize: 8,
-    fontWeight: "900",
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
 });

@@ -68,7 +68,7 @@ export function SettingsScreen() {
   const kycStatus = useGameStore((state) => state.kycStatus);
   const { topupVirtual } = useWallet();
 
-  const isReal = currency === "real" || currency === "bonus";
+  const isReal = currency === "real";
 
   // Derive initials from phone number for avatar
   const initials = phoneNumber
@@ -404,27 +404,6 @@ const styles = StyleSheet.create({
   modePillText: { fontFamily: fonts.bodyBold, fontSize: 10, letterSpacing: 0.8, fontWeight: "700" },
   modePillTextReal: { color: "#FFD700" },
   modePillTextDemo: { color: "#22c55e" },
-
-  bonusRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingTop: 10,
-    marginTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.06)",
-  },
-  bonusRowLabel: {
-    fontFamily: fonts.body,
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
-    flex: 1,
-  },
-  bonusRowValue: {
-    fontFamily: fonts.numbers,
-    color: "#a855f7",
-    fontSize: 13,
-  },
 
   /* ── Section ── */
   sectionTitle: {

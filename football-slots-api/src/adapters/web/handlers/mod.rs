@@ -1,6 +1,5 @@
 pub mod admin;
 pub mod auth;
-pub mod bonus;
 pub mod game;
 pub mod wallet;
 pub mod mpesa;

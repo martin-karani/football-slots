@@ -5,7 +5,6 @@ import { useGameStore } from "../store/GameProvider";
 import { useWheelAnimator } from "./useWheelAnimator";
 import { useToast } from "../components/Toast";
 import { useSound } from "./useSound";
-import { useBonus } from "./useBonus";
 import { formatMinor } from "../types";
 
 export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () => void }) {
@@ -19,9 +18,6 @@ export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () =
   const clearBets = useGameStore((state) => state.clearBets);
   const getTotalStake = useGameStore((state) => state.getTotalStake);
   const isSpinning = useGameStore((state) => state.isSpinning);
-  const updateBonusFromSpin = useGameStore((state) => state.updateBonusFromSpin);
-  const { refreshBonus } = useBonus();
-
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
 
   const { step, startSpin, stopOnIndex, stopAnimation } = useWheelAnimator();
@@ -99,45 +95,8 @@ export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () =
       if (result.gross_payout > 0) {
         updateBalance(currency, result.gross_payout);
       }
-      // Update bonus meter from spin result
-      if (result.bonus_progress_current !== undefined) {
-        updateBonusFromSpin(result);
-      }
       clearBets();
       setSpinning(false);
-
-      // Sync authoritative bonus state whenever the spin touched the bonus
-      // system. Bonus-currency spins need it to update the wagering bar;
-      // claim/complete/lose events need it to fix balances + grant state
-      // (optimistic updates don't cover those side-effects).
-      const hadBonusEvent =
-        currency === "bonus" ||
-        result.bonus_claimed ||
-        result.bonus_grant_completed ||
-        result.bonus_grant_lost;
-      if (hadBonusEvent) {
-        refreshBonus();
-      }
-
-      // Toasts (use result data, independent of the async refresh)
-      if (result.bonus_claimed) {
-        showSuccess("Bonus credited! Switch to Bonus Mode to complete wagering.", "🎁 Bonus");
-      }
-      if (
-        result.bonus_grant_completed &&
-        result.bonus_converted_minor &&
-        result.bonus_converted_minor > 0
-      ) {
-        showSuccess(
-          `Wagering complete! KES ${formatMinor(result.bonus_converted_minor, "real")} converted to real balance.`,
-          "✅ Bonus Converted"
-        );
-        // NOTE: do NOT manually updateBalance("real", ...) here —
-        // refreshBonus() sets the authoritative real balance.
-      }
-      if (result.bonus_grant_lost) {
-        showError("Bonus balance depleted. Keep playing to earn the next bonus.");
-      }
 
       if (result.is_win) {
         callbacks?.onWin?.();
@@ -183,7 +142,6 @@ export function useGame(callbacks?: { onStakeDeducted?: () => void; onWin?: () =
     showError,
     showWarning,
     callbacks,
-    refreshBonus,
   ]);
 
   const toggleAutoSpin = useCallback(() => {

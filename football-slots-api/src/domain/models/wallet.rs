@@ -9,7 +9,6 @@ use uuid::Uuid;
 pub enum CurrencyType {
     Virtual,
     Real,
-    Bonus,
 }
 
 impl CurrencyType {
@@ -17,10 +16,9 @@ impl CurrencyType {
         matches!(self, CurrencyType::Real)
     }
 
-    /// Bonus can eventually convert to real, so it requires the same
-    /// KYC/self-exclusion checks as real money.
+    /// Real money requires KYC checks.
     pub fn requires_kyc(&self) -> bool {
-        matches!(self, CurrencyType::Real | CurrencyType::Bonus)
+        matches!(self, CurrencyType::Real)
     }
 }
 
@@ -31,9 +29,6 @@ pub enum LedgerEntryType {
     Deposit,
     Withdrawal,
     WithdrawalReversal, // funds given back after a failed/timed-out payout
-    BonusCredit,
-    BonusConversion, // bonus -> real conversion after wagering complete
-    BonusExpiry, // remaining bonus forfeited when a grant expires
     C2bManual, // C2B manual Paybill deposit (non-STK-Push)
 }
 
@@ -45,9 +40,6 @@ impl std::fmt::Display for LedgerEntryType {
             LedgerEntryType::Deposit => write!(f, "deposit"),
             LedgerEntryType::Withdrawal => write!(f, "withdrawal"),
             LedgerEntryType::WithdrawalReversal => write!(f, "withdrawal_reversal"),
-            LedgerEntryType::BonusCredit => write!(f, "bonus_credit"),
-            LedgerEntryType::BonusConversion => write!(f, "bonus_conversion"),
-            LedgerEntryType::BonusExpiry => write!(f, "bonus_expiry"),
             LedgerEntryType::C2bManual => write!(f, "c2b_manual"),
         }
     }

@@ -28,7 +28,7 @@ export function HistoryScreen() {
   const currency = useGameStore((state) => state.currency);
 
   const [filter, setFilter] = useState<"real" | "demo">(
-    currency === "real" || currency === "bonus" ? "real" : "demo"
+    currency === "real" ? "real" : "demo"
   );
 
   const fetchHistory = async () => {
@@ -70,7 +70,7 @@ export function HistoryScreen() {
 
   const activeRounds = rounds.filter((item) =>
     filter === "real"
-      ? item.currency === "real" || item.currency === "bonus"
+      ? item.currency === "real"
       : item.currency === "virtual"
   );
 

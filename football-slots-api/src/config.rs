@@ -12,7 +12,6 @@ pub struct Config {
 
     // Virtual currency defaults (in minor units = cents)
     pub virtual_initial_balance: i64,
-    pub bonus_initial_balance: i64,
 
     // Wagering limits
     pub real_min_stake: i64,
@@ -65,17 +64,6 @@ pub struct Config {
     pub otp_api_key: Option<Secret<String>>,
     pub otp_from_number: Option<String>,
 
-    // Bonus meter
-    pub bonus_meter_enabled: bool,
-    pub bonus_meter_shadow: bool,
-    pub bonus_meter_target: i32,
-    pub bonus_meter_reward_minor: i64,
-    pub bonus_meter_wager_multiplier: i32,
-    pub bonus_min_stake: i64,
-    pub bonus_max_stake: i64,
-    pub bonus_grant_expiry_hours: i64,
-    pub bonus_max_daily_grants_per_user: i64,
-
     // Security: IP whitelisting for M-Pesa callbacks.
     // Comma-separated exact IPs or CIDR ranges. Empty = allow all (dev only).
     pub mpesa_callback_allowed_ips: Vec<String>,
@@ -98,8 +86,6 @@ impl Config {
             host: std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
             virtual_initial_balance: std::env::var("VIRTUAL_INITIAL_BALANCE")
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(100000),
-            bonus_initial_balance: std::env::var("BONUS_INITIAL_BALANCE")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(50000),
             real_min_stake: std::env::var("REAL_MIN_STAKE")
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(50),
             real_max_stake: std::env::var("REAL_MAX_STAKE")
@@ -157,24 +143,6 @@ impl Config {
                 .ok().and_then(|v| v.parse().ok()).unwrap_or(15_000_000),
             otp_api_key: std::env::var("OTP_API_KEY").ok().map(Secret::from),
             otp_from_number: std::env::var("OTP_FROM_NUMBER").ok(),
-            bonus_meter_enabled: std::env::var("BONUS_METER_ENABLED")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(false),
-            bonus_meter_shadow: std::env::var("BONUS_METER_SHADOW")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(false),
-            bonus_meter_target: std::env::var("BONUS_METER_TARGET")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(50),
-            bonus_meter_reward_minor: std::env::var("BONUS_METER_REWARD_MINOR")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(1000),
-            bonus_meter_wager_multiplier: std::env::var("BONUS_METER_WAGER_MULTIPLIER")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(5),
-            bonus_min_stake: std::env::var("BONUS_MIN_STAKE")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(50),
-            bonus_max_stake: std::env::var("BONUS_MAX_STAKE")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(500),
-            bonus_grant_expiry_hours: std::env::var("BONUS_GRANT_EXPIRY_HOURS")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(168),
-            bonus_max_daily_grants_per_user: std::env::var("BONUS_MAX_DAILY_GRANTS_PER_USER")
-                .ok().and_then(|v| v.parse().ok()).unwrap_or(1),
 
             // Security: IP whitelist for M-Pesa callbacks.
             // Safaricom production callback IPs (exact list from Daraja docs).
@@ -200,7 +168,7 @@ impl fmt::Display for Config {
             "Config {{ host: {}, port: {}, db: {}... }}",
             self.host,
             self.port,
-            &self.database_url[..self.database_url.len().min(30)]
+            &self.database_url[..12]
         )
     }
 }

@@ -150,7 +150,6 @@ gamble_rounds  — Home/Away gamble records
 server_seeds   — Rotating provably fair seed pool
 mpesa_transactions — STK Push lifecycle tracking
 otp_codes      — Ephemeral OTP storage
-bonus_progress — Promotional meter tracking
 ```
 
 ## Configuration
@@ -182,7 +181,7 @@ DATABASE_URL=postgres://user@localhost/football_slots cargo test -- --nocapture
 ## Development Notes
 
 - **Minor units**: All monetary values use minor units (cents) to avoid floating-point issues
-- **Currency types**: `virtual` (free play), `real` (M-Pesa funded), `bonus` (promotional)
+- **Currency types**: `virtual` (free play), `real` (M-Pesa funded)
 - **KYC gating**: Real-money play requires `kyc_status = 'verified'`
 - **Self-exclusion**: Users can set `self_excluded_until` to block real-money play
 - **No club trademarks**: Uses generic football iconography (not real club badges)

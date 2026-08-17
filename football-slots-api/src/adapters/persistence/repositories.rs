@@ -5,7 +5,7 @@ use uuid::Uuid;
 use crate::adapters::persistence::postgres::PgPool;
 use crate::domain::models::{
     errors::{DomainError, DomainResult},
-    game::{BonusProgress, GameRound},
+    game::GameRound,
     mpesa::{MpesaAccountBalanceQuery, MpesaTransaction, TransactionStatus, UnmatchedC2bDeposit},
     user::{CreateUserRequest, KycStatus, User},
     wallet::{CurrencyType, LedgerEntryType, Wallet, WalletLedgerEntry},
@@ -183,7 +183,7 @@ impl WalletRepository for PgWalletRepository {
         self.credit(
             wallet.id,
             refill_amount,
-            LedgerEntryType::BonusCredit,
+            LedgerEntryType::Deposit,
             Some("virtual_refill".to_string()),
             None,
             None,
@@ -535,48 +535,6 @@ impl GameRepository for PgGameRepository {
         .fetch_optional(&self.pool)
         .await?;
         Ok(r)
-    }
-
-    async fn get_or_create_bonus_progress(&self, user_id: Uuid) -> DomainResult<BonusProgress> {
-        let p: BonusProgress = sqlx::query_as(
-            r#"INSERT INTO bonus_progress (user_id) VALUES ($1)
-               ON CONFLICT (user_id, meter_key) DO UPDATE SET updated_at = now()
-               RETURNING user_id, meter_key, current_value, target_value, last_claimed_at, updated_at"#,
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(p)
-    }
-
-    async fn increment_bonus_progress(
-        &self,
-        user_id: Uuid,
-        amount: i32,
-    ) -> DomainResult<BonusProgress> {
-        let _ = self.get_or_create_bonus_progress(user_id).await?;
-        let p: BonusProgress = sqlx::query_as(
-            r#"UPDATE bonus_progress SET current_value = current_value + $1, updated_at = now()
-               WHERE user_id = $2
-               RETURNING user_id, meter_key, current_value, target_value, last_claimed_at, updated_at"#,
-        )
-        .bind(amount)
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(p)
-    }
-
-    async fn reset_bonus_progress(&self, user_id: Uuid) -> DomainResult<BonusProgress> {
-        let p: BonusProgress = sqlx::query_as(
-            r#"UPDATE bonus_progress SET current_value = 0, last_claimed_at = now(), updated_at = now()
-               WHERE user_id = $1
-               RETURNING user_id, meter_key, current_value, target_value, last_claimed_at, updated_at"#,
-        )
-        .bind(user_id)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(p)
     }
 
     async fn get_active_server_seed(&self, user_id: Uuid) -> DomainResult<(String, String, i64)> {

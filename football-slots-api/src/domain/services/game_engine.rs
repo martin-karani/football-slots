@@ -8,23 +8,20 @@ use crate::domain::models::{
     game::{Symbol, Wheel, CURRENT_PAYTABLE_VERSION},
     wallet::{CurrencyType, LedgerEntryType, PlaceBetRequest},
 };
-use crate::domain::services::bonus_service::BonusServiceImpl;
 use crate::domain::services::weighted_rng::WeightedRng;
 use crate::ports::repositories::{GameRepository, WalletRepository};
 
 pub struct GameEngineImpl {
     game_repo: Arc<dyn GameRepository>,
     wallet_repo: Arc<dyn WalletRepository>,
-    bonus_service: Arc<BonusServiceImpl>,
 }
 
 impl GameEngineImpl {
     pub fn new(
         game_repo: Arc<dyn GameRepository>,
         wallet_repo: Arc<dyn WalletRepository>,
-        bonus_service: Arc<BonusServiceImpl>,
     ) -> Self {
-        Self { game_repo, wallet_repo, bonus_service }
+        Self { game_repo, wallet_repo }
     }
 
     pub async fn spin(
@@ -45,7 +42,6 @@ impl GameEngineImpl {
         let (min_stake, max_stake) = match req.currency {
             CurrencyType::Real => (config.real_min_stake, config.real_max_stake),
             CurrencyType::Virtual => (config.virtual_min_stake, config.virtual_max_stake),
-            CurrencyType::Bonus => (config.bonus_min_stake, config.bonus_max_stake),
         };
 
         if total_stake < min_stake {
@@ -135,24 +131,6 @@ impl GameEngineImpl {
             )
             .await?;
 
-        // Bonus meter logic — only for real-money spins
-        let (bonus_claimed, bonus_current, bonus_target, bonus_grant_completed, bonus_grant_lost, bonus_converted_minor) = if req.currency == CurrencyType::Real {
-            let (claimed, cur, tgt) = self.bonus_service.after_real_spin(user_id, config).await?;
-            (claimed, cur, tgt, false, false, 0)
-        } else if req.currency == CurrencyType::Bonus {
-            // Track wagering for bonus spins
-            let (completed, lost, converted) = self.bonus_service
-                .after_bonus_spin(user_id, total_stake, config)
-                .await?;
-            // Return current progress (unchanged for bonus spins)
-            let progress = self.game_repo.get_or_create_bonus_progress(user_id).await?;
-            (false, progress.current_value, progress.target_value, completed, lost, converted)
-        } else {
-            // Virtual spins: don't touch meter
-            let progress = self.game_repo.get_or_create_bonus_progress(user_id).await?;
-            (false, progress.current_value, progress.target_value, false, false, 0)
-        };
-
         let response_position = saved_round.result_position as u8;
         let response_multiplier = saved_round.result_multiplier as u16;
 
@@ -172,12 +150,6 @@ impl GameEngineImpl {
             client_seed: saved_round.client_seed.clone(),
             nonce: saved_round.nonce,
             paytable_version: saved_round.paytable_version,
-            bonus_claimed,
-            bonus_progress_current: bonus_current,
-            bonus_progress_target: bonus_target,
-            bonus_grant_completed,
-            bonus_grant_lost,
-            bonus_converted_minor,
         })
     }
 
@@ -283,16 +255,4 @@ pub struct SpinResponse {
     pub nonce: i64,
     #[serde(default)]
     pub paytable_version: i16,
-    #[serde(default)]
-    pub bonus_claimed: bool,
-    #[serde(default)]
-    pub bonus_progress_current: i32,
-    #[serde(default)]
-    pub bonus_progress_target: i32,
-    #[serde(default)]
-    pub bonus_grant_completed: bool,
-    #[serde(default)]
-    pub bonus_grant_lost: bool,
-    #[serde(default)]
-    pub bonus_converted_minor: i64,
 }

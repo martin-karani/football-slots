@@ -23,7 +23,7 @@ export function TransactionsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const currency = useGameStore((state) => state.currency);
-  const isReal = currency === "real" || currency === "bonus";
+  const isReal = currency === "real";
 
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -75,13 +75,12 @@ export function TransactionsScreen() {
     const isBet =
       item.entry_type === "bet" || item.entry_type === "spin_debit";
     const isWin = item.entry_type === "win" || item.entry_type === "payout";
-    const isBonus = item.entry_type === "bonus_credit";
 
     const glyph = isDeposit
       ? "↓"
       : isWithdrawal
       ? "↑"
-      : isWin || isBonus
+      : isWin
       ? "★"
       : "•";
 
@@ -91,8 +90,6 @@ export function TransactionsScreen() {
       ? "rgba(255, 215, 0, 0.16)"
       : isWin
       ? "rgba(34, 197, 94, 0.18)"
-      : isBonus
-      ? "rgba(168, 85, 247, 0.18)"
       : "rgba(255, 255, 255, 0.08)";
 
     const glyphFg = isDeposit
@@ -101,8 +98,6 @@ export function TransactionsScreen() {
       ? "#FFD700"
       : isWin
       ? "#22c55e"
-      : isBonus
-      ? "#a855f7"
       : "rgba(255, 255, 255, 0.6)";
 
     const title = isDeposit
@@ -113,8 +108,6 @@ export function TransactionsScreen() {
       ? "Bet settled"
       : isWin
       ? "Win credited"
-      : isBonus
-      ? "Match bonus"
       : item.entry_type.replace(/_/g, " ");
 
     const date = new Date(item.created_at);
@@ -145,16 +138,12 @@ export function TransactionsScreen() {
       ? "SETTLED"
       : isWin
       ? "CREDITED"
-      : isBonus
-      ? "GRANTED"
       : "COMPLETED";
 
     const statusColor = isDeposit || isWin
       ? "#22c55e"
       : isWithdrawal
       ? "#FFD700"
-      : isBonus
-      ? "#a855f7"
       : "rgba(255, 255, 255, 0.5)";
 
     return (
