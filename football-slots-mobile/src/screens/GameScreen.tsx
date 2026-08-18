@@ -473,7 +473,7 @@ export function GameScreen() {
                       st.clubIconBadge,
                       {
                         backgroundColor: sym.color + "25",
-                        borderColor: hasBet ? "#FFD700" : sym.color + "55",
+                        borderColor: sym.color + "55",
                       },
                     ]}
                   >
