@@ -17,6 +17,7 @@ import { useGameStore } from "../store/GameProvider";
 import { useToast } from "../components/Toast";
 import { theme } from "../components/theme";
 import { Ionicons } from "@react-native-vector-icons/ionicons";
+import KenyaFlag from "../../assets/kenya-flag.svg";
 
 /** Strip any prefix the user typed and return the raw 9-digit local number e.g. "712345678" */
 function normalizeLocal(raw: string): string {
@@ -144,11 +145,7 @@ export function LoginScreen() {
                 <View style={styles.phoneInputCard}>
                   <View style={styles.countryCodeGroup}>
                     {/* Kenyan Flag Mini */}
-                    <View style={styles.flagMini}>
-                      <View style={[styles.flagStripe, { backgroundColor: "#000000" }]} />
-                      <View style={[styles.flagStripe, { backgroundColor: "#BB0000" }]} />
-                      <View style={[styles.flagStripe, { backgroundColor: "#006600" }]} />
-                    </View>
+                    <KenyaFlag style={styles.flagMini} width={22} height={15} />
                     <Text style={styles.countryCodeText}>+254</Text>
                   </View>
                   <TextInput
@@ -385,13 +382,8 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(255, 215, 0, 0.25)",
   },
   flagMini: {
-    width: 22,
-    height: 15,
     borderRadius: 3,
     overflow: "hidden",
-  },
-  flagStripe: {
-    flex: 1,
   },
   countryCodeText: {
     fontFamily: fonts.numbers,
