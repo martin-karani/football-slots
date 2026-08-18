@@ -30,23 +30,10 @@ pub async fn balance(
 ) -> AppResult<Json<BalanceResponse>> {
     let claims = require_claims(&req)?;
 
-    tracing::info!(
-        user_id = %claims.sub,
-        currency = ?query.currency,
-        "Balance request"
-    );
-
     let balance = state
         .wallet_service
         .get_balance(claims.sub, query.currency)
         .await?;
-
-    tracing::info!(
-        user_id = %claims.sub,
-        currency = ?query.currency,
-        balance_minor = balance,
-        "Balance retrieved successfully"
-    );
 
     Ok(Json(BalanceResponse {
         currency: query.currency,

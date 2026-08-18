@@ -126,6 +126,12 @@ export function GameScreen() {
   const [modeDropdownPos, setModeDropdownPos] = useState({
     top: 120,
     right: 12,
+    dropdownOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      justifyContent: "center",
+      alignItems: "center",
+    },
   });
 
   // ── Balance deduction animation (shake + red flash) ──────────────────
@@ -250,7 +256,9 @@ export function GameScreen() {
                 {formatMinor(balanceMinor, currency)}
               </Animated.Text>
             </Animated.View>
-            <Text style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrDemo]}>
+            <Text
+              style={[st.balCurr, isReal ? st.balCurrReal : st.balCurrDemo]}
+            >
               {currencyLabel(currency)}
             </Text>
           </View>
@@ -381,8 +389,7 @@ export function GameScreen() {
           {/* -- ROW 3: CHIP SELECTORS SHELF -- */}
           <View style={st.chipShelf}>
             <View style={st.chipRow}>
-              {CHIP_VALUES
-                .slice()
+              {CHIP_VALUES.slice()
                 .reverse()
                 .map((v, idx) => {
                   const isOn = selectedChip === v;
@@ -575,7 +582,6 @@ export function GameScreen() {
                   </View>
                   {isReal && <Text style={st.modeCheckmark}>✓</Text>}
                 </TouchableOpacity>
-
               </View>
             </TouchableWithoutFeedback>
           </View>
@@ -610,8 +616,17 @@ export function GameScreen() {
                       navigation.navigate("Wallet");
                     }}
                   >
-                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(255, 229, 102, 0.18)" }]}>
-                      <Ionicons name="wallet-outline" size={20} color="#FFE566" />
+                    <View
+                      style={[
+                        st.menuItemIconBox,
+                        { backgroundColor: "rgba(255, 229, 102, 0.18)" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="wallet-outline"
+                        size={20}
+                        color="#FFE566"
+                      />
                     </View>
                     <Text style={st.menuItemTitle}>Wallet</Text>
                     <Text style={st.menuItemWalletBalance}>
@@ -628,8 +643,17 @@ export function GameScreen() {
                       navigation.navigate("History");
                     }}
                   >
-                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
-                      <Ionicons name="stats-chart-outline" size={20} color="#D0A0FF" />
+                    <View
+                      style={[
+                        st.menuItemIconBox,
+                        { backgroundColor: "rgba(196, 162, 255, 0.18)" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="stats-chart-outline"
+                        size={20}
+                        color="#D0A0FF"
+                      />
                     </View>
                     <Text style={st.menuItemTitle}>Bet history</Text>
                     <Text style={st.menuItemChevron}>›</Text>
@@ -644,8 +668,17 @@ export function GameScreen() {
                       navigation.navigate("Paytable");
                     }}
                   >
-                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
-                      <Ionicons name="trophy-outline" size={20} color="#D0A0FF" />
+                    <View
+                      style={[
+                        st.menuItemIconBox,
+                        { backgroundColor: "rgba(196, 162, 255, 0.18)" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="trophy-outline"
+                        size={20}
+                        color="#D0A0FF"
+                      />
                     </View>
                     <Text style={st.menuItemTitle}>Rules &amp; paytable</Text>
                     <Text style={st.menuItemChevron}>›</Text>
@@ -660,8 +693,17 @@ export function GameScreen() {
                       navigation.navigate("Profile");
                     }}
                   >
-                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(196, 162, 255, 0.18)" }]}>
-                      <Ionicons name="settings-outline" size={20} color="#D0A0FF" />
+                    <View
+                      style={[
+                        st.menuItemIconBox,
+                        { backgroundColor: "rgba(196, 162, 255, 0.18)" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="settings-outline"
+                        size={20}
+                        color="#D0A0FF"
+                      />
                     </View>
                     <Text style={st.menuItemTitle}>Profile &amp; settings</Text>
                     <Text style={st.menuItemChevron}>›</Text>
@@ -690,11 +732,24 @@ export function GameScreen() {
                       );
                     }}
                   >
-                    <View style={[st.menuItemIconBox, { backgroundColor: "rgba(255, 84, 104, 0.18)" }]}>
-                      <Ionicons name="log-out-outline" size={20} color="#FF5468" />
+                    <View
+                      style={[
+                        st.menuItemIconBox,
+                        { backgroundColor: "rgba(255, 84, 104, 0.18)" },
+                      ]}
+                    >
+                      <Ionicons
+                        name="log-out-outline"
+                        size={20}
+                        color="#FF5468"
+                      />
                     </View>
-                    <Text style={[st.menuItemTitle, { color: "#FF5468" }]}>Log out</Text>
-                    <Text style={[st.menuItemChevron, { color: "#FF5468" }]}>›</Text>
+                    <Text style={[st.menuItemTitle, { color: "#FF5468" }]}>
+                      Log out
+                    </Text>
+                    <Text style={[st.menuItemChevron, { color: "#FF5468" }]}>
+                      ›
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1510,11 +1565,11 @@ const st = StyleSheet.create({
     justifyContent: "flex-end",
   },
   menuSheetContainer: {
-    backgroundColor: "#1e0438",   // deep purple matching root bg
+    backgroundColor: "#1e0438", // deep purple matching root bg
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 2,
-    borderTopColor: "#8b5a2b",    // same wood-gold border as header
+    borderTopColor: "#8b5a2b", // same wood-gold border as header
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: 34,
@@ -1528,14 +1583,14 @@ const st = StyleSheet.create({
     width: 40,
     height: 5,
     borderRadius: 3,
-    backgroundColor: "rgba(255, 229, 102, 0.35)",  // gold tint handle
+    backgroundColor: "rgba(255, 229, 102, 0.35)", // gold tint handle
     alignSelf: "center",
     marginBottom: 18,
   },
   menuSheetTitle: {
     fontFamily: theme.fonts.heading,
     fontSize: 18,
-    color: "#FFE566",             // same gold as header text
+    color: "#FFE566", // same gold as header text
     letterSpacing: 2,
     textShadowColor: "#ffd700",
     textShadowOffset: { width: 0, height: 0 },
@@ -1552,9 +1607,9 @@ const st = StyleSheet.create({
     gap: 14,
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#2e0550",   // slightly lighter purple card
+    backgroundColor: "#2e0550", // slightly lighter purple card
     borderWidth: 1,
-    borderColor: "rgba(139, 90, 43, 0.5)",  // wood-gold border
+    borderColor: "rgba(139, 90, 43, 0.5)", // wood-gold border
   },
   menuItemIconBox: {
     width: 40,
@@ -1567,17 +1622,17 @@ const st = StyleSheet.create({
     flex: 1,
     fontFamily: theme.fonts.bodyBold,
     fontSize: 15,
-    color: "#F0E0FF",             // soft lavender-white
+    color: "#F0E0FF", // soft lavender-white
   },
   menuItemWalletBalance: {
     fontFamily: theme.fonts.numbers,
     fontSize: 14,
-    color: "#FFE566",             // gold
+    color: "#FFE566", // gold
   },
   menuItemChevron: {
     fontFamily: theme.fonts.body,
     fontSize: 20,
-    color: "rgba(255, 229, 102, 0.45)",  // dim gold chevron
+    color: "rgba(255, 229, 102, 0.45)", // dim gold chevron
   },
   menuLogoutItem: {
     backgroundColor: "rgba(255, 84, 104, 0.12)",
@@ -1751,5 +1806,4 @@ const st = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(239, 68, 68, 0.2)",
   },
-
 });

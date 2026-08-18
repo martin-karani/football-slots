@@ -8,11 +8,8 @@ use crate::domain::models::payment::{PaymentProvider, PaymentTransaction};
 use crate::ports::payments::{PaymentProviderPort, ProviderEvent, ProviderSubmission, TxLookup};
 use crate::ports::repositories::{PaymentRepository, SettlementOutcome, UserRepository, WalletRepository};
 
-/// PaymentGateway — orchestrates deposits, withdrawals, and webhook processing.
-///
-/// All business decisions live here: validation, limits, idempotency, amount
-/// verification, lookup resolution. The adapters do outbound HTTP; the
-/// repository executes atomic settlement.
+/// Orchestrates deposits, withdrawals, and webhook processing.
+/// Adapters do outbound HTTP; the repository executes atomic settlement.
 pub struct PaymentGateway {
     payment_repo: Arc<dyn PaymentRepository>,
     wallet_repo: Arc<dyn WalletRepository>,
@@ -67,17 +64,12 @@ impl PaymentGateway {
             if let Some(existing) = self.payment_repo.find_by_idempotency_key(user_id, key).await? {
                 let expected = Self::request_fingerprint(provider, direction, amount_minor, currency, phone);
                 if existing.request_fingerprint.as_deref() == Some(expected.as_str()) {
-                    return Ok(Some(existing)); // true idempotent replay
                 }
-                return Err(DomainError::IdempotencyConflict); // same key, different request
             }
         }
         Ok(None)
     }
 
-    // ============================================================
-    // Deposit
-    // ============================================================
 
     pub async fn deposit(
         &self,
@@ -96,14 +88,12 @@ impl PaymentGateway {
         let user = self.user_repo.find_by_id(user_id).await?.ok_or(DomainError::UserNotFound)?;
         user.can_deposit(chrono::Utc::now())?;
 
-        // Idempotency check
         if let Some(existing) = self.check_idempotency(
             user_id, &idempotency_key, provider.as_str(), "deposit", amount_minor, PAYMENT_CURRENCY, phone,
         ).await? {
             return Ok(existing);
         }
 
-        // Daily deposit limit
         let daily_limit = user.daily_deposit_limit_minor
             .unwrap_or(self.config.payments.daily_deposit_limit_minor);
         let deposited_today = self.wallet_repo.get_today_deposits(user_id).await.unwrap_or(0);
@@ -158,9 +148,6 @@ impl PaymentGateway {
         }
     }
 
-    // ============================================================
-    // Withdrawal
-    // ============================================================
 
     pub async fn withdraw(
         &self,
@@ -180,14 +167,12 @@ impl PaymentGateway {
         }
         user.can_withdraw(chrono::Utc::now())?;
 
-        // Idempotency check
         if let Some(existing) = self.check_idempotency(
             user_id, &idempotency_key, provider.as_str(), "withdrawal", amount_minor, PAYMENT_CURRENCY, &norm_req_phone,
         ).await? {
             return Ok(existing);
         }
 
-        // Limits
         if amount_minor <= 0 || amount_minor < self.config.payments.min_withdrawal_minor {
             return Err(DomainError::MinimumWithdrawalNotMet {
                 minimum_minor: self.config.payments.min_withdrawal_minor,
@@ -206,7 +191,6 @@ impl PaymentGateway {
             return Err(DomainError::WithdrawalLimitExceeded { limit_minor: daily_limit });
         }
 
-        // Gateway mints the payout idempotency key up front.
         let conversation_id = Uuid::new_v4().to_string();
         let fp = Self::request_fingerprint(provider.as_str(), "withdrawal", amount_minor, PAYMENT_CURRENCY, &norm_req_phone);
 
@@ -239,7 +223,6 @@ impl PaymentGateway {
         match adapter.initiate_withdrawal(&saved).await {
             ProviderSubmission::Accepted(_) => Ok(saved),
             ProviderSubmission::Rejected(reason) => {
-                // Definitive rejection — give held funds back.
                 self.payment_repo.reverse_withdrawal(saved.id, None, Some(reason.clone()), None).await.ok();
                 Err(DomainError::ProviderRejected(reason))
             }
@@ -254,9 +237,6 @@ impl PaymentGateway {
         }
     }
 
-    // ============================================================
-    // Webhook processing
-    // ============================================================
 
     pub async fn handle_webhook(
         &self,
@@ -268,7 +248,6 @@ impl PaymentGateway {
         let adapter = self.adapter(provider)?.clone();
 
         let Some(event) = adapter.process_webhook(webhook, payload.clone()).await? else {
-            // Internal webhook (Account Balance, B2B) — already handled
             self.payment_repo.update_webhook_event(
                 event_id, None, None, None, "processed", None,
             ).await?;
@@ -288,86 +267,27 @@ impl PaymentGateway {
 
         match event {
             ProviderEvent::DepositSucceeded { lookup, user_id, amount_minor, receipt, reference, masked_msisdn, raw } => {
-                // #region debug-point H1+H5:deposit-event-entry
-                tracing::info!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H1,H5",
-                    location = "payment_gateway.rs:apply_event:deposit_succeeded",
-                    event_lookup = ?lookup,
-                    event_amount_minor = %amount_minor,
-                    event_receipt = ?receipt,
-                    msg = "[DEBUG] DepositSucceeded event received at gateway"
-                );
-                // #endregion
-
                 match lookup {
                     TxLookup::Checkout(checkout_id) => {
                         let tx = self.payment_repo.find_by_checkout_id(provider_str, checkout_id).await?
                             .ok_or_else(|| DomainError::Payment("Checkout deposit not found".into()))?;
 
-                        // #region debug-point H5:checkout-lookup-result
-                        tracing::info!(
-                            debug_session = "mpesa-deposit-balance",
-                            hypothesis = "H5",
-                            location = "payment_gateway.rs:apply_event:checkout_lookup",
-                            checkout_id = %checkout_id,
-                            tx_found = true,
-                            tx_id = %tx.id,
-                            tx_user_id = %tx.user_id,
-                            tx_status = %tx.status,
-                            tx_amount_minor_stored = %tx.amount_minor,
-                            tx_provider_checkout_id = ?tx.provider_checkout_id,
-                            msg = "[DEBUG] Checkout lookup found transaction"
-                        );
-                        // #endregion
-
-                        // Amount verification
                         if *amount_minor != tx.amount_minor {
-                            // #region debug-point H1:amount-mismatch-triggered
                             tracing::error!(
-                                debug_session = "mpesa-deposit-balance",
-                                hypothesis = "H1",
-                                location = "payment_gateway.rs:apply_event:amount_check",
                                 checkout_id = %checkout_id,
                                 event_amount_minor = %amount_minor,
                                 tx_amount_minor = %tx.amount_minor,
-                                delta = %(*amount_minor as i128 - tx.amount_minor as i128),
-                                msg = "[DEBUG] AMOUNT MISMATCH triggered — settlement ABORTED"
+                                "Amount mismatch — settlement aborted"
                             );
-                            // #endregion
                             return Err(DomainError::AmountMismatch {
                                 provider: *amount_minor,
                                 expected: tx.amount_minor,
                             });
                         }
 
-                        // #region debug-point H1:amount-match-ok
-                        tracing::info!(
-                            debug_session = "mpesa-deposit-balance",
-                            hypothesis = "H1",
-                            location = "payment_gateway.rs:apply_event:amount_match",
-                            checkout_id = %checkout_id,
-                            amount_minor = %amount_minor,
-                            msg = "[DEBUG] Amount verification passed — proceeding to settlement"
-                        );
-                        // #endregion
-
                         let settlement = self.payment_repo.complete_checkout_deposit(
                             tx.id, receipt.clone(), None, Some(raw.clone()),
                         ).await;
-
-                        // #region debug-point H5:settlement-result
-                        tracing::info!(
-                            debug_session = "mpesa-deposit-balance",
-                            hypothesis = "H5",
-                            location = "payment_gateway.rs:apply_event:settlement_result",
-                            checkout_id = %checkout_id,
-                            tx_id = %tx.id,
-                            settlement_outcome = ?settlement.as_ref().map(|s| format!("{:?}", s)),
-                            settlement_err = ?settlement.as_ref().err(),
-                            msg = "[DEBUG] complete_checkout_deposit settlement result"
-                        );
-                        // #endregion
 
                         match settlement? {
                             SettlementOutcome::Applied { .. } => {
@@ -393,7 +313,6 @@ impl PaymentGateway {
                         }
                     }
                     TxLookup::Receipt(receipt_str) => {
-                        // Manual/unsolicited deposit
                         if let Some(uid) = user_id {
                             match self.payment_repo.complete_manual_deposit(
                                 *uid, provider_str, *amount_minor, PAYMENT_CURRENCY,
@@ -414,7 +333,6 @@ impl PaymentGateway {
                                 _ => {}
                             }
                         } else {
-                            // Quarantine
                             self.payment_repo.record_unmatched_deposit(
                                 provider_str, receipt_str, reference.as_deref(),
                                 masked_msisdn.as_deref(), PAYMENT_CURRENCY, *amount_minor, raw.clone(),
@@ -432,7 +350,6 @@ impl PaymentGateway {
                         }
                     }
                     TxLookup::Conversation(_) => {
-                        // Unexpected for deposit
                         self.payment_repo.update_webhook_event(
                             event_id, None, None, None, "failed",
                             Some("Conversation lookup for deposit".to_string()),

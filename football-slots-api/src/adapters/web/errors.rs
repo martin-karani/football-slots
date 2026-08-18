@@ -95,8 +95,6 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, code) = self.status_and_code();
 
-        // Log the real error server-side so developers can debug.
-        // 5xx = error! level (something to fix). 4xx = warn! level (expected rejection).
         if status.is_server_error() {
             tracing::error!(error_code = code, status = %status, "{self}");
         } else {

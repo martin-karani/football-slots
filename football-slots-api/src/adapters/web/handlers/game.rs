@@ -41,7 +41,6 @@ pub async fn spin(
         .map_err(|_| StatusCode::BAD_REQUEST)
         .and_then(|bytes| serde_json::from_slice(&bytes).map_err(|_| StatusCode::BAD_REQUEST))?;
 
-    // KYC check for real money
     if body.currency.requires_kyc() {
         let user = state
             .user_repo
@@ -62,7 +61,6 @@ pub async fn spin(
             })?;
     }
 
-    // Get wallet ID
     let wallet_id = state
         .wallet_service
         .get_wallet(claims.sub, body.currency)
@@ -72,7 +70,6 @@ pub async fn spin(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // Execute spin
     let result = state
         .game_engine
         .spin(claims.sub, wallet_id, &body, &state.config)
@@ -246,8 +243,6 @@ pub async fn reveal_seed(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    // Fetch the actual server seed from the server_seeds table using the hash.
-    // The round only stores the hash; the real seed lives in server_seeds.
     let seed_to_reveal = state
         .game_repo
         .find_seed_by_hash(claims.sub, &round.server_seed_hash)

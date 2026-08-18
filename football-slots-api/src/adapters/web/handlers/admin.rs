@@ -12,9 +12,6 @@ use crate::adapters::web::handlers::ErrorResponse;
 use crate::adapters::web::router::AppState;
 use crate::domain::models::wallet::WalletLedgerEntry;
 
-// ============================================================
-// Admin: Wallet Reconciliation
-// ============================================================
 
 /// Result of a single wallet reconciliation check.
 #[derive(Serialize)]
@@ -34,19 +31,11 @@ pub struct ReconciliationResponse {
     pub results: Vec<ReconciliationResult>,
 }
 
-/// Reconcile all wallets against their ledger entries.
-///
-/// This endpoint verifies that `wallets.balance_minor` matches the sum of
-/// all `wallet_ledger` entries for each wallet. Any mismatch indicates
-/// either a database tampering attempt or a bug in the wallet service.
-///
-/// **Admin only** — requires authenticated JWT. In production, this should
-/// be gated behind an admin role check (not implemented yet).
+/// Reconcile all wallets against their ledger entries. Admin only.
 pub async fn reconcile_wallets(
     State(state): State<Arc<AppState>>,
     req: axum::http::Request<axum::body::Body>,
 ) -> Result<Json<ReconciliationResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Verify the requester is authenticated (basic admin gate)
     let _claims = extract_claims(&req).ok_or((
         StatusCode::UNAUTHORIZED,
         Json(ErrorResponse {
@@ -55,7 +44,6 @@ pub async fn reconcile_wallets(
         }),
     ))?;
 
-    // Query all wallets and their ledger sums
     let rows: Vec<(Uuid, Uuid, String, i64, i64)> = sqlx::query_as(
         r#"SELECT
                w.id AS wallet_id,
@@ -121,9 +109,6 @@ pub async fn reconcile_wallets(
     }))
 }
 
-// ============================================================
-// Admin: View User Ledger
-// ============================================================
 
 #[derive(Serialize)]
 pub struct UserLedgerResponse {
@@ -134,16 +119,12 @@ pub struct UserLedgerResponse {
     pub entries: Vec<WalletLedgerEntry>,
 }
 
-/// View the full ledger for a specific user's wallet.
-///
-/// **Admin only** — requires authenticated JWT. In production, this should
-/// be gated behind an admin role check (not implemented yet).
+/// View the full ledger for a specific user's wallet. Admin only.
 pub async fn get_user_ledger(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
     req: axum::http::Request<axum::body::Body>,
 ) -> Result<Json<UserLedgerResponse>, (StatusCode, Json<ErrorResponse>)> {
-    // Verify the requester is authenticated
     let _claims = extract_claims(&req).ok_or((
         StatusCode::UNAUTHORIZED,
         Json(ErrorResponse {
@@ -152,7 +133,6 @@ pub async fn get_user_ledger(
         }),
     ))?;
 
-    // Get the user's real-money wallet
     let wallet = state
         .wallet_repo
         .get_or_create(user_id, crate::domain::models::wallet::CurrencyType::Real)
@@ -167,7 +147,6 @@ pub async fn get_user_ledger(
             )
         })?;
 
-    // Get the ledger entries
     let entries = state
         .wallet_repo
         .get_ledger_entries(wallet.id, 100, 0)
@@ -191,9 +170,6 @@ pub async fn get_user_ledger(
     }))
 }
 
-// ============================================================
-// Admin: Freeze / Unfreeze Wallet
-// ============================================================
 
 #[derive(Serialize)]
 pub struct FreezeResponse {
@@ -204,10 +180,7 @@ pub struct FreezeResponse {
     pub message: String,
 }
 
-/// Freeze a wallet: blocks all debits (bets, withdrawals) but allows credits.
-///
-/// **Admin only** — requires authenticated JWT. In production, this should
-/// be gated behind an admin role check (not implemented yet).
+/// Freeze a wallet: blocks all debits, allows credits. Admin only.
 pub async fn freeze_wallet(
     State(state): State<Arc<AppState>>,
     Path(wallet_id): Path<Uuid>,
@@ -255,10 +228,7 @@ pub async fn freeze_wallet(
     }))
 }
 
-/// Unfreeze a wallet: restores normal operation.
-///
-/// **Admin only** — requires authenticated JWT. In production, this should
-/// be gated behind an admin role check (not implemented yet).
+/// Unfreeze a wallet. Admin only.
 pub async fn unfreeze_wallet(
     State(state): State<Arc<AppState>>,
     Path(wallet_id): Path<Uuid>,
@@ -291,11 +261,7 @@ pub async fn unfreeze_wallet(
             )
         })?;
 
-    tracing::info!(
-        wallet_id = %wallet_id,
-        user_id = %wallet.user_id,
-        "Wallet unfrozen by admin"
-    );
+    
 
     Ok(Json(FreezeResponse {
         wallet_id: wallet.id,

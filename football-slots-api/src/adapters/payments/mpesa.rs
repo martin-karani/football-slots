@@ -15,11 +15,8 @@ use crate::ports::payments::{
 };
 use crate::ports::repositories::{MpesaOpsRepository, PaymentRepository, UserRepository};
 
-/// M-Pesa adapter — implements PaymentProviderPort.
-///
-/// All Daraja outbound HTTP code lives here. The adapter NEVER writes
-/// payment_transactions, wallets, or ledger. It only translates provider
-/// payloads and makes outbound HTTP calls.
+/// M-Pesa adapter — handles all Daraja outbound HTTP.
+/// Never writes payment_transactions, wallets, or ledger.
 pub struct MpesaAdapter {
     config: MpesaConfig,
     app_base_url: String,
@@ -47,9 +44,6 @@ impl MpesaAdapter {
         }
     }
 
-    // ============================================================
-    // Auth
-    // ============================================================
 
     async fn get_access_token(&self) -> Result<String, DomainError> {
         let credentials = format!(
@@ -149,9 +143,6 @@ impl MpesaAdapter {
         (working, utility, merchant, charges)
     }
 
-    // ============================================================
-    // STK Push (Deposit)
-    // ============================================================
 
     async fn send_stk_push(
         &self,
@@ -185,29 +176,7 @@ impl MpesaAdapter {
             "TransactionDesc": "Deposit to Football Slots",
         });
 
-        // #region debug-point H2:stk-push-request
-        tracing::info!(
-            debug_session = "mpesa-deposit-balance",
-            hypothesis = "H2",
-            location = "mpesa.rs:send_stk_push:request",
-            phone_normalized = %normalized_phone,
-            amount_kes = %amount_kes,
-            shortcode = %self.config.shortcode,
-            lipa_url = %self.config.lipa_url,
-            callback_url = %callback_url,
-            transaction_type = "CustomerPayBillOnline",
-            has_access_token = !access_token.is_empty(),
-            access_token_len = access_token.len(),
-            msg = "[DEBUG] STK Push request being sent to Daraja"
-        );
-        // #endregion
-
-        tracing::info!(
-            phone = %normalized_phone,
-            amount = amount_kes,
-            shortcode = %self.config.shortcode,
-            "Sending STK push to Daraja"
-        );
+        
 
         let response = self
             .client
@@ -220,20 +189,10 @@ impl MpesaAdapter {
 
         match response {
             Ok(resp) => {
-                let status = resp.status();
                 let body = match resp.json::<serde_json::Value>().await {
                     Ok(b) => b,
                     Err(e) => {
-                        // #region debug-point H2:stk-push-response-json-parse-err
-                        tracing::error!(
-                            debug_session = "mpesa-deposit-balance",
-                            hypothesis = "H2",
-                            location = "mpesa.rs:send_stk_push:response_json_error",
-                            http_status = %status,
-                            parse_error = %e,
-                            msg = "[DEBUG] STK Push response JSON parse failed"
-                        );
-                        // #endregion
+                        tracing::error!(error = %e, "Failed to parse STK push response");
                         return ProviderSubmission::Unknown(format!(
                             "Failed to parse STK response: {}",
                             e
@@ -241,42 +200,12 @@ impl MpesaAdapter {
                     }
                 };
 
-                // #region debug-point H2:stk-push-response
-                tracing::info!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H2",
-                    location = "mpesa.rs:send_stk_push:response",
-                    http_status = %status,
-                    response_code = body["ResponseCode"].as_str(),
-                    checkout_request_id = body["CheckoutRequestID"].as_str(),
-                    merchant_request_id = body["MerchantRequestID"].as_str(),
-                    response_description = body["ResponseDescription"].as_str(),
-                    customer_message = body["CustomerMessage"].as_str().or_else(|| body["customerMessage"].as_str()),
-                    error_code = body["errorCode"].as_str().or_else(|| body["ErrorCode"].as_str()),
-                    error_message = body["errorMessage"].as_str().or_else(|| body["ErrorMessage"].as_str()),
-                    request_id_from_body = body["requestId"].as_str(),
-                    response_body_raw = %body,
-                    msg = "[DEBUG] STK Push full response from Daraja"
-                );
-                // #endregion
-
-                tracing::info!(status = %status, response_body = %body, "Daraja STK push response");
 
                 let checkout_request_id = body["CheckoutRequestID"].as_str().map(String::from);
                 let merchant_request_id = body["MerchantRequestID"].as_str().map(String::from);
 
                 if let Some(cid) = &checkout_request_id {
                     if !cid.is_empty() {
-                        // #region debug-point H2:stk-push-accepted
-                        tracing::info!(
-                            debug_session = "mpesa-deposit-balance",
-                            hypothesis = "H2",
-                            location = "mpesa.rs:send_stk_push:accepted",
-                            checkout_request_id = %cid,
-                            merchant_request_id = ?merchant_request_id,
-                            msg = "[DEBUG] STK Push ACCEPTED by Daraja — CheckoutRequestID minted, waiting for user + callback"
-                        );
-                        // #endregion
                         return ProviderSubmission::Accepted(DepositInitiation {
                             provider_checkout_id: checkout_request_id,
                             provider_merchant_id: merchant_request_id,
@@ -285,60 +214,26 @@ impl MpesaAdapter {
                     }
                 }
 
-                // Error response from Daraja
                 let desc = body["errorMessage"]
                     .as_str()
                     .or_else(|| body["ErrorMessage"].as_str())
                     .or_else(|| body["ResponseDescription"].as_str())
                     .or_else(|| body["customerMessage"].as_str())
                     .unwrap_or("STK Push rejected");
-                // #region debug-point H2:stk-push-rejected
-                tracing::error!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H2",
-                    location = "mpesa.rs:send_stk_push:rejected",
-                    reason = %desc,
-                    error_code = body["errorCode"].as_str().or_else(|| body["ErrorCode"].as_str()),
-                    http_status = %status,
-                    body = %body,
-                    msg = "[DEBUG] STK Push REJECTED by Daraja — transaction will be marked failed"
-                );
-                // #endregion
-                tracing::error!(reason = desc, body = %body, "Daraja STK push rejected");
+                tracing::error!(reason = %desc, "Daraja STK push rejected");
                 ProviderSubmission::Rejected(desc.to_string())
             }
             Err(e) if e.is_timeout() || e.is_connect() => {
-                // #region debug-point H2:stk-push-network-error
-                tracing::error!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H2",
-                    location = "mpesa.rs:send_stk_push:network_error",
-                    is_timeout = e.is_timeout(),
-                    is_connect = e.is_connect(),
-                    error = %e,
-                    msg = "[DEBUG] STK Push NETWORK ERROR (timeout/connect) — tx left pending"
-                );
-                // #endregion
+                tracing::error!(error = %e, "STK push network error");
                 ProviderSubmission::Unknown(format!("STK Push network error: {}", e))
             }
             Err(e) => {
-                // #region debug-point H2:stk-push-other-error
-                tracing::error!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H2",
-                    location = "mpesa.rs:send_stk_push:other_error",
-                    error = %e,
-                    msg = "[DEBUG] STK Push OTHER ERROR"
-                );
-                // #endregion
+                tracing::error!(error = %e, "STK push error");
                 ProviderSubmission::Unknown(format!("STK Push error: {}", e))
             }
         }
     }
 
-    // ============================================================
-    // B2C Payment (Withdrawal)
-    // ============================================================
 
     async fn send_b2c_payment(
         &self,
@@ -423,9 +318,6 @@ impl MpesaAdapter {
         }
     }
 
-    // ============================================================
-    // User resolution from C2B BillRefNumber
-    // ============================================================
 
     pub async fn resolve_user_from_c2b_ref(
         &self,
@@ -434,7 +326,6 @@ impl MpesaAdapter {
     ) -> DomainResult<Option<uuid::Uuid>> {
         let trimmed_ref = bill_ref.trim();
 
-        // 1. Try as UUID
         if !trimmed_ref.is_empty() {
             if let Ok(user_id) = trimmed_ref.parse::<uuid::Uuid>() {
                 if self.user_repo.find_by_id(user_id).await?.is_some() {
@@ -442,14 +333,12 @@ impl MpesaAdapter {
                 }
             }
 
-            // 2. Try as phone number (normalized)
             let norm_bill_ref = Self::normalize_phone(trimmed_ref);
             if let Some(user) = self.user_repo.find_by_phone(&norm_bill_ref).await? {
                 return Ok(Some(user.id));
             }
         }
 
-        // 3. Fall back to sender's MSISDN
         if let Some(phone) = msisdn {
             let trimmed_phone = phone.trim();
             if !trimmed_phone.is_empty() {
@@ -463,9 +352,6 @@ impl MpesaAdapter {
         Ok(None)
     }
 
-    // ============================================================
-    // C2B Registration
-    // ============================================================
 
     pub async fn register_c2b_urls(&self) -> DomainResult<()> {
         let access_token = self.get_access_token().await?;
@@ -495,7 +381,6 @@ impl MpesaAdapter {
         if response_code != "0" {
             let desc = body["ResponseDescription"].as_str().unwrap_or("");
             if desc.contains("already registered") || desc.contains("already Registered") {
-                tracing::info!("C2B URLs already registered: {}", desc);
                 return Ok(());
             }
             return Err(DomainError::Payment(format!(
@@ -504,13 +389,9 @@ impl MpesaAdapter {
             )));
         }
 
-        tracing::info!("C2B URLs registered successfully");
         Ok(())
     }
 
-    // ============================================================
-    // Pull Transactions (Reconciliation)
-    // ============================================================
 
     pub async fn register_pull_transactions(&self) -> DomainResult<()> {
         let access_token = self.get_access_token().await?;
@@ -542,11 +423,9 @@ impl MpesaAdapter {
 
         match response_status {
             "1000" => {
-                tracing::info!("Pull Transactions registered successfully");
                 Ok(())
             }
             "1001" => {
-                tracing::info!("Pull Transactions already registered: {}", description);
                 Ok(())
             }
             _ => Err(DomainError::Payment(format!(
@@ -631,7 +510,6 @@ impl MpesaAdapter {
                     continue;
                 }
 
-                // Check if we already have this transaction
                 if self
                     .payment_repo
                     .find_by_receipt("mpesa", trans_id)
@@ -651,7 +529,6 @@ impl MpesaAdapter {
                     .flatten()
                 {
                     if let Ok(amount_minor) = Self::parse_kes_to_minor_units(amount_str) {
-                        // Use the gateway's manual deposit path for reconciliation
                         match self
                             .payment_repo
                             .complete_manual_deposit(
@@ -667,15 +544,9 @@ impl MpesaAdapter {
                         {
                             Ok(_) => {
                                 credited += 1;
-                                tracing::info!(
-                                    "Reconciled missed deposit: user={}, amount={}, TransID={}",
-                                    user_id,
-                                    amount_minor,
-                                    trans_id
-                                );
+                                
                             }
                             Err(_) => {
-                                // Already settled or other error — skip
                             }
                         }
                     }
@@ -688,16 +559,10 @@ impl MpesaAdapter {
             offset += 100;
         }
 
-        tracing::info!(
-            "Reconciliation complete: {} transactions credited",
-            credited
-        );
+        
         Ok(credited)
     }
 
-    // ============================================================
-    // Account Balance API
-    // ============================================================
 
     pub async fn query_account_balance(&self) -> DomainResult<MpesaBalanceQuery> {
         let access_token = self.get_access_token().await?;
@@ -775,12 +640,7 @@ impl MpesaAdapter {
                 )
                 .await?;
 
-            tracing::info!(
-                "M-Pesa Account Balance Updated: Utility={:?}, Working={:?}, Merchant={:?}",
-                utility,
-                working,
-                merchant
-            );
+            
         } else {
             self.mpesa_ops_repo
                 .update_balance_result(
@@ -802,9 +662,6 @@ impl MpesaAdapter {
         self.mpesa_ops_repo.get_latest_balance().await
     }
 
-    // ============================================================
-    // B2B — Business Pay Bill
-    // ============================================================
 
     pub async fn business_pay_bill(
         &self,
@@ -856,13 +713,6 @@ impl MpesaAdapter {
             )));
         }
 
-        tracing::info!(
-            "B2B BusinessPayBill submitted: amount={}, paybill={}, originator_id={}",
-            amount_minor,
-            paybill_number,
-            body["OriginatorConversationID"].as_str().unwrap_or("")
-        );
-
         Ok(body)
     }
 
@@ -873,11 +723,7 @@ impl MpesaAdapter {
         let result_desc = result["ResultDesc"].as_str().unwrap_or("");
 
         if result_code == 0 {
-            tracing::info!(
-                "B2B payment successful: originator_id={}, desc={}",
-                originator_id,
-                result_desc
-            );
+            
         } else {
             tracing::warn!(
                 "B2B payment failed: originator_id={}, code={}, desc={}",
@@ -890,9 +736,6 @@ impl MpesaAdapter {
         Ok(())
     }
 
-    // ============================================================
-    // Unmatched deposits
-    // ============================================================
 
     pub async fn list_unmatched_deposits(
         &self,
@@ -945,7 +788,6 @@ impl PaymentProviderPort for MpesaAdapter {
 
         match webhook {
             "stk_callback" => {
-                // STK Push callback
                 let checkout_id = payload_clone["Body"]["stkCallback"]["CheckoutRequestID"]
                     .as_str()
                     .unwrap_or("");
@@ -955,21 +797,6 @@ impl PaymentProviderPort for MpesaAdapter {
                 let result_desc = payload_clone["Body"]["stkCallback"]["ResultDesc"]
                     .as_str()
                     .map(String::from);
-
-                // #region debug-point H1:stk-amount-parse
-                tracing::info!(
-                    debug_session = "mpesa-deposit-balance",
-                    hypothesis = "H1",
-                    location = "mpesa.rs:process_webhook:stk_callback",
-                    checkout_id = %checkout_id,
-                    result_code = %result_code,
-                    raw_amount_value = ?payload_clone["Body"]["stkCallback"]["CallbackMetadata"]["Item"]
-                        .as_array()
-                        .and_then(|items| items.iter().find(|item| item["Name"] == "Amount"))
-                        .map(|item| item["Value"].clone()),
-                    msg = "[DEBUG] STK callback amount raw value parse"
-                );
-                // #endregion
 
                 if result_code == 0 {
                     let amount_from_callback = payload_clone["Body"]["stkCallback"]
@@ -989,19 +816,6 @@ impl PaymentProviderPort for MpesaAdapter {
                         0
                     });
 
-                    // #region debug-point H1:stk-amount-result
-                    tracing::info!(
-                        debug_session = "mpesa-deposit-balance",
-                        hypothesis = "H1",
-                        location = "mpesa.rs:process_webhook:stk_callback:amount",
-                        checkout_id = %checkout_id,
-                        amount_from_callback_i64_whole_kes = %amount_from_callback,
-                        amount_minor_converted_cents = %amount_minor,
-                        conversion_applied = "amount_from_callback * 100",
-                        msg = "[DEBUG] STK callback amount converted KES → minor units (FIX #1 applied)"
-                    );
-                    // #endregion
-
                     let receipt = payload_clone["Body"]["stkCallback"]["CallbackMetadata"]["Item"]
                         .as_array()
                         .and_then(|items| {
@@ -1020,7 +834,7 @@ impl PaymentProviderPort for MpesaAdapter {
 
                     Ok(Some(ProviderEvent::DepositSucceeded {
                         lookup: TxLookup::Checkout(checkout_id.to_string()),
-                        user_id: None, // resolved by checkout lookup
+                        user_id: None,
                         amount_minor,
                         receipt,
                         reference: None,
@@ -1084,7 +898,6 @@ impl PaymentProviderPort for MpesaAdapter {
                 let msisdn = payload_clone["MSISDN"].as_str().unwrap_or("");
                 let bill_ref = payload_clone["BillRefNumber"].as_str().unwrap_or("").trim();
 
-                // Try to resolve user by account reference or MSISDN
                 let user_id = self.resolve_user_from_c2b_ref(bill_ref, Some(msisdn)).await?;
 
                 Ok(Some(ProviderEvent::DepositSucceeded {
@@ -1098,16 +911,13 @@ impl PaymentProviderPort for MpesaAdapter {
                 }))
             }
             "c2b_validation" => {
-                // Validation is just a pre-check; we accept all
                 Ok(None)
             }
             "accountbalance_result" | "accountbalance_timeout" => {
-                // Handled internally by the adapter
                 self.process_account_balance_callback(payload).await?;
                 Ok(None)
             }
             "b2b_result" | "b2b_timeout" => {
-                // Handled internally by the adapter
                 self.process_b2b_result(payload).await?;
                 Ok(None)
             }

@@ -8,9 +8,7 @@ use crate::domain::models::{
 };
 use crate::ports::repositories::{MpesaOpsRepository, PaymentRepository, SettlementOutcome};
 
-// ============================================================
 // Payment Repository (provider-agnostic)
-// ============================================================
 
 pub struct PgPaymentRepository {
     pool: PgPool,
@@ -301,24 +299,8 @@ impl PaymentRepository for PgPaymentRepository {
         result_code: Option<i32>,
         raw_callback: Option<serde_json::Value>,
     ) -> DomainResult<SettlementOutcome> {
-        // #region debug-point H5:settlement-entry
-        tracing::info!(
-            debug_session = "mpesa-deposit-balance",
-            hypothesis = "H5",
-            location = "payment_repository.rs:complete_checkout_deposit:entry",
-            payment_id = %payment_id,
-            receipt = ?receipt,
-            msg = "[DEBUG] complete_checkout_deposit called — starting DB transaction"
-        );
-        // #endregion
-
         let mut tx = self.pool.begin().await?;
 
-        // Conditional UPDATE: pending OR failed → completed.
-        // We accept 'failed' too so that:
-        //  (a) sandbox: real Daraja 1037 callback arrives before the simulated success;
-        //  (b) production race: timeout callback beats the success callback.
-        // This is safe because we guard idempotency via AlreadySettled on duplicates.
         let payment: Option<(Uuid, i64)> = sqlx::query_as(
             r#"UPDATE payment_transactions
                SET status = 'completed', provider_receipt = $2, result_code = $3,
@@ -333,25 +315,11 @@ impl PaymentRepository for PgPaymentRepository {
         .fetch_optional(&mut *tx)
         .await?;
 
-        // #region debug-point H5:tx-status-update
-        tracing::info!(
-            debug_session = "mpesa-deposit-balance",
-            hypothesis = "H5",
-            location = "payment_repository.rs:complete_checkout_deposit:tx_updated",
-            payment_id = %payment_id,
-            payment_row_found = payment.is_some(),
-            payment_user_id = ?payment.map(|p| p.0),
-            payment_amount = ?payment.map(|p| p.1),
-            msg = "[DEBUG] Payment transaction status update result (pending|failed → completed)"
-        );
-        // #endregion
-
         let Some((user_id, amount_minor)) = payment else {
             tx.rollback().await.ok();
             return Ok(SettlementOutcome::AlreadySettled);
         };
 
-        // FIX #10: deposits credit even frozen wallets. NO `NOT is_frozen` here.
         let (wallet_id, balance_after): (Uuid, i64) = sqlx::query_as(
             r#"INSERT INTO wallets (user_id, currency, balance_minor)
                VALUES ($1, 'real'::currency_type, $2)
@@ -364,20 +332,6 @@ impl PaymentRepository for PgPaymentRepository {
         .bind(amount_minor)
         .fetch_one(&mut *tx)
         .await?;
-
-        // #region debug-point H5:wallet-credited
-        tracing::info!(
-            debug_session = "mpesa-deposit-balance",
-            hypothesis = "H5",
-            location = "payment_repository.rs:complete_checkout_deposit:wallet_credit",
-            payment_id = %payment_id,
-            user_id = %user_id,
-            wallet_id = %wallet_id,
-            credit_amount_minor = %amount_minor,
-            new_wallet_balance_after = %balance_after,
-            msg = "[DEBUG] WALLET CREDITED — balance updated in DB transaction"
-        );
-        // #endregion
 
         sqlx::query(
             r#"INSERT INTO wallet_ledger
@@ -393,19 +347,6 @@ impl PaymentRepository for PgPaymentRepository {
 
         tx.commit().await?;
 
-        // #region debug-point H5:settlement-committed
-        tracing::info!(
-            debug_session = "mpesa-deposit-balance",
-            hypothesis = "H5",
-            location = "payment_repository.rs:complete_checkout_deposit:committed",
-            payment_id = %payment_id,
-            user_id = %user_id,
-            wallet_id = %wallet_id,
-            final_balance_minor = %balance_after,
-            msg = "[DEBUG] SETTLEMENT COMMITTED — transaction complete, balance should show in queries"
-        );
-        // #endregion
-
         Ok(SettlementOutcome::Applied {
             payment_id,
             user_id,
@@ -413,7 +354,6 @@ impl PaymentRepository for PgPaymentRepository {
         })
     }
 
-    /// Manual/unsolicited deposit: INSERT payment(completed) + credit wallet + ledger.
     async fn complete_manual_deposit(
         &self,
         user_id: Uuid,
@@ -426,7 +366,6 @@ impl PaymentRepository for PgPaymentRepository {
     ) -> DomainResult<SettlementOutcome> {
         let mut tx = self.pool.begin().await?;
 
-        // INSERT payment row (completed). Unique (provider, provider_receipt) is the guard.
         let (payment_id,): (Uuid,) = match sqlx::query_as(
             r#"INSERT INTO payment_transactions
                (id, user_id, provider, direction, status, currency, amount_minor,
@@ -490,7 +429,6 @@ impl PaymentRepository for PgPaymentRepository {
         })
     }
 
-    /// Deposit failure: pending → failed, no money movement.
     async fn fail_deposit(
         &self,
         payment_id: Uuid,
@@ -570,7 +508,6 @@ impl PaymentRepository for PgPaymentRepository {
     ) -> DomainResult<SettlementOutcome> {
         let mut tx = self.pool.begin().await?;
 
-        // Conditional UPDATE: processing → reversed only
         let payment: Option<(Uuid, i64)> = sqlx::query_as(
             r#"UPDATE payment_transactions
                SET status = 'reversed', result_code = $1, result_desc = $2,
@@ -594,7 +531,6 @@ impl PaymentRepository for PgPaymentRepository {
             return Ok(SettlementOutcome::InvalidState);
         };
 
-        // Credit wallet back (works even on frozen wallets — FIX #10)
         let (wallet_id, balance_after): (Uuid, i64) = sqlx::query_as(
             r#"INSERT INTO wallets (user_id, currency, balance_minor)
                VALUES ($1, 'real'::currency_type, $2)
@@ -754,9 +690,6 @@ impl PaymentRepository for PgPaymentRepository {
     }
 }
 
-// ============================================================
-// M-Pesa Ops Repository (float monitoring)
-// ============================================================
 
 pub struct PgMpesaOpsRepository {
     pool: PgPool,

@@ -37,9 +37,6 @@ fn error_response(e: DomainError) -> (StatusCode, Json<ErrorResponse>) {
     )
 }
 
-// ============================================================
-// Provider listing
-// ============================================================
 
 #[derive(Serialize)]
 pub struct ProvidersResponse {
@@ -62,9 +59,6 @@ pub async fn list_providers(
     }))
 }
 
-// ============================================================
-// Deposits
-// ============================================================
 
 #[derive(Deserialize)]
 pub struct DepositRequest {
@@ -89,7 +83,6 @@ pub async fn initiate_deposit(
         Json(ErrorResponse { error: "unauthorized".into(), message: "Missing or invalid token".into() }),
     ))?;
 
-    // Extract idempotency key BEFORE consuming the body
     let idempotency_key = req.headers()
         .get("Idempotency-Key")
         .and_then(|v| v.to_str().ok())
@@ -125,12 +118,7 @@ pub async fn initiate_deposit(
         ));
     }
 
-    tracing::info!(
-        user_id = %claims.sub,
-        provider = %body.provider,
-        amount_minor = body.amount_minor,
-        "Deposit initiated"
-    );
+    
 
     let tx = state
         .payment_gateway
@@ -138,11 +126,7 @@ pub async fn initiate_deposit(
         .await
         .map_err(error_response)?;
 
-    tracing::info!(
-        transaction_id = %tx.id,
-        status = %tx.status,
-        "Deposit processed"
-    );
+    
 
     Ok(Json(DepositResponse {
         transaction_id: tx.id,
@@ -151,9 +135,6 @@ pub async fn initiate_deposit(
     }))
 }
 
-// ============================================================
-// Withdrawals
-// ============================================================
 
 #[derive(Deserialize)]
 pub struct WithdrawRequest {
@@ -178,7 +159,6 @@ pub async fn initiate_withdrawal(
         Json(ErrorResponse { error: "unauthorized".into(), message: "Missing or invalid token".into() }),
     ))?;
 
-    // Extract idempotency key BEFORE consuming the body
     let idempotency_key = req.headers()
         .get("Idempotency-Key")
         .and_then(|v| v.to_str().ok())
@@ -195,12 +175,7 @@ pub async fn initiate_withdrawal(
     let provider = PaymentProvider::from_name(&body.provider)
         .ok_or((StatusCode::BAD_REQUEST, Json(ErrorResponse { error: "bad_request".into(), message: "Unknown provider".into() })))?;
 
-    tracing::info!(
-        user_id = %claims.sub,
-        provider = %body.provider,
-        amount_minor = body.amount_minor,
-        "Withdrawal initiated"
-    );
+    
 
     let tx = state
         .payment_gateway
@@ -208,11 +183,7 @@ pub async fn initiate_withdrawal(
         .await
         .map_err(error_response)?;
 
-    tracing::info!(
-        transaction_id = %tx.id,
-        status = %tx.status,
-        "Withdrawal processed"
-    );
+    
 
     Ok(Json(WithdrawResponse {
         transaction_id: tx.id,
@@ -221,9 +192,6 @@ pub async fn initiate_withdrawal(
     }))
 }
 
-// ============================================================
-// History
-// ============================================================
 
 #[derive(Serialize)]
 pub struct HistoryResponse {
@@ -320,28 +288,13 @@ pub async fn get_payment_status(
     })))
 }
 
-// ============================================================
-// Generic webhook handlers
-// ============================================================
 
-/// Provider-agnostic webhook callback handler (URL path: /api/v1/payments/callbacks/:webhook)
+/// M-Pesa webhook callback handler.
 pub async fn callback_webhook(
     State(state): State<Arc<AppState>>,
     Path(webhook): Path<String>,
     Json(payload): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    // #region debug-point H2+H3:callback-entry
-    tracing::info!(
-        debug_session = "mpesa-deposit-balance",
-        hypothesis = "H2,H3",
-        location = "payments.rs:callback_webhook",
-        webhook_name = %webhook,
-        payload_keys = ?payload.as_object().map(|o| o.keys().cloned().collect::<Vec<_>>()),
-        stk_checkout_id = ?payload.get("Body").and_then(|b| b.get("stkCallback")).and_then(|s| s.get("CheckoutRequestID")).and_then(|v| v.as_str()),
-        msg = "[DEBUG] Webhook callback received — IP passed middleware if this log fires"
-    );
-    // #endregion
-
     let provider = crate::domain::models::payment::PaymentProvider::Mpesa;
     let provider_code = provider.as_str();
 
@@ -356,19 +309,6 @@ pub async fn callback_webhook(
 
     // 2. Process (atomic, idempotent). On error the stored event stays available for retry.
     let result = state.payment_gateway.handle_webhook(provider, &webhook, payload, event_id).await;
-
-    // #region debug-point H2+H3:callback-result
-    tracing::info!(
-        debug_session = "mpesa-deposit-balance",
-        hypothesis = "H2,H3",
-        location = "payments.rs:callback_webhook:result",
-        webhook_name = %webhook,
-        event_id = %event_id,
-        result_is_ok = result.is_ok(),
-        result_err = ?result.as_ref().err(),
-        msg = "[DEBUG] Webhook callback processing completed"
-    );
-    // #endregion
 
     match result {
         Ok(()) => Json(serde_json::json!({"result_code": 0, "result_desc": "accepted"})),

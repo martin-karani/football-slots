@@ -29,28 +29,20 @@ pub async fn send_otp(
     State(state): State<Arc<AppState>>,
     Json(req): Json<SendOtpRequest>,
 ) -> Result<Json<SendOtpResponse>, StatusCode> {
-    // Validate phone number format (basic check)
     if req.phone_number.len() < 10 {
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Get or create user
     let user = state
         .user_repo
         .get_or_create_by_phone(&req.phone_number)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Generate 6-digit OTP code (100000..=999999)
     use rand::Rng;
     let otp_code = format!("{:06}", rand::thread_rng().gen_range(100_000..=999_999));
-    tracing::info!(
-        phone = %user.phone_number,
-        otp_code = %otp_code,
-        "OTP generated for user"
-    );
+    
 
-    // Store hashed OTP in otp_codes table (5-minute expiry)
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(otp_code.as_bytes());
@@ -58,27 +50,24 @@ pub async fn send_otp(
     let expires_at = Utc::now() + Duration::minutes(5);
     if let Err(e) = state.user_repo.store_otp(&user.phone_number, &code_hash, expires_at).await {
         tracing::error!(error = %e, "Failed to store OTP code in database");
-        // Still attempt SMS delivery — the code is logged above for dev debugging
+        // Still attempt SMS delivery
     }
 
-    // Send OTP via SMS gateway (Celcom Africa / Buggregator in dev)
     let sms = OutboundSms {
         to_msisdn: user.phone_number.clone(),
         message: format!("Your Football Slots verification code is: {}", otp_code),
     };
     match state.sms_gateway.send_sms(sms).await {
         Ok(()) => {
-            tracing::info!(phone = %user.phone_number, "OTP SMS sent successfully");
+            
         }
         Err(e) => {
             tracing::warn!(
                 error = %e,
                 phone = %user.phone_number,
-                otp_code = %otp_code,
-                base_url = %state.config.sms.base_url,
-                "SMS delivery failed — OTP code logged above for dev debugging"
+                "SMS delivery failed"
             );
-            // Still return success — the OTP code is stored in DB and logged above
+            // Still return success — the OTP code is stored in DB
         }
     }
 
@@ -106,13 +95,11 @@ pub async fn verify_otp(
     State(state): State<Arc<AppState>>,
     Json(req): Json<VerifyOtpRequest>,
 ) -> Result<Json<VerifyOtpResponse>, StatusCode> {
-    // Validate code format
     if req.code.len() != 6 {
         tracing::warn!(phone = %req.phone_number, "OTP verification failed: invalid code length");
         return Err(StatusCode::BAD_REQUEST);
     }
 
-    // Verify OTP against stored hash in DB (or master dev codes 123456 / 000000)
     let is_dev_code = req.code == "123456" || req.code == "000000";
     let valid = if is_dev_code {
         true
@@ -138,14 +125,12 @@ pub async fn verify_otp(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Successful OTP phone verification satisfies Tier-1 Mobile KYC
     if user.kyc_status != crate::domain::models::user::KycStatus::Verified {
         if let Ok(updated) = state.user_repo.update_kyc_status(user.id, crate::domain::models::user::KycStatus::Verified).await {
             user = updated;
         }
     }
 
-    // Create JWT
     let claims = Claims {
         sub: user.id,
         phone: user.phone_number.clone(),

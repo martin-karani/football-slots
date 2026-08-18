@@ -11,9 +11,6 @@ use crate::domain::models::{
 };
 use crate::ports::repositories::*;
 
-// ============================================================
-// User Repository
-// ============================================================
 
 pub struct PgUserRepository {
     pool: PgPool,
@@ -113,7 +110,6 @@ impl UserRepository for PgUserRepository {
     }
 
     async fn store_otp(&self, phone: &str, code_hash: &str, expires_at: chrono::DateTime<chrono::Utc>) -> DomainResult<()> {
-        // Invalidate any existing unused codes for this phone
         sqlx::query(
             r#"UPDATE otp_codes SET used = TRUE WHERE phone_number = $1 AND NOT used AND expires_at > now()"#,
         )
@@ -121,7 +117,6 @@ impl UserRepository for PgUserRepository {
         .execute(&self.pool)
         .await?;
 
-        // Insert the new OTP code
         sqlx::query(
             r#"INSERT INTO otp_codes (phone_number, code_hash, expires_at) VALUES ($1, $2, $3)"#,
         )
@@ -131,7 +126,7 @@ impl UserRepository for PgUserRepository {
         .execute(&self.pool)
         .await?;
 
-        tracing::info!(phone = %phone, "OTP code stored in database");
+        
         Ok(())
     }
 
@@ -141,8 +136,6 @@ impl UserRepository for PgUserRepository {
         hasher.update(code.as_bytes());
         let code_hash = hex::encode(hasher.finalize());
 
-        // Find the most recent unused, unexpired OTP for this phone and mark it as used.
-        // PostgreSQL doesn't support ORDER BY in UPDATE, so we use a CTE.
         let row: Option<(String,)> = sqlx::query_as(
             r#"WITH target AS (
                    SELECT id, code_hash FROM otp_codes
@@ -160,7 +153,7 @@ impl UserRepository for PgUserRepository {
 
         let valid = row.is_some();
         if valid {
-            tracing::info!(phone = %phone, "OTP code verified successfully");
+            
         } else {
             tracing::warn!(phone = %phone, "OTP code verification failed (wrong code or expired)");
         }
@@ -168,9 +161,6 @@ impl UserRepository for PgUserRepository {
     }
 }
 
-// ============================================================
-// Wallet Repository
-// ============================================================
 
 pub struct PgWalletRepository {
     pool: PgPool,
@@ -218,12 +208,7 @@ impl WalletRepository for PgWalletRepository {
         } else {
             0i64
         };
-        tracing::debug!(
-            user_id = %user_id,
-            currency = ?currency,
-            initial_balance,
-            "Wallet get_or_create"
-        );
+        
         let wallet: Wallet = sqlx::query_as(
             r#"INSERT INTO wallets (user_id, currency, balance_minor) VALUES ($1, $2::currency_type, $3)
                ON CONFLICT (user_id, currency) DO UPDATE SET updated_at = now()
@@ -243,11 +228,7 @@ impl WalletRepository for PgWalletRepository {
             );
             DomainError::Database(e)
         })?;
-        tracing::debug!(
-            wallet_id = %wallet.id,
-            balance = wallet.balance_minor,
-            "Wallet retrieved or created"
-        );
+        
         Ok(wallet)
     }
 
@@ -505,9 +486,7 @@ impl WalletRepository for PgWalletRepository {
     }
 }
 
-// ============================================================
 // Game Repository
-// ============================================================
 
 pub struct PgGameRepository {
     pool: PgPool,

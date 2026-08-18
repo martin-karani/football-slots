@@ -16,7 +16,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a0033"
+        "backgroundColor": "#2a0048"
       },
       "package": "com.footballslots.app"
     },
@@ -29,7 +29,7 @@
         {
           "image": "./assets/splash.png",
           "resizeMode": "contain",
-          "backgroundColor": "#1a0033"
+          "backgroundColor": "#2a0048"
         }
       ],
       "expo-secure-store",

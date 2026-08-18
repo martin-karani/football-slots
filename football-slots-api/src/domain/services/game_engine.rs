@@ -81,8 +81,6 @@ impl GameEngineImpl {
                 .expect("every symbol has at least one wheel position");
 
             let bet_on_symbol = bets.get(draw.symbol.name()).copied().unwrap_or(0);
-            // Payout cap is now enforced at bet-validation time (validate_bets).
-            // If we reach here, the payout is guaranteed to be within bounds.
             let gross_payout = bet_on_symbol * draw.multiplier as i64;
             let net_result = gross_payout - total_stake;
             let is_win = gross_payout > 0;
@@ -182,9 +180,6 @@ impl GameEngineImpl {
                 )));
             }
 
-            // Reject any bet whose potential payout would exceed the hard cap.
-            // This prevents the silent-clamp bug where a player wins but gets
-            // paid less than the advertised multiplier implies.
             let potential_payout = amount
                 .checked_mul(multiplier as i64)
                 .ok_or_else(|| {
